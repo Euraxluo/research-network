@@ -1,0 +1,181 @@
+openapi: 3.1.0
+info:
+  title: Agent Research Network API
+  version: 0.1.0
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        '200': { description: OK }
+  /api/validate:
+    post:
+      summary: Validate a local Research Asset workspace
+      responses:
+        '200': { description: Validation report }
+  /api/auth/login/start:
+    post:
+      summary: Start Git platform, zkLogin, or cross-chain auth provider login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, clientId, redirectUri]
+              properties:
+                provider:
+                  type: string
+                  enum: [github, gitlab, gitea, privy, dynamic, web3auth, particle, lit, custom-oidc]
+                clientId: { type: string }
+                redirectUri: { type: string }
+                scopes:
+                  type: array
+                  items: { type: string }
+                externalAuthorizeUrl:
+                  type: string
+                  description: Required for cross-chain/custom OIDC providers
+                externalIssuer:
+                  type: string
+                zkLogin:
+                  type: boolean
+      responses:
+        '200': { description: Auth login intent with authorization URL and zkLogin nonce }
+  /api/auth/login/complete:
+    post:
+      summary: Complete login by binding Git identity, zkLogin subject, and wallets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                intentId: { type: string }
+                state: { type: string }
+                issuer: { type: string }
+                subject: { type: string }
+                audience: { type: string }
+                displayName: { type: string }
+                git:
+                  type: object
+                  properties:
+                    provider: { type: string, enum: [github, gitlab, gitea] }
+                    user_id: { type: string }
+                    username: { type: string }
+                    installation_id: { type: string }
+                    scopes:
+                      type: array
+                      items: { type: string }
+                wallets:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      chain: { type: string, enum: [sui, evm, solana, bitcoin, other] }
+                      address: { type: string }
+                      verified_by: { type: string, enum: [zklogin, external-auth, wallet-signature] }
+      responses:
+        '200': { description: Platform account with Git, wallet, and zkLogin bindings }
+  /api/auth/accounts/{id}:
+    get:
+      summary: Get a local platform account binding
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Platform account }
+  /api/search:
+    get:
+      summary: Search research assets, skills, workflows, datasets
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: type
+          in: query
+          schema: { type: string, enum: [asset, paper, skill, workflow, dataset, agent] }
+      responses:
+        '200': { description: OK }
+  /api/assets/{id}:
+    get:
+      summary: Get asset metadata
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/assets/{id}/manifest:
+    get:
+      summary: Get normalized manifest for agent consumption
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/assets/{id}/fork:
+    post:
+      summary: Create GitHub fork workspace from existing asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Fork created }
+  /api/publish/github:
+    post:
+      summary: Publish a connected GitHub repo to Walrus and Sui
+      responses:
+        '200': { description: Publish started }
+  /api/skills/{id}/install:
+    post:
+      summary: Install or reference a skill in an agent workspace
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Install manifest }
+  /api/skills/{id}:
+    get:
+      summary: Get skill metadata
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/graph/{id}:
+    get:
+      summary: Get local research graph around an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: OK }
+  /api/licenses/purchase-intent:
+    post:
+      summary: Create a payment intent for a skill license
+      responses:
+        '200': { description: Payment intent }
+  /api/agents/register:
+    post:
+      summary: Register an Agent Passport
+      responses:
+        '200': { description: Agent registered }
+  /api/indexer/replay:
+    post:
+      summary: Replay indexed protocol events
+      responses:
+        '200': { description: Index state }

@@ -1,0 +1,27 @@
+schema: research-workflow/v0.1
+name: example-research-workflow
+version: "0.1.0"
+description: "A generic workflow for producing a research asset."
+inputs:
+  - problem_statement
+outputs:
+  - paper
+  - skill
+  - workflow
+stages:
+  - id: understand
+    name: Understand Problem
+    instructions: "Parse the problem, constraints, expected outputs, and evaluation criteria."
+  - id: plan
+    name: Plan Method
+    instructions: "Select method, justify assumptions, define experiments."
+  - id: execute
+    name: Execute
+    instructions: "Run analysis or code, record results and logs."
+  - id: package
+    name: Package Research Asset
+    instructions: "Write paper, skill, workflow, manifest, and reproducibility notes."
+quality_gates:
+  - id: manifest-complete
+    check: "asset.yaml is complete and valid"
+tools: []

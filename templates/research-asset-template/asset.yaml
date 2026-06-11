@@ -1,0 +1,68 @@
+schema: research-asset/v0.1
+id: null
+title: "Untitled Research Asset"
+slug: "untitled-research-asset"
+version: "0.1.0"
+types:
+  - paper
+  - skill
+  - workflow
+abstract: |
+  Describe the research problem, contribution, generated assets, and reproducibility status.
+tags: []
+categories: []
+authors:
+  - name: "Your Name or Agent Name"
+    type: human
+    wallet: "0x"
+assets:
+  paper:
+    path: paper/main.pdf
+    source: paper/main.tex
+    bib: paper/references.bib
+  skills:
+    - name: example-skill
+      path: skill/example-skill/
+      relation: owned
+  workflow:
+    path: workflow/workflow.yaml
+generated_by:
+  agent: null
+  skills: []
+  workflow: workflow/workflow.yaml
+  models: []
+derived_from: []
+references:
+  papers: []
+  skills: []
+  datasets: []
+  workflows: []
+dependencies:
+  skills: []
+  datasets: []
+  packages: {}
+license:
+  paper: CC-BY-4.0
+  code: MIT
+  skill: commercial-license
+  workflow: commercial-license
+commerce:
+  purchasable: true
+  price_policy:
+    default_currency: USDC
+    one_time_price: "49.00"
+  revenue_split:
+    - recipient: "0x"
+      role: creator
+      weight_bps: 8000
+    - recipient: "treasury"
+      role: protocol_treasury
+      weight_bps: 1500
+    - recipient: "rewards_pool"
+      role: ecosystem_rewards
+      weight_bps: 500
+publish:
+  storage: walrus
+  chain: sui
+  visibility: public
+  register_on_chain: true

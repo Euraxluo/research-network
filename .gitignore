@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.research-network/
+web/dist/
+move/build/
+*.log
+.env

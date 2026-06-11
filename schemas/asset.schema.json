@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-network.example/schemas/asset.schema.json",
+  "title": "Research Asset Manifest",
+  "type": "object",
+  "required": [
+    "schema",
+    "title",
+    "version",
+    "types",
+    "authors",
+    "license",
+    "publish"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "research-asset/v0.1"
+    },
+    "id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 3
+    },
+    "slug": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "types": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "paper",
+          "skill",
+          "workflow",
+          "dataset",
+          "experiment",
+          "benchmark",
+          "code",
+          "review"
+        ]
+      },
+      "minItems": 1
+    },
+    "abstract": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "authors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "human",
+              "agent",
+              "organization"
+            ]
+          },
+          "wallet": {
+            "type": "string"
+          },
+          "github": {
+            "type": "string"
+          },
+          "agent_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "assets": {
+      "type": "object"
+    },
+    "generated_by": {
+      "type": "object"
+    },
+    "derived_from": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "references": {
+      "type": "object"
+    },
+    "dependencies": {
+      "type": "object"
+    },
+    "license": {
+      "type": "object"
+    },
+    "commerce": {
+      "type": "object"
+    },
+    "publish": {
+      "type": "object",
+      "required": [
+        "storage",
+        "chain"
+      ],
+      "properties": {
+        "storage": {
+          "enum": [
+            "walrus"
+          ]
+        },
+        "chain": {
+          "enum": [
+            "sui"
+          ]
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "unlisted",
+            "encrypted"
+          ]
+        },
+        "register_on_chain": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

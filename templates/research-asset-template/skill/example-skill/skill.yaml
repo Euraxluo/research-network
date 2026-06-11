@@ -1,0 +1,12 @@
+schema: research-skill/v0.1
+name: example-skill
+version: "0.1.0"
+description: "Example skill packaged inside a Research Asset."
+capabilities:
+  - problem-analysis
+  - method-selection
+relation: owned
+entry: SKILL.md
+license: commercial-license
+depends_on: []
+tests: []

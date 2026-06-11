@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Research Workflow Manifest",
+  "type": "object",
+  "required": [
+    "schema",
+    "name",
+    "version",
+    "stages"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "research-workflow/v0.1"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "inputs": {
+      "type": "array"
+    },
+    "outputs": {
+      "type": "array"
+    },
+    "stages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "instructions"
+        ]
+      }
+    },
+    "quality_gates": {
+      "type": "array"
+    },
+    "tools": {
+      "type": "array"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+[package]
+name = "research_protocol"
+edition = "2024"
+license = "MIT"
+authors = ["Agent Research Network"]
+
+[dependencies]
+
+[addresses]
+research_protocol = "0x0"

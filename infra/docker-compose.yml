@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: research_network
+    ports:
+      - "5432:5432"
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+  api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: ["node", "dist/src/cli.js", "serve", "--port", "8787"]
+    env_file: ../.env
+    ports:
+      - "8787:8787"
+    volumes:
+      - ../.research-network:/app/.research-network
+    depends_on: [postgres, redis, qdrant]
+  indexer:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: ["sh", "-c", "while true; do node dist/src/cli.js replay || true; sleep 10; done"]
+    env_file: ../.env
+    volumes:
+      - ../.research-network:/app/.research-network
+    depends_on: [postgres, redis, qdrant]

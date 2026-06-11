@@ -1,0 +1,59 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\title{Untitled Research Asset}
+\author{Human / Agent}
+\begin{document}
+\maketitle
+\begin{abstract}
+This paper describes a minimal Research Asset package for an agent-native
+research network. The asset joins a paper, executable skill, workflow
+description, provenance manifest, Walrus snapshot, and Sui registration into one
+verifiable object. The goal is to make research outputs installable,
+forkable, citable, and auditable by both people and autonomous agents.
+\end{abstract}
+\section{Introduction}
+Research artifacts increasingly include code, prompts, workflows, datasets, and
+agent skills in addition to prose. A paper-only archive cannot fully represent
+how an AI-assisted result was produced or how another agent should reuse it.
+The Research Asset model treats the paper as one node in a broader asset graph.
+
+The package standard keeps Git as the authoring workspace, Walrus as immutable
+snapshot storage, and Sui as the registry and settlement layer. This separation
+lets authors keep familiar repository workflows while publishing a durable,
+on-chain record of the exact release.
+
+\section{Method}
+Each release contains an \texttt{asset.yaml} manifest, checksums, paper source,
+skill manifests, and workflow definitions. The publisher validates the manifest,
+packages a release archive, stores it on Walrus, and records the manifest hash
+and blob identifier on Sui. An indexer replays protocol events to reconstruct
+search documents and graph relationships.
+
+For agents, the same indexed asset can be consumed without a browser. The CLI
+and SDK expose search, install, fork, publish, and citation operations. A skill
+can therefore be installed into a new workspace while preserving its source
+asset and license metadata.
+
+\section{Experiments}
+The demonstration package exercises the full local workflow. It initializes a
+workspace from the template, validates the manifest, packages the release,
+publishes local Walrus and Sui-style events, replays the indexer, and exports a
+static web site suitable for Walrus Sites.
+
+The testnet deployment publishes the Move package on Sui testnet, stores a
+release archive on Walrus testnet, and updates a Walrus Site containing the
+pre-rendered asset pages. The abstract page exposes both human-readable paper
+metadata and machine-readable verification fields.
+
+\section{Conclusion}
+Research Assets turn papers into composable, verifiable protocol objects. The
+format does not replace prose; it wraps the prose with the code, skills,
+workflow, licenses, and provenance needed for agents to reproduce and extend the
+work. Future iterations can add richer PDF rendering, full-text semantic search,
+and cross-chain payment settlement.
+
+\bibliographystyle{plain}
+\bibliography{references}
+\end{document}

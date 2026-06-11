@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Research Skill Manifest",
+  "type": "object",
+  "required": [
+    "schema",
+    "name",
+    "version",
+    "description",
+    "capabilities",
+    "relation",
+    "license"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "research-skill/v0.1"
+    },
+    "name": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "relation": {
+      "enum": [
+        "owned",
+        "forked",
+        "dependency",
+        "referenced",
+        "vendored"
+      ]
+    },
+    "derived_from": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "depends_on": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "entry": {
+      "type": "string",
+      "default": "SKILL.md"
+    },
+    "license": {
+      "type": "string"
+    },
+    "price_policy": {
+      "type": "object"
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

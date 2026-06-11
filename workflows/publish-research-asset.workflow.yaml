@@ -1,0 +1,44 @@
+schema: research-workflow/v0.1
+name: publish-research-asset
+version: "0.1.0"
+description: "End-to-end workflow for publishing a Research Asset from GitHub to Walrus and Sui."
+inputs:
+  - github_repo
+  - branch_or_commit
+  - signer
+outputs:
+  - walrus_blob_id
+  - sui_asset_object_id
+  - indexed_page_url
+stages:
+  - id: connect-github
+    name: Connect GitHub Repo
+    instructions: "Use GitHub App installation token to read repo tree and asset.yaml."
+  - id: validate
+    name: Validate Research Asset
+    instructions: "Validate schema, required files, license, revenue split, and skill relationships."
+  - id: package
+    name: Build Release Package
+    instructions: "Generate manifest.json, checksums.json, and tar.zst package."
+  - id: upload-walrus
+    name: Upload to Walrus
+    instructions: "Upload release package and selected standalone files to Walrus."
+  - id: register-sui
+    name: Register on Sui
+    instructions: "Call Move entry functions to register asset and skills, then emit events."
+  - id: index
+    name: Index Events
+    instructions: "Wait for indexer to parse event, fetch manifest, and update search."
+  - id: render
+    name: Render Page
+    instructions: "Return arXiv-style page URL and structured Agent manifest URL."
+quality_gates:
+  - id: manifest-hash-match
+    check: "Walrus manifest hash equals chain manifest_hash"
+  - id: indexer-processed
+    check: "Asset appears in search index"
+tools:
+  - github-app
+  - walrus-sdk
+  - sui-sdk
+  - indexer-api
