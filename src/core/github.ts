@@ -219,6 +219,10 @@ function normalizeOrg(body: any): GithubOrganizationSummary {
   };
 }
 
+function normalizeOrgMembership(body: any): GithubOrganizationSummary {
+  return normalizeOrg(body?.organization ?? body);
+}
+
 function normalizeInstallation(body: any): GithubUserInstallationSummary {
   return {
     id: Number(body.id),
@@ -268,6 +272,35 @@ export async function listUserOrgs(
     (body) => Array.isArray(body) ? body.map((raw: any) => normalizeOrg(raw)).filter((org: GithubOrganizationSummary) => org.login) : [],
     { fetchImpl: options.fetchImpl, label: "org list" }
   );
+}
+
+export async function listUserOrgMemberships(
+  userAccessToken: string,
+  options: { apiBaseUrl?: string; fetchImpl?: FetchLike } = {}
+): Promise<GithubOrganizationSummary[]> {
+  return paginateGithub<GithubOrganizationSummary>(
+    `${githubApiBase(options.apiBaseUrl)}/user/memberships/orgs?per_page=100`,
+    userAccessToken,
+    (body) => Array.isArray(body) ? body.map((raw: any) => normalizeOrgMembership(raw)).filter((org: GithubOrganizationSummary) => org.login) : [],
+    { fetchImpl: options.fetchImpl, label: "org membership list" }
+  );
+}
+
+async function listUserOrganizations(
+  userAccessToken: string,
+  options: { apiBaseUrl?: string; fetchImpl?: FetchLike } = {}
+): Promise<GithubOrganizationSummary[]> {
+  const [memberships, orgs] = await Promise.all([
+    listUserOrgMemberships(userAccessToken, options).catch(() => [] as GithubOrganizationSummary[]),
+    listUserOrgs(userAccessToken, options).catch(() => [] as GithubOrganizationSummary[])
+  ]);
+  const byLogin = new Map<string, GithubOrganizationSummary>();
+  for (const org of [...memberships, ...orgs]) {
+    if (org.login && !byLogin.has(org.login)) {
+      byLogin.set(org.login, org);
+    }
+  }
+  return [...byLogin.values()].sort((a, b) => a.login.localeCompare(b.login));
 }
 
 export async function listUserInstallations(
@@ -383,7 +416,7 @@ export async function collectGithubUserAccess(
   const [user, installations, organizations] = await Promise.all([
     getAuthenticatedGithubUser(userAccessToken, options),
     listUserInstallations(userAccessToken, options),
-    listUserOrgs(userAccessToken, options).catch(() => [] as GithubOrganizationSummary[])
+    listUserOrganizations(userAccessToken, options)
   ]);
   const installedWithRepos: Array<GithubUserInstallationSummary & { repos: string[] }> = [];
   const grantedRepoInstallations = new Map<string, { installationId: number; account: string | null; accountType: string | null }>();

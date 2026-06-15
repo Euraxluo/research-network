@@ -15,6 +15,7 @@ import {
   connectGithubRepo,
   createZkLoginSessionAttestation,
   githubAppFromEnv,
+  listUserOrgMemberships,
   listUserOrgs,
   verifyGithubBindingAttestation,
   verifyZkLoginSessionAttestation,
@@ -259,6 +260,31 @@ describe("GitHub App client", () => {
       ]);
   });
 
+  it("paginates GitHub organization memberships from a GitHub App user token", async () => {
+    const fetchImpl: FetchLike = async (url) => {
+      if (url === "https://api.github.test/user/memberships/orgs?per_page=100") {
+        return ok(
+          [
+            { organization: { id: 1, login: "alpha-lab", html_url: "https://github.com/alpha-lab" } }
+          ],
+          '<https://api.github.test/user/memberships/orgs?per_page=100&page=2>; rel="next"'
+        );
+      }
+      if (url === "https://api.github.test/user/memberships/orgs?per_page=100&page=2") {
+        return ok([
+          { organization: { id: 2, login: "private-lab", html_url: "https://github.com/private-lab", avatar_url: "https://avatars.test/private-lab" } }
+        ]);
+      }
+      throw new Error(`unexpected url ${url}`);
+    };
+
+    await expect(listUserOrgMemberships("ghu_user", { apiBaseUrl: "https://api.github.test", fetchImpl }))
+      .resolves.toEqual([
+        { id: 1, login: "alpha-lab", description: null, html_url: "https://github.com/alpha-lab", avatar_url: null },
+        { id: 2, login: "private-lab", description: null, html_url: "https://github.com/private-lab", avatar_url: "https://avatars.test/private-lab" }
+      ]);
+  });
+
   it("collects authorized installations plus uninstalled organization scopes", async () => {
     const fetchImpl: FetchLike = async (url) => {
       if (url === "https://api.github.test/user") {
@@ -277,6 +303,12 @@ describe("GitHub App client", () => {
         return ok([
           { id: 11, login: "octo-org", html_url: "https://github.com/octo-org" },
           { id: 12, login: "uninstalled-org", html_url: "https://github.com/uninstalled-org" }
+        ]);
+      }
+      if (url === "https://api.github.test/user/memberships/orgs?per_page=100") {
+        return ok([
+          { organization: { id: 11, login: "octo-org", html_url: "https://github.com/octo-org" } },
+          { organization: { id: 13, login: "private-uninstalled-org", html_url: "https://github.com/private-uninstalled-org" } }
         ]);
       }
       if (url === "https://api.github.test/user/installations/42/repositories?per_page=100") {
@@ -305,6 +337,7 @@ describe("GitHub App client", () => {
     expect(snapshot.organization_scopes).toEqual([
       { id: "42", account: "octo", accountType: "User", installed: true, installation_id: 42, repos: ["octo/research"] },
       { id: "77", account: "octo-org", accountType: "Organization", installed: true, installation_id: 77, repos: ["octo-org/lab"] },
+      { id: "uninstalled:private-uninstalled-org", account: "private-uninstalled-org", accountType: "Organization", installed: false, installation_id: null, repos: [] },
       { id: "uninstalled:uninstalled-org", account: "uninstalled-org", accountType: "Organization", installed: false, installation_id: null, repos: [] }
     ]);
     expect(snapshot.available_repositories.map((repo) => [repo.full_name, repo.granted, repo.installation_id])).toEqual([
