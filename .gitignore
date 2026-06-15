@@ -5,3 +5,8 @@ web/dist/
 move/build/
 *.log
 .env
+
+# OAuth/app credentials — never commit
+.research-network/secrets/
+.vercel
+.vercel-shell/

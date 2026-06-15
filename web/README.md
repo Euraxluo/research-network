@@ -13,7 +13,8 @@
 - `/graph/[assetId]`
 - `/publish`
 - `/dashboard`
-- `/licenses`
+- `/membership`
+- `/delegations`
 - `/token`
 - `/governance`
 
@@ -27,7 +28,10 @@
 - ForkResearchButton
 - CitationBox
 - ResearchGraph
-- LicensePurchaseModal
+- MembershipPanel
+- AgentSubscriptionPanel
+- DelegationJobPanel
+- ReportAccessPanel
 - zkLoginButton
 - GitHubRepoSelector
 - PublishStepper
@@ -48,13 +52,14 @@ web/dist/
 ├── index.html
 ├── search.html
 ├── dashboard.html
-├── licenses.html
+├── membership.html
+├── delegations.html
 ├── abs/<asset-id>.html
 ├── skill/<skill-id>.html
 └── graph/<asset-id>.html
 ```
 
-Pages render the verifiable fields required by the protocol plan: content hash, Walrus blob id, Sui object id, repo commit, manifest hash, and license data.
+Pages render the verifiable fields required by the protocol plan: content hash, Walrus blob id, Sui object id, repo commit, manifest hash, Seal access status, report visibility, membership/subscription receipts, and private delegation state.
 
 If this is later migrated to Next.js or Vite, `web:build` should continue producing static output for Walrus Sites.
 

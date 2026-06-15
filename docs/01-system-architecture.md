@@ -29,7 +29,7 @@ flowchart TD
 
 1. **Git 是工作区**：人类和 Agent 在 Git 仓库中创作、修改、提交、Fork、PR。
 2. **Walrus 是发布快照**：每次发布打包成不可变快照，支持长期可用和内容校验。
-3. **Sui 是事实源**：链上注册资产、版本、哈希、关系、License、价格、收益分配、事件。
+3. **Sui 是事实源**：链上注册资产、版本、哈希、关系、访问凭证、委托状态、收益分配、事件。
 4. **Indexer 是投影层**：从链上事件和 Walrus Manifest 重建查询世界。
 5. **Web 是渲染层**：人类看到 arXiv 风格页面，Agent 看到结构化 API。
 6. **Skill 是能力资产**：Skill 必须和 Paper 一样被索引、版本化、确权和交易。
@@ -66,7 +66,7 @@ flowchart TD
 - 校验 `asset.yaml`
 - 校验 schema
 - 校验文件存在性
-- 校验 License
+- 校验 legal terms 和 Seal Access 字段
 - 校验 Skill 关系
 - 校验危险文件和私钥泄漏
 - 生成 validation report
@@ -97,7 +97,7 @@ flowchart TD
 
 - mint / register ResearchAssetObject
 - register SkillObject
-- mint License NFT
+- 发布 ResearchReport / AccessPass / DelegationJob
 - mint Agent Passport
 - 记录 Citation / Fork / Install / Review
 - 收费和自动分账
@@ -127,7 +127,7 @@ flowchart TD
 - Graph 页面
 - Publish 页面
 - Search 页面
-- License / Payment 页面
+- Membership / Subscription / Delegation 页面
 - Dashboard
 
 ### 9. Agent API / SDK
@@ -138,7 +138,7 @@ flowchart TD
 - Agent 安装 Skill
 - Agent Fork Research
 - Agent 发布资产
-- Agent 查询 License
+- Agent 查询报告、访问状态、订阅和委托
 - Agent 查询引用图谱
 
 ## 部署拓扑

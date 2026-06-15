@@ -41,7 +41,19 @@ research-asset-v0.1.0.tar.zst
 - `workflow/workflow.yaml`
 - `manifest.json`
 
-### 3. Walrus Site
+### 3. Encrypted Research Report Blob
+
+encrypted / private delegation 报告在 Walrus 上只保存密文：
+
+- `walrus_blob_id`
+- `seal_id`
+- `ciphertext_hash`
+- `plaintext_commitment`
+- public free preview hash
+
+Seal 根据链上 AccessPass / DelegationJob / dispute 状态判断解密资格。
+
+### 4. Walrus Site
 
 前端网站的静态 build 通过 Walrus Sites 发布。
 
@@ -86,20 +98,20 @@ interface WalrusPublisher {
 
 - 小文件：可打包到 release tar。
 - 大 PDF / 数据集：单独 blob + manifest 引用。
-- 私有付费 Skill：加密后上传 Walrus。
+- encrypted report / private delegation result：加密后上传 Walrus。
 - 公共 Paper：明文上传。
 
-## 加密 Skill Package
+## 加密 Report / Skill Package
 
-对付费 Skill：
+对 encrypted 报告或随报告交付的 Skill 包：
 
 1. 生成随机内容密钥 `content_key`。
-2. 用 `content_key` 加密 `skill-package.tar.zst`。
+2. 用 `content_key` 加密 report 或 `skill-package.tar.zst`。
 3. 加密包上传 Walrus。
-4. `content_key` 通过 License NFT 权限服务解锁。
-5. 可以使用 Lit Protocol / Seal / 自建 KMS / Sui 对象权限方案。
+4. `content_key` 通过 Seal policy 解锁。
+5. Seal policy 读取平台会员、agent 订阅、私有委托或争议仲裁授权。
 
-注意：Skill 一旦被解密，技术上无法阻止用户复制。商业护城河来自正版 License、更新、社区声誉、私有服务和平台索引。
+注意：内容一旦被解密，技术上无法绝对阻止用户复制。商业护城河来自唯一 receipt 计量、订阅关系、agent 声誉、私有服务、平台索引和争议治理。
 
 ## Walrus Sites
 

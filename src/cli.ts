@@ -1,11 +1,29 @@
 #!/usr/bin/env node
 import path from "node:path";
-import { createPaymentIntent, packageWorkspace, publishWorkspace } from "./index.js";
+import {
+  acceptDelegationJob,
+  buyPlatformMembership,
+  completeDelegationJob,
+  createAccessIntent,
+  createDelegationJob,
+  openDispute,
+  packageWorkspace,
+  publishWorkspace,
+  recordAccessReceipt,
+  settleMembershipPeriod,
+  submitPrivateResult,
+  subscribeAgent
+} from "./index.js";
 import { registerAgentPassport } from "./core/agents.js";
+import { connectGithubRepo, githubAppFromEnv } from "./core/github.js";
+import { clearCliLoginSession, readCliLoginSession, startCliLogin } from "./core/cli-login.js";
 import { completeAuthLogin, startAuthLogin } from "./core/auth.js";
-import { replayIndexer, searchIndex, getGraph } from "./core/indexer.js";
+import { decodeJwtClaims, deriveUserSalt, deriveZkLoginAddress } from "./core/zklogin.js";
+import { replayIndexer, searchIndex, getGraph, summarizeAssetEconomics } from "./core/indexer.js";
 import { readIndex } from "./core/local-store.js";
+import { pollSuiEvents } from "./core/sui-events.js";
 import { buildStaticWeb } from "./core/web.js";
+import { buildAuthAssets, buildVercelAuthShell, loadAuthSiteConfig } from "./core/web-auth.js";
 import { serveStaticSite } from "./core/web-serve.js";
 import { deployToTestnet } from "./core/testnet.js";
 import { forkWorkspace, initWorkspace, initPdfOnlyWorkspace, installSkill } from "./core/workspace.js";
@@ -91,15 +109,37 @@ Commands:
   research package [workspace]
   research publish [workspace]
   research replay [--from-checkpoint 0]
+  research index:poll --package-id 0x... [--rpc-url URL] [--module revenue,research_asset] [--limit 50] [--max-pages 1]
   research search <query> [--type asset|skill|workflow|paper]
   research graph <asset-id>
+  research reports [report-id]
+  research channels
+  research delegations [job-id]
+  research revenue [pool-id]
+  research payments
+  research economics <asset-id>
   research fork <asset-id> <target-dir> [--include paper,skill,workflow,code]
   research install <skill-id> [workspace] [--mode referenced|vendored]
   research auth:start --provider github|gitlab|gitea|privy|dynamic|web3auth|particle|lit|custom-oidc --client-id id --redirect-uri URL
-  research auth:complete --intent auth:... --issuer ISS --subject SUB [--git-provider github --git-user-id id --git-username name] [--wallet sui:0x...]
+  research auth:complete --intent auth:... --issuer ISS --subject SUB [--jwt <id_token>] [--git-provider github --git-user-id id --git-username name] [--wallet sui:0x...]
+  research login [--port 8765] [--no-open]
+  research whoami
+  research logout
+  research zklogin:address --jwt <id_token> [--salt <salt>]  (real Sui zkLogin address via @mysten/sui)
   research agent:register --name "Agent" [--owner-address 0x...]
-  research license:intent <skill-id> [--buyer 0x...]
+  research github:connect --installation <id> --owner <o> --repo <r> [--ref <ref>]  (env: GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY)
+  research access:intent --kind platform_membership|agent_subscription|private_delegation [--buyer 0x...] [--target id]
+  research membership:buy --owner 0x... [--tier 1] [--duration-days 30]
+  research agent:subscribe --owner 0x... --agent 0x... [--amount 1000]
+  research delegation:create --buyer 0x... --agent 0x... --budget 1000 [--deadline-ms 1780000000000]
+  research delegation:accept <job-id> --agent 0x...
+  research delegation:submit <job-id> --agent 0x... --walrus-blob-id walrus:... --seal-id seal:... --ciphertext-hash sha256:... --plaintext-commitment sha256:...
+  research delegation:complete <job-id> [--payout 1000]
+  research delegation:dispute <job-id> --opened-by 0x... --arbitrator 0x...
+  research access:receipt --period-id 202606 --user 0x... --report-id rep:... --agent 0x... [--access-type platform_member|agent_subscription]
+  research membership:settle --period-id 202606 --user 0x... --gross-amount 1000
   research web:build [--out web/dist]
+  research vercel:shell [--out .vercel-shell]
   research web:serve [--dir web/dist] [--port 4173]
   research serve [--port 8787]
   research deploy:testnet [workspace] [--epochs 2] [--upload-relay URL] [--gas-budget 1000000000] [--package-id 0x...] [--site-name name] [--walrus-sites-rpc-url URL] [--skip-walrus-sites] [--skip-register]
@@ -166,6 +206,28 @@ async function run() {
     return;
   }
 
+  if (command === "index:poll") {
+    const packageId = flagString(flags, "packageId") ?? flagString(flags, "package") ?? positional[0];
+    if (!packageId) {
+      throw new Error("Usage: research index:poll --package-id 0x... [--rpc-url URL]");
+    }
+    const result = await pollSuiEvents({
+      packageId,
+      rpcUrl: flagString(flags, "rpcUrl", "https://sui-testnet-rpc.publicnode.com") ?? "https://sui-testnet-rpc.publicnode.com",
+      modules: flagList(flags, "module"),
+      limit: Number(flagString(flags, "limit", "50")),
+      maxPagesPerModule: Number(flagString(flags, "maxPages", "1")),
+      localnetRoot: flagString(flags, "localnetRoot")
+    });
+    printJson({
+      pages_fetched: result.pages_fetched,
+      events_seen: result.events_seen,
+      events_ingested: result.events_ingested,
+      state: result.state
+    });
+    return;
+  }
+
   if (command === "search") {
     const query = positional.join(" ");
     printJson({ results: await searchIndex(query, flagString(flags, "type")) });
@@ -174,6 +236,42 @@ async function run() {
 
   if (command === "graph") {
     printJson(await getGraph(positional[0]));
+    return;
+  }
+
+  if (command === "reports") {
+    const index = await readIndex();
+    printJson(positional[0] ? index.reports[positional[0]] : Object.values(index.reports));
+    return;
+  }
+
+  if (command === "channels") {
+    printJson(Object.values((await readIndex()).agent_channels));
+    return;
+  }
+
+  if (command === "delegations") {
+    const index = await readIndex();
+    printJson(positional[0] ? index.delegations[positional[0]] : Object.values(index.delegations));
+    return;
+  }
+
+  if (command === "revenue") {
+    const index = await readIndex();
+    printJson(positional[0] ? index.revenue_pools[positional[0]] : Object.values(index.revenue_pools));
+    return;
+  }
+
+  if (command === "payments") {
+    printJson(Object.values((await readIndex()).payments));
+    return;
+  }
+
+  if (command === "economics") {
+    if (!positional[0]) {
+      throw new Error("Usage: research economics <asset-id>");
+    }
+    printJson(summarizeAssetEconomics(await readIndex(), positional[0]));
     return;
   }
 
@@ -228,6 +326,7 @@ async function run() {
       issuer: flagString(flags, "issuer"),
       subject: flagString(flags, "subject"),
       audience: flagString(flags, "audience"),
+      jwt: flagString(flags, "jwt"),
       displayName: flagString(flags, "displayName"),
       git: gitProvider && gitUserId && gitUsername ? {
         provider: gitProvider,
@@ -243,6 +342,57 @@ async function run() {
     return;
   }
 
+  if (command === "login") {
+    const port = Number(flagString(flags, "port", "8765"));
+    const result = await startCliLogin({
+      port,
+      openBrowser: !flagBool(flags, "noOpen"),
+      onAuthorizeUrl: (url) => {
+        process.stdout.write(`Open this URL to sign in:\n${url}\n\nWaiting for browser callback on http://localhost:${port}/callback ...\n`);
+      }
+    });
+    printJson({
+      account_id: result.account.id,
+      address: result.session.address,
+      email: result.session.email,
+      expires_at: result.session.expires_at
+    });
+    return;
+  }
+
+  if (command === "whoami") {
+    const session = await readCliLoginSession();
+    if (!session) {
+      printJson({ authenticated: false });
+      return;
+    }
+    printJson({
+      authenticated: true,
+      account_id: session.account_id,
+      address: session.address,
+      email: session.email,
+      expires_at: session.expires_at
+    });
+    return;
+  }
+
+  if (command === "logout") {
+    await clearCliLoginSession();
+    printJson({ authenticated: false });
+    return;
+  }
+
+  if (command === "zklogin:address") {
+    const jwt = flagString(flags, "jwt");
+    if (!jwt) {
+      throw new Error("Usage: research zklogin:address --jwt <id_token> [--salt <salt>]");
+    }
+    const claims = decodeJwtClaims(jwt);
+    const salt = flagString(flags, "salt") ?? deriveUserSalt({ issuer: claims.iss, subject: claims.sub, audience: claims.aud });
+    printJson({ address: deriveZkLoginAddress(jwt, salt), issuer: claims.iss, subject: claims.sub, audience: claims.aud });
+    return;
+  }
+
   if (command === "agent:register") {
     printJson(await registerAgentPassport({
       name: flagString(flags, "name", positional[0] ?? "Research Agent") ?? "Research Agent",
@@ -253,17 +403,175 @@ async function run() {
     return;
   }
 
-  if (command === "license:intent") {
-    const skillId = positional[0];
-    if (!skillId) {
-      throw new Error("Usage: research license:intent <skill-id> [--buyer 0x...]");
+  if (command === "github:connect") {
+    const client = githubAppFromEnv();
+    printJson(await connectGithubRepo(client, {
+      installationId: flagString(flags, "installation") ?? "",
+      owner: flagString(flags, "owner") ?? "",
+      repo: flagString(flags, "repo") ?? "",
+      ref: flagString(flags, "ref")
+    }));
+    return;
+  }
+
+  if (command === "access:intent") {
+    const kind = flagString(flags, "kind", positional[0]) as "platform_membership" | "agent_subscription" | "private_delegation";
+    if (!["platform_membership", "agent_subscription", "private_delegation"].includes(kind)) {
+      throw new Error("Usage: research access:intent --kind platform_membership|agent_subscription|private_delegation [--buyer 0x...] [--target id]");
     }
-    printJson(createPaymentIntent(skillId, flagString(flags, "buyer", "0x0") ?? "0x0"));
+    printJson(createAccessIntent(kind, flagString(flags, "buyer", "0x0") ?? "0x0", flagString(flags, "target", positional[1])));
+    return;
+  }
+
+  if (command === "membership:buy") {
+    const ownerAddress = flagString(flags, "ownerAddress") ?? flagString(flags, "owner") ?? positional[0];
+    if (!ownerAddress) {
+      throw new Error("Usage: research membership:buy --owner 0x... [--tier 1] [--duration-days 30]");
+    }
+    printJson(await buyPlatformMembership({
+      ownerAddress,
+      tier: Number(flagString(flags, "tier", "1")),
+      durationDays: Number(flagString(flags, "durationDays", "30")),
+      localnetRoot: flagString(flags, "localnetRoot")
+    }));
+    return;
+  }
+
+  if (command === "agent:subscribe") {
+    const ownerAddress = flagString(flags, "ownerAddress") ?? flagString(flags, "owner");
+    const agent = flagString(flags, "agent") ?? positional[0];
+    if (!ownerAddress || !agent) {
+      throw new Error("Usage: research agent:subscribe --owner 0x... --agent 0x... [--amount 1000]");
+    }
+    printJson(await subscribeAgent({
+      ownerAddress,
+      agent,
+      tier: Number(flagString(flags, "tier", "1")),
+      durationDays: Number(flagString(flags, "durationDays", "30")),
+      amount: Number(flagString(flags, "amount", "0")),
+      platformFeeBps: Number(flagString(flags, "platformFeeBps", "1500")),
+      localnetRoot: flagString(flags, "localnetRoot")
+    }));
+    return;
+  }
+
+  if (command === "delegation:create") {
+    const buyer = flagString(flags, "buyer");
+    const agent = flagString(flags, "agent");
+    if (!buyer || !agent) {
+      throw new Error("Usage: research delegation:create --buyer 0x... --agent 0x... --budget 1000");
+    }
+    printJson(await createDelegationJob({
+      buyer,
+      agent,
+      budget: Number(flagString(flags, "budget", "0")),
+      deadlineMs: flagString(flags, "deadlineMs") ? Number(flagString(flags, "deadlineMs")) : undefined,
+      localnetRoot: flagString(flags, "localnetRoot")
+    }));
+    return;
+  }
+
+  if (command === "delegation:accept") {
+    const jobId = positional[0];
+    const agent = flagString(flags, "agent");
+    if (!jobId || !agent) {
+      throw new Error("Usage: research delegation:accept <job-id> --agent 0x...");
+    }
+    printJson(await acceptDelegationJob({ jobId, agent, localnetRoot: flagString(flags, "localnetRoot") }));
+    return;
+  }
+
+  if (command === "delegation:submit") {
+    const jobId = positional[0];
+    const agent = flagString(flags, "agent");
+    const walrusBlobId = flagString(flags, "walrusBlobId");
+    const sealId = flagString(flags, "sealId");
+    const ciphertextHash = flagString(flags, "ciphertextHash");
+    const plaintextCommitment = flagString(flags, "plaintextCommitment");
+    if (!jobId || !agent || !walrusBlobId || !sealId || !ciphertextHash || !plaintextCommitment) {
+      throw new Error("Usage: research delegation:submit <job-id> --agent 0x... --walrus-blob-id walrus:... --seal-id seal:... --ciphertext-hash sha256:... --plaintext-commitment sha256:...");
+    }
+    printJson(await submitPrivateResult({
+      jobId,
+      agent,
+      title: flagString(flags, "title"),
+      reportId: flagString(flags, "reportId"),
+      walrusBlobId,
+      sealId,
+      ciphertextHash,
+      plaintextCommitment,
+      freePreviewHash: flagString(flags, "freePreviewHash"),
+      localnetRoot: flagString(flags, "localnetRoot")
+    }));
+    return;
+  }
+
+  if (command === "delegation:complete") {
+    const jobId = positional[0];
+    if (!jobId) {
+      throw new Error("Usage: research delegation:complete <job-id> [--payout 1000]");
+    }
+    printJson(await completeDelegationJob({
+      jobId,
+      payout: flagString(flags, "payout") ? Number(flagString(flags, "payout")) : undefined,
+      localnetRoot: flagString(flags, "localnetRoot")
+    }));
+    return;
+  }
+
+  if (command === "delegation:dispute") {
+    const jobId = positional[0];
+    const openedBy = flagString(flags, "openedBy");
+    const arbitrator = flagString(flags, "arbitrator");
+    if (!jobId || !openedBy || !arbitrator) {
+      throw new Error("Usage: research delegation:dispute <job-id> --opened-by 0x... --arbitrator 0x...");
+    }
+    printJson(await openDispute({ jobId, openedBy, arbitrator, localnetRoot: flagString(flags, "localnetRoot") }));
+    return;
+  }
+
+  if (command === "access:receipt") {
+    const accessType = flagString(flags, "accessType", "platform_member") as "platform_member" | "agent_subscription";
+    if (!["platform_member", "agent_subscription"].includes(accessType)) {
+      throw new Error("Usage: research access:receipt --period-id 202606 --user 0x... --report-id rep:... --agent 0x... [--access-type platform_member|agent_subscription]");
+    }
+    printJson(await recordAccessReceipt({
+      periodId: Number(flagString(flags, "periodId", "0")),
+      user: flagString(flags, "user", "0x0") ?? "0x0",
+      reportId: flagString(flags, "reportId") ?? "",
+      agent: flagString(flags, "agent", "0x0") ?? "0x0",
+      accessType,
+      localnetRoot: flagString(flags, "localnetRoot")
+    }));
+    return;
+  }
+
+  if (command === "membership:settle") {
+    printJson(await settleMembershipPeriod({
+      periodId: Number(flagString(flags, "periodId", "0")),
+      user: flagString(flags, "user", "0x0") ?? "0x0",
+      grossAmount: Number(flagString(flags, "grossAmount", "0")),
+      platformFeeBps: Number(flagString(flags, "platformFeeBps", "1500")),
+      localnetRoot: flagString(flags, "localnetRoot")
+    }));
     return;
   }
 
   if (command === "web:build") {
-    printJson({ outputDir: await buildStaticWeb(path.resolve(flagString(flags, "out", "web/dist") ?? "web/dist")) });
+    const outputDir = path.resolve(flagString(flags, "out", "web/dist") ?? "web/dist");
+    await buildStaticWeb(outputDir);
+    const authConfig = await loadAuthSiteConfig();
+    if (authConfig) {
+      await buildAuthAssets(outputDir, authConfig);
+    }
+    printJson({ outputDir, login: authConfig ? "generated" : "skipped (no secrets/oauth.json or github.json)" });
+    return;
+  }
+
+  if (command === "vercel:shell") {
+    const outputDir = path.resolve(flagString(flags, "out", ".vercel-shell") ?? ".vercel-shell");
+    await buildVercelAuthShell(outputDir);
+    printJson({ outputDir, login: "generated", content: "proxied-to-walrus" });
     return;
   }
 

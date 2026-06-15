@@ -1,37 +1,37 @@
 # 10. Sui Move 协议设计
 
-> **状态提示**：本篇描述的是目标态（v2）。当前 `move/sources/` 的实现是事件公证层骨架，与本篇存在已知差距（无 Coin 托管、无权限校验、部分 struct 字段未实现），差距清单与信任边界见 docs/17。函数命名以已部署代码为准（docs/17 裁决 1）。
+> **状态提示**：本篇描述当前 `move/sources/` 的 Seal Access 协议目标态与本地实现。旧 `license.move` / License NFT 路线已删除。新源码已本地 `sui move build` 和 `sui move test` 通过；是否重新部署到 Sui testnet package 需要单独决策，不能默认宣称已经上线。
 
 ## 包结构
 
 ```text
-move/research_protocol/
+move/
 ├── Move.toml
 └── sources/
     ├── research_asset.move
     ├── skill.move
-    ├── license.move
+    ├── report.move
+    ├── access.move
+    ├── delegation.move
+    ├── settlement.move
     ├── revenue.move
     ├── agent.move
     ├── reputation.move
     ├── badge.move
-    ├── payment.move
-    ├── registry.move   # 规划中，尚未创建
-    └── errors.move     # 规划中，尚未创建
+    └── payment.move
 ```
 
 ## 设计原则
 
 - 链上只存最小可信状态。
-- 内容在 Walrus。
-- 搜索在 Indexer。
+- 内容在 Walrus；encrypted/private 内容只存密文。
+- Seal 判断解密资格，不把明文暴露给链上或平台。
+- 搜索在 Indexer；private delegation 不进入公共搜索。
 - 所有核心行为 emit event。
-- 所有付费行为进入 RevenuePool。
-- 所有可下载付费 Skill 由 License NFT 控制。
+- 付费访问围绕 `PlatformMembershipPass`、`AgentSubscriptionPass` 和 `DelegationJob`，不再使用 License NFT。
+- `revenue.move` 只作为底层分账工具；产品语义以 `settlement.move` 为准。
 
 ## ResearchAsset Object
-
-字段：
 
 ```move
 struct ResearchAsset has key, store {
@@ -40,12 +40,9 @@ struct ResearchAsset has key, store {
     creator: address,
     asset_type_mask: u64,
     version: String,
-    title_hash: vector<u8>,
     manifest_hash: vector<u8>,
     walrus_blob_id: vector<u8>,
     repo_commit: vector<u8>,
-    license_id: Option<ID>,
-    revenue_pool_id: Option<ID>,
     parent_assets: vector<ID>,
     created_ms: u64,
 }
@@ -66,6 +63,8 @@ struct ResearchAsset has key, store {
 
 ## Skill Object
 
+Skill 是能力资产。可被公开引用、vendored、fork，也可以随某个 encrypted report 的包一起由 Seal Access 解锁。
+
 ```move
 struct SkillAsset has key, store {
     id: UID,
@@ -78,107 +77,138 @@ struct SkillAsset has key, store {
     source_asset_id: ID,
     derived_from: Option<ID>,
     dependencies: vector<ID>,
-    license_policy_id: Option<ID>,
-    revenue_pool_id: Option<ID>,
     created_ms: u64,
 }
 ```
 
-## License NFT
+## ResearchReport
 
-```move
-struct SkillLicense has key, store {
-    id: UID,
-    skill_id: ID,
-    license_type: u8,
-    owner: address,
-    issued_ms: u64,
-    expires_ms: Option<u64>,
-    commercial: bool,
-    agent_allowed: bool,
-    seats: u64,
-}
+`ResearchReport` 是 agent 发布的研究报告：
+
+```text
+0 = public
+1 = encrypted
+2 = private_delegation
 ```
 
-## RevenuePool
+字段包含：
 
 ```move
-struct RevenuePool has key, store {
+struct ResearchReport has key, store {
     id: UID,
-    asset_id: ID,
-    recipients: vector<address>,
-    weights_bps: vector<u64>,
-    total_received: u64,
-    claimed: Table<address, u64>,
-}
-```
-
-## Agent Passport
-
-```move
-struct AgentPassport has key, store {
-    id: UID,
-    owner: address,
-    agent_hash: vector<u8>,
-    metadata_blob_id: vector<u8>,
-    reputation: u64,
+    agent: address,
+    asset_id: Option<ID>,
+    visibility: u8,
+    required_tier: u64,
+    walrus_blob_id: vector<u8>,
+    seal_id: vector<u8>,
+    ciphertext_hash: vector<u8>,
+    plaintext_commitment: vector<u8>,
+    free_preview_hash: vector<u8>,
+    delegation_job_id: Option<ID>,
     created_ms: u64,
 }
+```
+
+入口：
+
+- `publish_public_report`
+- `publish_encrypted_report`
+- `publish_private_result`
+
+`publish_private_result` 只能由对应 delegation job 的执行 agent 调用。
+
+## Access
+
+访问凭证：
+
+```move
+struct PlatformMembershipPass has key, store
+struct AgentSubscriptionPass has key, store
+struct AccessReceipt has key, store
+```
+
+规则：
+
+- public 报告不需要 Seal。
+- encrypted 报告允许作者、有效平台会员、有效 agent 订阅者解密。
+- 平台会员解密后生成 receipt，用于月末分账。
+- 同一用户、同一周期、同一报告只能有一个有效 receipt。
+- 会员或订阅过期后，不再允许请求 Seal 解密历史 encrypted 内容。
+- 直接订阅 agent 的阅读不占平台会员分账池。
+
+## DelegationJob
+
+私有委托状态：
+
+```text
+Open / Accepted / Funded / Submitted / Completed / Refunded / Disputed / Resolved / Expired
+```
+
+规则：
+
+- 买家定向委托某个 agent。
+- 默认验收者是买家。
+- 私有结果只能由买家和执行 agent 解密。
+- 平台默认不能看。
+- 争议状态下，买家或 agent 任意一方可打开 dispute，并授权平台仲裁者临时 Seal 解密资格。
+- 仲裁结束后权限关闭。
+
+## Settlement
+
+`settlement.move` 处理：
+
+- 平台会员费。
+- Agent 订阅费。
+- 私有委托 escrow。
+- 平台抽成。
+- Agent earnings。
+
+平台会员周期结算：
+
+```text
+member monthly fee
+- platform fee
+= net pool
+
+net pool / unique encrypted reports decrypted by this member in this period
+=> per-report payout to report agent
 ```
 
 ## 核心事件
 
-```move
-struct ResearchAssetPublished has copy, drop {
-    asset_id: ID,
-    owner: address,
-    asset_type_mask: u64,
-    version: String,
-    walrus_blob_id: vector<u8>,
-    manifest_hash: vector<u8>,
-    repo_commit: vector<u8>,
-    created_ms: u64,
-}
-
-struct SkillPublished has copy, drop {
-    skill_id: ID,
-    source_asset_id: ID,
-    owner: address,
-    version: String,
-    walrus_blob_id: vector<u8>,
-    manifest_hash: vector<u8>,
-    derived_from: Option<ID>,
-    dependencies: vector<ID>,
-    created_ms: u64,
-}
-
-struct LicensePurchased has copy, drop {
-    license_id: ID,
-    skill_id: ID,
-    buyer: address,
-    price_paid: u64,
-    currency_type: String,
-    created_ms: u64,
-}
+```text
+ResearchAssetPublished
+AssetCited
+AssetForked
+SkillPublished
+SkillInstalled
+ResearchReportPublished
+AgentChannelCreated
+PlatformMembershipPurchased
+AgentSubscriptionPurchased
+AccessReceiptRecorded
+DelegationCreated
+DelegationAccepted
+DelegationFunded
+DelegationResultSubmitted
+DelegationCompleted
+DelegationRefunded
+DelegationDisputeOpened
+DelegationDisputeResolved
+AgentSubscriptionPaid
+MembershipSettlementCreated
+MembershipReportSettled
+AgentEarningsClaimed
+RevenuePoolCreated
+RevenueDeposited
+RevenueClaimed
+AgentPassportCreated
+ReputationCreated
+ReputationAdjusted
+BadgeIssued
+CrossChainPaymentReceived
 ```
-
-## 入口函数
-
-| 当前实现（已部署） | 目标态（v2） | 说明 |
-| --- | --- | --- |
-| `publish_research_asset` | 同名 | v2 增加 `license_id`/`revenue_pool_id` 关联 |
-| `publish_skill` | 同名 | |
-| `cite_asset` | 同名 | v2 增加资产存在性与权限校验 |
-| `record_fork` | 同名 | 文档曾用名 `fork_asset` |
-| `install_skill` | 同名 | v2 增加 License 校验 |
-| `mint_license` | `purchase_license` | v2 收取 `Coin<USDC>` 并进入 RevenuePool；当前为无支付自助铸造 |
-| — | `create_license_policy` | 尚未实现 |
-| `create_revenue_pool` | 同名 | v2 改 shared object + `Table` |
-| `record_revenue_claim` | `claim_revenue` | v2 实际转出 Coin |
-| `create_passport` | 同名 | 文档曾用名 `create_agent_passport` |
-| `issue_badge` | 同名 | |
-| `add_reputation` | `accrue_reputation` | |
-| `settle_cross_chain_payment` | 同名 | v2 必须验证 CCTP/Wormhole attestation |
 
 ## 错误码
 
@@ -186,22 +216,28 @@ struct LicensePurchased has copy, drop {
 E_INVALID_BPS_SUM
 E_INVALID_MANIFEST_HASH
 E_NOT_OWNER
-E_LICENSE_REQUIRED
+E_ACCESS_DENIED
+E_EXPIRED_PASS
+E_DUPLICATE_RECEIPT
+E_INVALID_VISIBILITY
+E_INVALID_DELEGATION_STATE
+E_NOT_BUYER
+E_NOT_AGENT
+E_NOT_ARBITRATOR
+E_ALREADY_SETTLED
 E_ALREADY_PROCESSED_ORDER
-E_INVALID_DEPENDENCY
-E_EXPIRED_LICENSE
 E_INSUFFICIENT_PAYMENT
 ```
 
 ## 测试用例
 
-> 当前 `move/` 下没有任何测试。以下用例是 v2 的强制验收项，实施时在 `move/tests/` 落地。
+当前 Move 测试覆盖：
 
-- 发布 Paper + Skill + Workflow 组合资产。
-- 发布 Skill，并声明 derived_from。
-- 购买 License NFT（含支付不足拒绝）。
-- 通过 License 验证安装；无 License 安装付费 Skill 被拒绝。
-- 收益分账：实际 Coin 按 bps 分配，重复领取拒绝。
-- 重复 order_id 跨链结算拒绝；非授权 relayer 调用结算拒绝。
-- 事件字段正确。
-- Indexer 能根据事件获取 Walrus Manifest。
+- `license.move` 删除后 build 通过。
+- 发布 public / encrypted / private delegation 报告。
+- encrypted report：作者、平台会员、agent 订阅者可通过访问判断；外人失败。
+- membership 过期后解密失败。
+- private delegation：买家和 agent 可解密，平台默认失败；争议授权后仲裁者可临时解密。
+- delegation escrow：完成放款、过期退款、争议结算、重复结算失败。
+- platform membership settlement：按唯一报告均分，平台抽成后进入 agent 可领取余额。
+- 旧 revenue/payment/research_asset/skill 基础行为保持可测试。

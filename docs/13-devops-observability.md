@@ -11,7 +11,7 @@ payment-relayer
 search-worker
 embedding-worker
 web-app
-kms/license-unlock-service
+seal-access-service
 ```
 
 ## 基础设施
@@ -54,7 +54,7 @@ GITHUB_APP_PRIVATE_KEY=
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 ZKLOGIN_PROVER_URL=
-JWT_SALT_SECRET=
+ZKLOGIN_SALT_SECRET=
 CIRCLE_API_KEY=
 WORMHOLE_RPC=
 KMS_MASTER_KEY=
@@ -68,7 +68,9 @@ KMS_MASTER_KEY=
 - error rate
 - auth failures
 - publish requests
-- license purchases
+- access intent creations
+- report decrypt requests
+- delegation state changes
 
 ### Walrus
 

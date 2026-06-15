@@ -26,7 +26,7 @@ experiments/
 
 ## Procedure
 
-1. Ask or infer the research title, asset types, authors, and license.
+1. Ask or infer the research title, asset types, authors, legal terms, and access visibility.
 2. Create `asset.yaml` using `schemas/asset.schema.json`.
 3. Create paper skeleton if `paper` is included.
 4. Create `skill/<name>/SKILL.md` and `skill.yaml` if `skill` is included.
@@ -34,7 +34,7 @@ experiments/
 6. Add `derived_from` if this workspace forks or extends an existing Research Asset.
 7. Add `references.skills` for external skills that are only referenced.
 8. Add `vendor/skills` only if an exact reproducibility snapshot is needed.
-9. Validate all paths and licenses.
+9. Validate all paths, legal terms, and Seal Access fields.
 10. Produce a final checklist for publish.
 
 ## Skill relationship rules
@@ -48,7 +48,8 @@ experiments/
 ## Publish checklist
 
 - `asset.yaml` valid
-- licenses declared
+- legal terms declared
+- access visibility declared
 - no secrets
 - paper source or PDF present
 - Skill manifest present

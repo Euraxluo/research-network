@@ -1,9 +1,12 @@
+#[allow(lint(self_transfer))]
 module research_protocol::skill {
-    use sui::object::{Self, UID, ID};
-    use sui::tx_context::{Self, TxContext};
     use sui::event;
+    use sui::clock::{Self, Clock};
     use std::string::String;
-    use std::option::Option;
+
+    /// install_mode values carried by SkillInstalled.
+    const INSTALL_MODE_FREE: u8 = 0;
+    const INSTALL_MODE_ACCESS_PASS: u8 = 1;
 
     public struct SkillAsset has key, store {
         id: UID,
@@ -39,7 +42,15 @@ module research_protocol::skill {
         created_ms: u64,
     }
 
-    entry fun publish_skill(
+    public fun owner(skill: &SkillAsset): address { skill.owner }
+    public fun id(skill: &SkillAsset): ID { object::id(skill) }
+    public fun version(skill: &SkillAsset): String { skill.version }
+    public fun created_ms(skill: &SkillAsset): u64 { skill.created_ms }
+    public fun derived_from(skill: &SkillAsset): Option<ID> { skill.derived_from }
+    public fun install_mode_free(): u8 { INSTALL_MODE_FREE }
+    public fun install_mode_access_pass(): u8 { INSTALL_MODE_ACCESS_PASS }
+
+    public fun publish_skill(
         name_hash: vector<u8>,
         version: String,
         manifest_hash: vector<u8>,
@@ -47,10 +58,11 @@ module research_protocol::skill {
         source_asset_id: ID,
         derived_from: Option<ID>,
         dependencies: vector<ID>,
-        created_ms: u64,
+        clock: &Clock,
         ctx: &mut TxContext
     ) {
         let sender = tx_context::sender(ctx);
+        let created_ms = clock::timestamp_ms(clock);
         let skill = SkillAsset {
             id: object::new(ctx),
             owner: sender,
@@ -79,17 +91,36 @@ module research_protocol::skill {
         sui::transfer::public_transfer(skill, sender);
     }
 
-    entry fun install_skill(
+    /// Free install path: open to anyone. Restricted skills are distributed as encrypted
+    /// research reports/packages and unlocked by Seal access policies, not by License NFTs.
+    public fun install_skill(
         skill_id: ID,
         workspace_asset_id: ID,
+        clock: &Clock,
+        ctx: &TxContext
+    ) {
+        emit_installed(
+            skill_id,
+            workspace_asset_id,
+            tx_context::sender(ctx),
+            INSTALL_MODE_FREE,
+            clock::timestamp_ms(clock),
+        );
+    }
+
+    /// Emit a SkillInstalled event. Exposed to sibling modules so access-pass install paths
+    /// can record the canonical event without creating dependency cycles.
+    public(package) fun emit_installed(
+        skill_id: ID,
+        workspace_asset_id: ID,
+        installer: address,
         install_mode: u8,
-        created_ms: u64,
-        ctx: &mut TxContext
+        created_ms: u64
     ) {
         event::emit(SkillInstalled {
             skill_id,
             workspace_asset_id,
-            installer: tx_context::sender(ctx),
+            installer,
             install_mode,
             created_ms,
         });

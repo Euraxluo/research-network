@@ -1,19 +1,29 @@
 module research_protocol::payment {
-    use sui::object::{Self, UID, ID};
-    use sui::tx_context::{Self, TxContext};
     use sui::event;
-    use sui::transfer;
+    use sui::table::{Self, Table};
+    use sui::clock::{Self, Clock};
+    use sui::hash;
+    use std::bcs;
 
-    const E_DUPLICATE_ORDER: u64 = 1;
+    const E_ALREADY_PROCESSED_ORDER: u64 = 5;
+    /// The settler capability does not belong to this registry.
+    const E_UNAUTHORIZED_SETTLER: u64 = 11;
+    /// The supplied attestation does not bind the order fields.
+    const E_INVALID_ATTESTATION: u64 = 13;
 
+    /// Shared registry of settled cross-chain orders. Uses a Table for O(1) idempotent
+    /// dedup (the previous vector scan grew gas without bound as orders accumulated).
     public struct SettlementRegistry has key {
         id: UID,
-        processed_orders: vector<vector<u8>>,
+        processed_orders: Table<vector<u8>, bool>,
+        total_settled: u64,
     }
 
-    public struct ProcessedOrder has key, store {
+    /// Capability authorizing its holder to settle into a specific registry. Minted once at
+    /// publish to the deployer; the protocol can transfer it to a trusted relayer/oracle.
+    public struct SettlerCap has key, store {
         id: UID,
-        order_hash: vector<u8>,
+        registry_id: ID,
     }
 
     public struct CrossChainPaymentReceived has copy, drop {
@@ -22,50 +32,88 @@ module research_protocol::payment {
         source_tx: vector<u8>,
         buyer: address,
         amount: u64,
+        created_ms: u64,
     }
 
     fun init(ctx: &mut TxContext) {
-        transfer::share_object(SettlementRegistry {
+        let registry = SettlementRegistry {
             id: object::new(ctx),
-            processed_orders: vector::empty(),
-        });
-    }
-
-    public fun contains_order(registry: &SettlementRegistry, order_hash: &vector<u8>): bool {
-        let mut i = 0;
-        while (i < vector::length(&registry.processed_orders)) {
-            if (vector::borrow(&registry.processed_orders, i) == order_hash) {
-                return true
-            };
-            i = i + 1;
+            processed_orders: table::new(ctx),
+            total_settled: 0,
         };
-        false
+        let registry_id = object::id(&registry);
+        transfer::share_object(registry);
+        transfer::public_transfer(
+            SettlerCap { id: object::new(ctx), registry_id },
+            tx_context::sender(ctx)
+        );
     }
 
-    entry fun settle_cross_chain_payment(
+    public fun registry_id(registry: &SettlementRegistry): ID { object::id(registry) }
+    public fun total_settled(registry: &SettlementRegistry): u64 { registry.total_settled }
+    public fun is_processed(registry: &SettlementRegistry, order_hash: &vector<u8>): bool {
+        table::contains(&registry.processed_orders, *order_hash)
+    }
+
+    /// Canonical digest binding all order fields. A relayer/oracle computes this off-chain
+    /// from the verified source-chain message and passes it as `attestation`.
+    public fun order_digest(
+        order_hash: &vector<u8>,
+        source_chain: &vector<u8>,
+        source_tx: &vector<u8>,
+        buyer: address,
+        amount: u64
+    ): vector<u8> {
+        let mut bytes = vector<u8>[];
+        vector::append(&mut bytes, *order_hash);
+        vector::append(&mut bytes, *source_chain);
+        vector::append(&mut bytes, *source_tx);
+        vector::append(&mut bytes, bcs::to_bytes(&buyer));
+        vector::append(&mut bytes, bcs::to_bytes(&amount));
+        hash::blake2b256(&bytes)
+    }
+
+    /// Settle a cross-chain payment. v2 enforces three controls the skeleton lacked:
+    ///   1. capability authorization (`&SettlerCap` bound to this registry),
+    ///   2. attestation binding (the attestation must equal the canonical order digest),
+    ///   3. idempotent dedup via Table (O(1), replay-safe).
+    /// NOTE: full CCTP/Wormhole guardian-signature VAA verification is out of scope here and
+    /// remains future work; this binds the order and gates settlement behind a trusted cap.
+    public fun settle_cross_chain_payment(
         registry: &mut SettlementRegistry,
+        cap: &SettlerCap,
+        attestation: vector<u8>,
         order_hash: vector<u8>,
         source_chain: vector<u8>,
         source_tx: vector<u8>,
         buyer: address,
         amount: u64,
-        ctx: &mut TxContext
+        clock: &Clock
     ) {
-        assert!(!contains_order(registry, &order_hash), E_DUPLICATE_ORDER);
-        vector::push_back(&mut registry.processed_orders, order_hash);
-        let stored_order = *vector::borrow(&registry.processed_orders, vector::length(&registry.processed_orders) - 1);
-        let marker = ProcessedOrder { id: object::new(ctx), order_hash };
+        assert!(cap.registry_id == object::id(registry), E_UNAUTHORIZED_SETTLER);
+        assert!(!table::contains(&registry.processed_orders, order_hash), E_ALREADY_PROCESSED_ORDER);
+        let digest = order_digest(&order_hash, &source_chain, &source_tx, buyer, amount);
+        assert!(attestation == digest, E_INVALID_ATTESTATION);
+
+        table::add(&mut registry.processed_orders, order_hash, true);
+        registry.total_settled = registry.total_settled + amount;
         event::emit(CrossChainPaymentReceived {
-            order_hash: stored_order,
+            order_hash,
             source_chain,
             source_tx,
             buyer,
             amount,
+            created_ms: clock::timestamp_ms(clock),
         });
-        sui::transfer::public_transfer(marker, tx_context::sender(ctx));
     }
 
-    public fun registry_id(registry: &SettlementRegistry): ID {
-        object::id(registry)
+    #[test_only]
+    public fun init_for_testing(ctx: &mut TxContext) {
+        init(ctx);
+    }
+
+    #[test_only]
+    public fun new_cap_for_testing(registry_id: ID, ctx: &mut TxContext): SettlerCap {
+        SettlerCap { id: object::new(ctx), registry_id }
     }
 }

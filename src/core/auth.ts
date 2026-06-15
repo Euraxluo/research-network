@@ -10,6 +10,7 @@ import {
 } from "./types.js";
 import { randomToken, shortHash } from "./crypto.js";
 import { readAuthState, upsertAuthIntent, upsertPlatformAccount } from "./local-store.js";
+import { decodeJwtClaims, deriveUserSalt, deriveZkLoginAddress, verifyJwt, type JsonWebKey } from "./zklogin.js";
 
 const GIT_PROVIDERS = new Set<GitProvider>(["github", "gitlab", "gitea"]);
 const CROSS_CHAIN_PROVIDERS = new Set<CrossChainAuthProvider>(["privy", "dynamic", "web3auth", "particle", "lit", "custom-oidc"]);
@@ -52,6 +53,16 @@ export interface CompleteAuthLoginInput {
   issuer?: string;
   subject?: string;
   audience?: string;
+  /** Real OIDC id_token. When present, the canonical Sui zkLogin address is derived from it
+   *  (Poseidon-based, via @mysten/sui) instead of the local deterministic simulation. The token's
+   *  RS256 signature, issuer, audience (the intent's client_id), expiry, and nonce (the intent's
+   *  nonce) are verified before any binding is created (D-14/D-15). */
+  jwt?: string;
+  /** JWKS to verify `jwt` against; defaults to fetching Google's. Injectable for tests. */
+  jwks?: JsonWebKey[];
+  /** Dev/test escape hatch: skip JWT verification. NEVER set in a deployed environment;
+   *  also requires RN_ALLOW_UNVERIFIED_JWT=1 so it cannot be reached by accident. */
+  allowUnverifiedJwt?: boolean;
   displayName?: string;
   git?: GitIdentity;
   wallets?: WalletBinding[];
@@ -105,7 +116,13 @@ function hashHex(input: string): string {
 }
 
 export function deriveZkLoginBinding(input: ZkLoginAddressInput & { nonce: string; provider: GitProvider | CrossChainAuthProvider }): ZkLoginBinding {
-  const saltSecret = input.saltSecret ?? process.env.JWT_SALT_SECRET ?? "local-dev-zklogin-salt";
+  let saltSecret = input.saltSecret ?? process.env.ZKLOGIN_SALT_SECRET;
+  if (!saltSecret) {
+    if (process.env.VERCEL || process.env.NODE_ENV === "production") {
+      throw new Error("ZKLOGIN_SALT_SECRET is not configured; refusing to derive salts from the public dev default");
+    }
+    saltSecret = "local-dev-zklogin-salt";
+  }
   const stableSubject = `${input.issuer}:${input.subject}:${input.audience ?? ""}`;
   const salt = createHmac("sha256", saltSecret).update(stableSubject).digest("hex");
   const address = `0x${hashHex(`zklogin:${stableSubject}:${salt}`).slice(0, 64)}`;
@@ -117,6 +134,36 @@ export function deriveZkLoginBinding(input: ZkLoginAddressInput & { nonce: strin
     salt_hash: `sha256:${hashHex(salt)}`,
     nonce: input.nonce,
     provider: input.provider
+  };
+}
+
+/** Real zkLogin binding derived from a VERIFIED OIDC id_token: canonical Sui address via
+ *  @mysten/sui. Signature/issuer/audience/expiry/nonce checks happen in `verifyJwt` (D-14/D-15)
+ *  unless the caller explicitly opted out for local dev (gated twice: flag + env). */
+async function realZkLoginBinding(
+  jwt: string,
+  intent: AuthLoginIntent,
+  input: CompleteAuthLoginInput
+): Promise<ZkLoginBinding> {
+  const skipVerification = input.allowUnverifiedJwt === true && process.env.RN_ALLOW_UNVERIFIED_JWT === "1";
+  const claims = skipVerification
+    ? decodeJwtClaims(jwt)
+    : await verifyJwt(jwt, {
+        jwks: input.jwks,
+        issuers: intent.zklogin.issuer ? [intent.zklogin.issuer] : undefined,
+        audience: intent.client_id,
+        nonce: intent.nonce
+      });
+  const salt = deriveUserSalt({ issuer: claims.iss, subject: claims.sub, audience: claims.aud, secret: input.saltSecret });
+  const address = deriveZkLoginAddress(jwt, salt);
+  return {
+    issuer: claims.iss,
+    subject: claims.sub,
+    audience: claims.aud,
+    address,
+    salt_hash: `sha256:${hashHex(salt)}`,
+    nonce: intent.nonce,
+    provider: intent.provider
   };
 }
 
@@ -201,6 +248,9 @@ function findIntent(auth: Awaited<ReturnType<typeof readAuthState>>, input: Comp
   if (!intent) {
     throw new Error("Auth login intent not found");
   }
+  if (intent.consumed_at) {
+    throw new Error("Auth login intent already consumed");
+  }
   if (new Date(intent.expires_at).getTime() < Date.now()) {
     throw new Error("Auth login intent expired");
   }
@@ -212,16 +262,21 @@ export async function completeAuthLogin(input: CompleteAuthLoginInput): Promise<
   const intent = findIntent(auth, input);
   const issuer = input.issuer ?? intent.zklogin.issuer;
   const subject = input.subject ?? input.git?.user_id;
-  const zklogin = intent.zklogin.enabled && issuer && subject
-    ? deriveZkLoginBinding({
+  let zklogin: ZkLoginBinding | undefined;
+  if (intent.zklogin.enabled && input.jwt) {
+    // Real path: canonical Sui zkLogin address derived from the VERIFIED OIDC id_token.
+    zklogin = await realZkLoginBinding(input.jwt, intent, input);
+  } else if (intent.zklogin.enabled && issuer && subject) {
+    // Simulated path (no id_token): local deterministic derivation for dev/tests.
+    zklogin = deriveZkLoginBinding({
       issuer,
       subject,
       audience: input.audience ?? intent.client_id,
       nonce: intent.nonce,
       provider: intent.provider,
       saltSecret: input.saltSecret
-    })
-    : undefined;
+    });
+  }
 
   const wallets = [...(input.wallets ?? [])];
   if (zklogin && !wallets.some((wallet) => wallet.chain === "sui" && wallet.address === zklogin.address)) {
@@ -243,6 +298,9 @@ export async function completeAuthLogin(input: CompleteAuthLoginInput): Promise<
     created_at: auth.accounts[accountIdFromBinding(zklogin, input.git, intent.provider)]?.created_at ?? new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
+
+  // One-time consumption (D-16): a completed intent can never be completed again.
+  await upsertAuthIntent({ ...intent, consumed_at: new Date().toISOString() }, input.localnetRoot);
 
   return upsertPlatformAccount(account, input.localnetRoot);
 }

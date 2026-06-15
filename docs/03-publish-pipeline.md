@@ -70,7 +70,8 @@ API 处理：
 - `types` 与目录是否匹配
 - Skill 关系是否合法
 - `revenue_split` 是否合计 10000 bps
-- License 是否完整
+- legal terms 是否完整
+- encrypted/private 内容是否声明 `access.seal_id` 和 `access.ciphertext_hash`
 - Agent 生成声明是否存在
 - PDF 是否可打开
 - LaTeX 是否可编译，可选
@@ -142,7 +143,10 @@ API 处理：
 - `research_asset::publish_research_asset`
 - `skill::publish_skill`，每个解析出的 Skill 一次
 - `research_asset::cite_asset` / `record_fork`，每条引用/Fork 关系一次
-- `revenue::create_revenue_pool`
+- `report::publish_public_report` / `publish_encrypted_report`
+- `delegation::publish_private_result`，仅私有委托结果需要
+- `settlement::` 相关入口，创建会员/订阅/委托结算时调用
+- `revenue::create_revenue_pool`，仅底层兼容分账需要
 - `mint_asset_nft`（v2 规划，尚未实现）
 - 所有调用 `emit` 事件
 
@@ -153,9 +157,12 @@ API 处理：
 - repo commit
 - asset type
 - parent ids
-- license id
-- price policy id
-- revenue pool id
+- access visibility
+- seal id
+- ciphertext hash
+- plaintext commitment
+- delegation job id
+- settlement / revenue pool id
 
 ## 6. Indexer
 
@@ -166,7 +173,12 @@ API 处理：
 - `AssetCited`
 - `AssetForked`
 - `SkillInstalled`
-- `LicensePurchased`
+- `ResearchReportPublished`
+- `PlatformMembershipPurchased`
+- `AgentSubscriptionPurchased`
+- `AccessReceiptRecorded`
+- `DelegationCreated`
+- `MembershipReportSettled`
 - `RevenueClaimed`
 - `BadgeIssued`
 
@@ -209,5 +221,7 @@ arXiv 风格页面必须展示：
 - Walrus blob
 - Sui object id
 - Content hash
-- License
-- Price / License purchase
+- Legal terms
+- Access visibility
+- Seal access status
+- Membership / subscription / delegation entry

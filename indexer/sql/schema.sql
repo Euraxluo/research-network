@@ -36,8 +36,7 @@ CREATE TABLE skills (
   relation TEXT,
   walrus_blob_id TEXT,
   manifest_hash TEXT,
-  license TEXT,
-  price_policy JSONB,
+  access JSONB,
   owner_address TEXT,
   created_at TIMESTAMPTZ
 );
@@ -63,16 +62,90 @@ CREATE TABLE agents (
   created_at TIMESTAMPTZ
 );
 
-CREATE TABLE licenses (
+CREATE TABLE research_reports (
   id TEXT PRIMARY KEY,
   sui_object_id TEXT UNIQUE,
-  skill_id TEXT REFERENCES skills(id),
+  agent TEXT NOT NULL,
+  asset_id TEXT REFERENCES research_assets(id),
+  title TEXT,
+  visibility TEXT NOT NULL CHECK (visibility IN ('public', 'encrypted', 'private_delegation')),
+  required_tier INTEGER DEFAULT 0,
+  walrus_blob_id TEXT NOT NULL,
+  seal_id TEXT,
+  ciphertext_hash TEXT,
+  plaintext_commitment TEXT,
+  free_preview_hash TEXT,
+  delegation_job_id TEXT,
+  created_at TIMESTAMPTZ
+);
+
+CREATE TABLE agent_channels (
+  id TEXT PRIMARY KEY,
+  agent TEXT NOT NULL,
+  metadata_hash TEXT,
+  created_at TIMESTAMPTZ
+);
+
+CREATE TABLE platform_memberships (
+  pass_id TEXT PRIMARY KEY,
   owner_address TEXT,
-  license_type TEXT,
-  expires_at TIMESTAMPTZ,
-  commercial BOOLEAN,
-  agent_allowed BOOLEAN,
-  seats INTEGER
+  tier INTEGER DEFAULT 0,
+  started_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ
+);
+
+CREATE TABLE agent_subscriptions (
+  pass_id TEXT PRIMARY KEY,
+  owner_address TEXT,
+  agent TEXT NOT NULL,
+  tier INTEGER DEFAULT 0,
+  started_at TIMESTAMPTZ,
+  expires_at TIMESTAMPTZ
+);
+
+CREATE TABLE access_receipts (
+  id TEXT PRIMARY KEY,
+  period_id BIGINT NOT NULL,
+  user_address TEXT NOT NULL,
+  report_id TEXT REFERENCES research_reports(id),
+  agent TEXT NOT NULL,
+  access_type TEXT NOT NULL CHECK (access_type IN ('platform_member', 'agent_subscription')),
+  created_at TIMESTAMPTZ,
+  UNIQUE(period_id, user_address, report_id)
+);
+
+CREATE TABLE delegation_jobs (
+  id TEXT PRIMARY KEY,
+  buyer TEXT NOT NULL,
+  agent TEXT NOT NULL,
+  budget NUMERIC DEFAULT 0,
+  deadline_at TIMESTAMPTZ,
+  status TEXT NOT NULL,
+  result_report_id TEXT REFERENCES research_reports(id),
+  arbitrator TEXT,
+  payout NUMERIC DEFAULT 0,
+  refund NUMERIC DEFAULT 0,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE membership_settlements (
+  id TEXT PRIMARY KEY,
+  period_id BIGINT NOT NULL,
+  user_address TEXT NOT NULL,
+  report_id TEXT REFERENCES research_reports(id),
+  agent TEXT,
+  report_count INTEGER DEFAULT 0,
+  net_amount NUMERIC DEFAULT 0,
+  amount_per_report NUMERIC DEFAULT 0,
+  created_at TIMESTAMPTZ
+);
+
+CREATE TABLE agent_earnings (
+  agent TEXT PRIMARY KEY,
+  total_earned NUMERIC DEFAULT 0,
+  total_claimed NUMERIC DEFAULT 0,
+  updated_at TIMESTAMPTZ
 );
 
 CREATE TABLE search_documents (

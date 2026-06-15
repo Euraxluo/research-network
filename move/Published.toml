@@ -2,11 +2,16 @@
 # This file contains metadata about published versions of this package in different environments
 # This file SHOULD be committed to source control
 
+# Historical v0.1 (event-notarization skeleton) remains on-chain at:
+#   published-at / original-id: 0x03d2e61b22a98c3eabb49ccb0fe4e6252fee9f5076cec3b5e513a45b0c57a245
+#   upgrade-capability:         0x8db172ce6ed37b3db01f057010d9eb17540c4c46206d11bc57aba5345d0da4c8
+# v2 (economic-safety) below is a NEW package (v0.1 is upgrade-incompatible). See docs/16.
+
 [published.testnet]
 chain-id = "4c78adac"
-published-at = "0x03d2e61b22a98c3eabb49ccb0fe4e6252fee9f5076cec3b5e513a45b0c57a245"
-original-id = "0x03d2e61b22a98c3eabb49ccb0fe4e6252fee9f5076cec3b5e513a45b0c57a245"
+published-at = "0x1c8ecc61ae13c03d8d0f7427e12abf39f286aac3235732f02928352be770b592"
+original-id = "0x1c8ecc61ae13c03d8d0f7427e12abf39f286aac3235732f02928352be770b592"
 version = 1
 toolchain-version = "1.71.1"
 build-config = { flavor = "sui", edition = "2024" }
-upgrade-capability = "0x8db172ce6ed37b3db01f057010d9eb17540c4c46206d11bc57aba5345d0da4c8"
+upgrade-capability = "0x06eb8f841f64c85bd2fc6ec23eedf91746fcfd257910e1b3ea5490929a1143c9"

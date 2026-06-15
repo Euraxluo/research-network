@@ -14,7 +14,7 @@
 
 - Sui 是 canonical registry。
 - 其他链是支付入口。
-- 支付完成后必须在 Sui 上 mint License 或记录购买。
+- 支付完成后必须在 Sui 上记录 access intent 结算：平台会员、agent 订阅或私有委托 escrow。
 - 不要把每条链都变成资产主注册地，避免状态分裂。
 
 ## 支付架构
@@ -27,7 +27,7 @@ flowchart TD
     C -->|EVM/Solana USDC| E[Circle CCTP / Wormhole]
     E --> F[Relayer / Attestation Service]
     F --> G[Sui Settlement Contract]
-    D --> H[License NFT Mint]
+    D --> H[AccessPass / Delegation Escrow]
     G --> H
     H --> I[Indexer]
     I --> J[Unlock Skill]
@@ -41,14 +41,12 @@ flowchart TD
 - USDC on Sui
 - Protocol Token
 
-合约入口（v2 目标态；当前实现为无支付的 `mint_license`，见 docs/17）：
+合约入口（Seal Access 目标态，见 docs/17 与 docs/18）：
 
 ```move
-entry fun purchase_license(
-    skill_id: ID,
-    license_type: u8,
+entry fun buy_platform_membership(
+    tier: u64,
     payment: Coin<USDC>,
-    pool: &mut RevenuePool,
     clock: &Clock,
     ctx: &mut TxContext
 )
@@ -62,9 +60,9 @@ entry fun purchase_license(
 
 1. 用户在源链支付 USDC。
 2. 通过 CCTP burn / mint 或 Wormhole CCTP Bridge 把 USDC 到目标链。
-3. 携带 payload：`buyer_sui_address, skill_id, license_type, order_id`。
+3. 携带 payload：`buyer_sui_address, access_kind, target_id, order_id`。
 4. Relayer / Executor 在 Sui 上调用结算合约。
-5. Sui 合约 mint License NFT。
+5. Sui 合约记录 PlatformMembershipPass、AgentSubscriptionPass 或 DelegationJob escrow。
 6. Indexer 记录 `CrossChainPaymentReceived`。
 
 ## Order ID
@@ -84,8 +82,8 @@ API 创建支付意图：
 ```json
 {
   "order_id": "ord_...",
-  "asset_id": "skill_...",
-  "license_type": "agent_commercial",
+  "kind": "agent_subscription",
+  "target": "agent:...",
   "amount": "49.00",
   "currency": "USDC",
   "accepted_chains": ["sui", "base", "ethereum", "solana"],
@@ -129,4 +127,4 @@ order_id 已结算 -> 拒绝重复 mint
 - order_id + source_tx 唯一。
 - Sui 合约验证已处理订单。
 - Relayer 多实例。
-- 前端显示支付状态：pending / bridged / settled / license minted。
+- 前端显示支付状态：pending / bridged / settled / access active。

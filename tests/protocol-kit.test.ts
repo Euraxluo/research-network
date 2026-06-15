@@ -54,7 +54,7 @@ describe("Research Network protocol kit", () => {
     });
     const assetPath = path.join(workspace, "asset.yaml");
     const original = await fs.readFile(assetPath, "utf8");
-    await fs.writeFile(assetPath, original.replace("weight_bps: 500", "weight_bps: 499"), "utf8");
+    await fs.writeFile(assetPath, original.replace("weight_bps: 1500", "weight_bps: 1499"), "utf8");
     const report = await validateWorkspace(workspace);
     expect(report.valid).toBe(false);
     expect(report.errors.map((error) => error.code)).toContain("commerce.revenue_split_sum");
@@ -109,6 +109,32 @@ describe("Research Network protocol kit", () => {
     const site = await buildStaticWeb(path.join(tempRoot, "site"), localnet);
     await expect(fs.stat(path.join(site, "index.html"))).resolves.toBeTruthy();
     await expect(fs.stat(path.join(site, "abs", `${routeSegment(published.sui.assetId)}.html`))).resolves.toBeTruthy();
+  });
+
+  it("projects a published fork as a canonical fork edge in the graph", async () => {
+    const localnet = path.join(tempRoot, "fork-localnet");
+    const origin = await initWorkspace({
+      target: await makeTempDir("origin"),
+      title: "Origin Routing Study",
+      force: true
+    });
+    const publishedA = await publishWorkspace(origin, localnet);
+    const forkedDir = await forkWorkspace({
+      assetId: publishedA.sui.assetId,
+      target: path.join(tempRoot, "fork-ws"),
+      localnetRoot: localnet
+    });
+    const publishedB = await publishWorkspace(forkedDir, localnet);
+    const index = await replayIndexer({ localnetRoot: localnet });
+
+    const forkEdge = Object.values(index.relationships).find(
+      (edge) =>
+        edge.relation_type === "fork" &&
+        edge.src_id === publishedA.sui.assetId &&
+        edge.dst_id === publishedB.sui.assetId
+    );
+    expect(forkEdge).toBeTruthy();
+    expect(forkEdge?.metadata.indexed_from).toBe("AssetForked");
   });
 
   it("builds Walrus Sites testnet deployment arguments", () => {

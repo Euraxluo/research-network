@@ -1,7 +1,18 @@
-import { publishWorkspace } from "./adapters.js";
+import {
+  acceptDelegationJob,
+  buyPlatformMembership,
+  completeDelegationJob,
+  createDelegationJob,
+  openDispute,
+  publishWorkspace,
+  recordAccessReceipt,
+  settleMembershipPeriod,
+  submitPrivateResult,
+  subscribeAgent
+} from "./adapters.js";
 import { registerAgentPassport } from "./agents.js";
 import { completeAuthLogin, startAuthLogin } from "./auth.js";
-import { getGraph, searchIndex } from "./indexer.js";
+import { getGraph, searchIndex, summarizeAssetEconomics } from "./indexer.js";
 import { readAuthState, readIndex } from "./local-store.js";
 import { forkWorkspace, initWorkspace, installSkill } from "./workspace.js";
 
@@ -34,8 +45,85 @@ export class ResearchClient {
     return index.skills[id];
   }
 
+  async listReports() {
+    const index = await readIndex(this.options.localnetRoot);
+    return Object.values(index.reports);
+  }
+
+  async getReport(id: string) {
+    const index = await readIndex(this.options.localnetRoot);
+    return index.reports[id];
+  }
+
+  async listAgentChannels() {
+    const index = await readIndex(this.options.localnetRoot);
+    return Object.values(index.agent_channels);
+  }
+
+  async listDelegationJobs() {
+    const index = await readIndex(this.options.localnetRoot);
+    return Object.values(index.delegations);
+  }
+
+  buyPlatformMembership(input: Omit<Parameters<typeof buyPlatformMembership>[0], "localnetRoot">) {
+    return buyPlatformMembership({ ...input, localnetRoot: this.options.localnetRoot });
+  }
+
+  subscribeAgent(input: Omit<Parameters<typeof subscribeAgent>[0], "localnetRoot">) {
+    return subscribeAgent({ ...input, localnetRoot: this.options.localnetRoot });
+  }
+
+  createDelegationJob(input: Omit<Parameters<typeof createDelegationJob>[0], "localnetRoot">) {
+    return createDelegationJob({ ...input, localnetRoot: this.options.localnetRoot });
+  }
+
+  acceptDelegationJob(input: Omit<Parameters<typeof acceptDelegationJob>[0], "localnetRoot">) {
+    return acceptDelegationJob({ ...input, localnetRoot: this.options.localnetRoot });
+  }
+
+  submitPrivateResult(input: Omit<Parameters<typeof submitPrivateResult>[0], "localnetRoot">) {
+    return submitPrivateResult({ ...input, localnetRoot: this.options.localnetRoot });
+  }
+
+  completeDelegationJob(input: Omit<Parameters<typeof completeDelegationJob>[0], "localnetRoot">) {
+    return completeDelegationJob({ ...input, localnetRoot: this.options.localnetRoot });
+  }
+
+  openDispute(input: Omit<Parameters<typeof openDispute>[0], "localnetRoot">) {
+    return openDispute({ ...input, localnetRoot: this.options.localnetRoot });
+  }
+
+  recordAccessReceipt(input: Omit<Parameters<typeof recordAccessReceipt>[0], "localnetRoot">) {
+    return recordAccessReceipt({ ...input, localnetRoot: this.options.localnetRoot });
+  }
+
+  settleMembershipPeriod(input: Omit<Parameters<typeof settleMembershipPeriod>[0], "localnetRoot">) {
+    return settleMembershipPeriod({ ...input, localnetRoot: this.options.localnetRoot });
+  }
+
   graph(id: string) {
     return getGraph(id, this.options.localnetRoot);
+  }
+
+  async listRevenuePools() {
+    const index = await readIndex(this.options.localnetRoot);
+    return Object.values(index.revenue_pools);
+  }
+
+  async getRevenuePool(id: string) {
+    const index = await readIndex(this.options.localnetRoot);
+    return index.revenue_pools[id];
+  }
+
+  async listPayments() {
+    const index = await readIndex(this.options.localnetRoot);
+    return Object.values(index.payments);
+  }
+
+  /** Aggregate Seal Access commerce state for an asset (reflects indexed events). */
+  async assetEconomics(assetId: string) {
+    const index = await readIndex(this.options.localnetRoot);
+    return summarizeAssetEconomics(index, assetId);
   }
 
   forkAsset(assetId: string, target: string, include?: string[]) {

@@ -54,7 +54,12 @@ npx tsx src/cli.ts auth:start --provider github --client-id "$GITHUB_CLIENT_ID" 
 npx tsx src/cli.ts auth:start --provider privy --client-id "$CROSS_CHAIN_AUTH_CLIENT_ID" --redirect-uri http://127.0.0.1:8787/api/auth/callback --external-authorize-url "$CROSS_CHAIN_AUTH_AUTHORIZE_URL" --external-issuer "$CROSS_CHAIN_AUTH_ISSUER"
 npx tsx src/cli.ts auth:complete --intent auth:... --issuer https://github.com --subject 12345 --git-provider github --git-user-id 12345 --git-username octo
 npx tsx src/cli.ts agent:register --name "Codex Research Agent"
-npx tsx src/cli.ts license:intent skill:example-skill@0.1.0 --buyer 0xabc
+npx tsx src/cli.ts reports
+npx tsx src/cli.ts channels
+npx tsx src/cli.ts delegations
+npx tsx src/cli.ts access:intent --kind platform_membership --buyer 0xabc
+npx tsx src/cli.ts access:intent --kind agent_subscription --buyer 0xabc --target 0xagent
+npx tsx src/cli.ts access:intent --kind private_delegation --buyer 0xabc --target 0xagent
 npx tsx src/cli.ts web:build
 npx tsx src/cli.ts serve --port 8787
 npx tsx src/cli.ts deploy:testnet ./workspace --epochs 1
@@ -64,6 +69,7 @@ npx tsx src/cli.ts deploy:testnet ./workspace --epochs 1
 - `package` emits release manifest, checksums, and `release.tar.zst`.
 - `publish` writes local Walrus/Sui adapter events.
 - `auth:start/auth:complete` bind Git platform identity, cross-chain auth provider identity, wallets, and a Sui zkLogin address.
-- `replay/search/graph` read the Indexer projection.
+- `replay/search/graph/reports/channels/delegations` read the Indexer projection.
+- `access:intent` creates a local access payment intent for membership, agent subscription, or private delegation.
 - `fork/install` update the target workspace manifest.
 - `deploy:testnet` stores the release archive on Walrus testnet, publishes the Move package on Sui testnet, calls `research_asset::publish_research_asset`, and writes `.research-network/deployments/testnet.json`.

@@ -1,5 +1,7 @@
 # 04. GitHub 接入、GitHub App 与 zkLogin
 
+> **实现状态（2026-06-14）**：GitHub App 真实仓库流程已落地于 `src/core/github.ts`：App JWT(RS256) → installation access token → repo tree / commit / `asset.yaml` 读取 → fork repo，HTTP 依赖注入、vitest 覆盖；经 `/api/github/connect`、`/api/github/fork` 与 CLI `github:connect` 暴露。`/api/github/fork` 默认关闭，必须配置 `RN_GITHUB_FORK_API_TOKEN` 且请求带匹配 bearer token 才会执行。公网 GitHub 授权流已改为 Cursor 式 OAuth 回跳：`/auth/github-callback.html` 调 `api/github-oauth.ts` 交换 code、列出 installations/repos，并要求同时提交 zkLogin `id_token`，服务端验签后派生 `sui_address`；`api/github-oauth.ts` 同时返回 server-signed `binding_attestation`，通过 `upsertGithubRepositoryBinding` 写入服务端 `auth.json` 账户绑定（本地/API V1），登录页/账户页会通过 `api/github-binding.ts` 服务端验签后显示 `server-attested`。登录/账户页现在由 Vercel shell 静态输出（`research vercel:shell` / `.vercel-shell`），内容页、`/site-data.json` 与 PDF 继续走 Walrus Site 代理。zkLogin 真实地址派生已落地（`src/core/zklogin.ts` 用 `@mysten/sui` `jwtToAddress`）：salt service 先验 Google id_token，再用 `ZKLOGIN_SALT_SECRET` 确定性派生 salt；CLI login V1 已提供 `research login/whoami/logout`。Google Console redirect/origin 与 GitHub App client secret/callback/setup 已由用户补齐，生产环境已部署验证；生产级数据库/链上 attest 仍是下一阶段。
+
 ## 目标
 
 平台需要同时支持：
@@ -72,6 +74,16 @@ Account permissions:
 - Email: Read-only，可选
 ```
 
+GitHub App 设置要求：
+
+- App slug：`research-network-app`
+- Install URL：`https://github.com/apps/research-network-app/installations/new`
+- Callback URL（user authorization callback）：`https://research-network-web.vercel.app/auth/github-callback.html`
+- Setup URL（安装/选择仓库后的回跳）：`https://research-network-web.vercel.app/auth/github-callback.html`
+- 勾选 **Request user authorization during installation**，让安装/选择仓库后进入 OAuth code 回跳，而不是停在 GitHub settings/installations。
+- 生成 client secret，只存入 Vercel env `GITHUB_APP_CLIENT_SECRET`；`GITHUB_APP_CLIENT_ID` / `GITHUB_APP_SLUG` 同样放平台环境变量或本地 secrets。
+- 若 Setup URL 为空，用户选择仓库后会停留在 GitHub，站点无法收到 `installation_id`。
+
 ## GitHub 接入流程
 
 ```mermaid
@@ -81,14 +93,18 @@ sequenceDiagram
     participant GH as GitHub
     participant API as API
 
+    U->>Web: Sign in with Google zkLogin
+    Web->>Web: Store session address + tab-scoped id_token
     U->>Web: Click Connect GitHub
-    Web->>GH: OAuth / GitHub App install
-    GH-->>Web: code / installation_id
-    Web->>API: exchange code / installation_id
-    API->>GH: create installation token
-    GH-->>API: token
-    API->>GH: list repos
-    API-->>Web: selectable repos
+    Web->>GH: OAuth authorize for GitHub App
+    GH-->>Web: code + state
+    Web->>API: code + zkLogin id_token
+    API->>API: verify id_token, derive Sui address
+    API->>GH: exchange code + list installations/repos
+    API-->>Web: GitHub user, repos, server-derived sui_address, signed binding attestation
+    API->>API: Persist binding to server account store
+    Web->>Web: Persist browser cache only if addresses match
+    Web->>API: Verify binding_attestation before trusted badge
 ```
 
 ## zkLogin 流程
@@ -104,7 +120,9 @@ sequenceDiagram
     U->>Web: Sign in with OAuth
     Web->>OIDC: Request JWT
     OIDC-->>Web: JWT
-    Web->>Web: Generate ephemeral keypair
+    Web->>Web: Generate ephemeral keypair + state
+    Web->>API: Request deterministic salt with verified JWT
+    API-->>Web: salt
     Web->>Web: Compute zkLogin address
     Web->>ZK: Request proof with JWT + salt
     ZK-->>Web: ZK proof
@@ -127,6 +145,20 @@ salt = HMAC(platform_salt_secret, issuer + subject + user_id)
 ```
 
 并允许用户导出 recovery hint。
+
+当前实现采用策略 3：`/api/zklogin-salt` 先验证 Google id_token，再按 `issuer + subject + audience` 派生确定性 salt；浏览器旧版 `rn_zk_salts` 随机 salt 会在新 callback 中清理，避免同一 Google 账号跨设备派生出不同地址。
+
+## CLI 登录
+
+CLI V1 面向本地 agent 使用：
+
+```bash
+research login [--port 8765] [--no-open]
+research whoami
+research logout
+```
+
+`research login` 起本地 loopback callback（默认 `http://localhost:8765/callback`），Google 返回 id_token 后由 CLI 校验 JWT/nonce，派生 zkLogin Sui 地址，并用本机 `.research-network/secrets/cli-session.key` 通过 AES-256-GCM 加密 token，session 写入 `.research-network/localnet/auth.json`。Google Console 必须注册 `http://localhost:8765/callback`，否则浏览器闭环会报 redirect mismatch。
 
 ## 身份绑定
 
@@ -160,7 +192,7 @@ read:assets
 write:assets
 publish:assets
 install:skills
-purchase:license
+access:intent
 manage:repo
 ```
 
@@ -170,5 +202,6 @@ manage:repo
 - installation token 短期缓存。
 - OAuth state 必须防 CSRF。
 - zkLogin ephemeral key 有过期时间。
+- GitHub 绑定必须服务端校验 OAuth code 和当前 zkLogin id_token；OAuth 成功后写入服务端账户绑定（当前本地/API store V1，生产数据库/链上 attest 待接）；浏览器保存的绑定必须带 server-signed attestation，并经 `/api/github-binding` 验签后才能显示可信状态；仅浏览器 localStorage 绑定不得作为 CLI/agent 的长期可信来源。
 - API key 支持撤销和范围限制。
 - 所有发布操作必须有 nonce 和审计日志。

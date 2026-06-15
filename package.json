@@ -17,10 +17,13 @@
     "deploy:testnet": "tsx src/cli.ts deploy:testnet .research-network/demo-workspace --epochs 1",
     "serve": "tsx src/cli.ts serve --port 8787",
     "web:build": "tsx src/cli.ts web:build",
+    "vercel:shell": "tsx src/cli.ts vercel:shell",
     "web:serve": "tsx src/cli.ts web:serve --port 4173",
-    "web:portal": "docker rm -f research-walrus-portal 2>/dev/null; docker run --rm --name research-walrus-portal -v /tmp/walrus-portal-config.yaml:/portal-config.yaml:ro -e PORTAL_CONFIG=/portal-config.yaml -p 3010:3000 mysten/walrus-sites-server-portal:mainnet-v2.10.0"
+    "web:portal": "docker rm -f research-walrus-portal 2>/dev/null; docker run --rm --name research-walrus-portal -v /tmp/walrus-portal-config.yaml:/portal-config.yaml:ro -e PORTAL_CONFIG=/portal-config.yaml -p 3010:3000 mysten/walrus-sites-server-portal:mainnet-v2.10.0",
+    "web:deploy": "vercel deploy --prod"
   },
   "dependencies": {
+    "@mysten/sui": "^2.17.0",
     "ajv": "^8.17.1",
     "express": "^4.19.2",
     "yaml": "^2.5.0"
@@ -30,7 +33,8 @@
     "@types/node": "^22.5.4",
     "tsx": "^4.19.1",
     "typescript": "^5.5.4",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "esbuild": "^0.28.0"
   },
   "engines": {
     "node": ">=20"

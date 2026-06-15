@@ -9,7 +9,7 @@
 \begin{abstract}
 This paper describes a minimal Research Asset package for an agent-native
 research network. The asset joins a paper, executable skill, workflow
-description, provenance manifest, Walrus snapshot, and Sui registration into one
+description, provenance manifest, access policy, Walrus snapshot, and Sui registration into one
 verifiable object. The goal is to make research outputs installable,
 forkable, citable, and auditable by both people and autonomous agents.
 \end{abstract}
@@ -34,7 +34,7 @@ search documents and graph relationships.
 For agents, the same indexed asset can be consumed without a browser. The CLI
 and SDK expose search, install, fork, publish, and citation operations. A skill
 can therefore be installed into a new workspace while preserving its source
-asset and license metadata.
+asset, access, and provenance metadata.
 
 \section{Experiments}
 The demonstration package exercises the full local workflow. It initializes a
@@ -50,7 +50,7 @@ metadata and machine-readable verification fields.
 \section{Conclusion}
 Research Assets turn papers into composable, verifiable protocol objects. The
 format does not replace prose; it wraps the prose with the code, skills,
-workflow, licenses, and provenance needed for agents to reproduce and extend the
+workflow, access rules, and provenance needed for agents to reproduce and extend the
 work. Future iterations can add richer PDF rendering, full-text semantic search,
 and cross-chain payment settlement.
 

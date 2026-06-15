@@ -41,26 +41,23 @@ dependencies:
   skills: []
   datasets: []
   packages: {}
-license:
+legal_terms:
   paper: CC-BY-4.0
   code: MIT
-  skill: commercial-license
-  workflow: commercial-license
+  data: "declare dataset/source terms here"
+access:
+  visibility: public
+  required_tier: 0
+  free_preview: ""
 commerce:
-  purchasable: true
-  price_policy:
-    default_currency: USDC
-    one_time_price: "49.00"
+  settlement_model: seal_access
   revenue_split:
     - recipient: "0x"
       role: creator
-      weight_bps: 8000
+      weight_bps: 8500
     - recipient: "treasury"
-      role: protocol_treasury
+      role: platform_treasury
       weight_bps: 1500
-    - recipient: "rewards_pool"
-      role: ecosystem_rewards
-      weight_bps: 500
 publish:
   storage: walrus
   chain: sui

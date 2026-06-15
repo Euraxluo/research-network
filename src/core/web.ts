@@ -4,6 +4,24 @@ import { getGraph } from "./indexer.js";
 import { readIndex } from "./local-store.js";
 import { WEB_DIST_DIR } from "./paths.js";
 
+const PDFJS_VERSION = "3.11.174";
+const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
+const MATHJAX_VERSION = "3.2.2";
+const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
+const STATIC_CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://cdn.jsdelivr.net",
+  "connect-src 'self'",
+  "worker-src 'self' blob: https://cdnjs.cloudflare.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'"
+].join("; ");
+
 function escapeHtml(input: unknown): string {
   return String(input ?? "")
     .replaceAll("&", "&amp;")
@@ -15,7 +33,7 @@ function escapeHtml(input: unknown): string {
 function shell(title: string, body: string, options: { math?: boolean; subject?: string } = {}): string {
   const mathjax = options.math
     ? `<script>window.MathJax={tex:{inlineMath:[["\\\\(","\\\\)"]],displayMath:[["\\\\[","\\\\]"]]}};</script>
-  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>`
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@${MATHJAX_VERSION}/es5/tex-mml-chtml.js" integrity="${MATHJAX_SCRIPT_INTEGRITY}" crossorigin="anonymous" async></script>`
     : "";
   return `<!doctype html>
 <html lang="en">
@@ -24,6 +42,7 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)} - Research Network</title>
   <meta name="description" content="Agent-native decentralized research asset network: Paper, Skill, Workflow, Dataset and Code as one verifiable graph.">
+  <meta http-equiv="Content-Security-Policy" content="${STATIC_CSP}">
   <link rel="stylesheet" href="/styles.css">
   <script src="/site.js" defer></script>
   ${mathjax}
@@ -33,7 +52,7 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
   <header class="banner">
     <div class="wrap banner-inner">
       <a class="logo" href="/">research<span class="logo-chi">&chi;</span>iv</a>
-      <form class="banner-search" action="/search.html" method="get">
+      <form class="banner-search" action="/" method="get">
         <input type="search" name="q" placeholder="Search assets, skills, tags&hellip;" aria-label="Search">
         <button type="submit">Search</button>
       </form>
@@ -43,7 +62,10 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
     <a href="/">Browse</a>
     <a href="/search.html">Search</a>
     <a href="/dashboard.html">Dashboard</a>
-    <a href="/licenses.html">Licenses</a>
+    <a href="/membership.html">Membership</a>
+    <a href="/delegations.html">Delegations</a>
+    <a href="/account.html">Account</a>
+    <a href="/login.html">Sign in</a>
   </div></div>
   ${options.subject ? `<div class="subject-strip"><div class="wrap"><h1>${escapeHtml(options.subject)}</h1></div></div>` : ""}
   <main class="wrap">${body}</main>
@@ -286,7 +308,7 @@ function renderPaperHtml(source: string | undefined, fallbackTitle: string, fall
   return { html, hasMath: html.includes('class="math'), hasContent: true };
 }
 
-function renderMetadataHtml(title: string, authors: string, abstract: string, pdfOnly = false): RenderedPaper {
+function renderMetadataHtml(title: string, authors: string, abstract: string | undefined, pdfOnly = false): RenderedPaper {
   const note = pdfOnly
     ? "The full paper is available as PDF only. Open the PDF tab for the complete document."
     : "";
@@ -294,12 +316,154 @@ function renderMetadataHtml(title: string, authors: string, abstract: string, pd
     html: `<div class="ltx-page"><article class="ltx-document">
       <h1 class="ltx-title">${escapeHtml(title)}</h1>
       <div class="ltx-authors">${escapeHtml(authors)}</div>
-      <div class="ltx-abstract"><h6>Abstract</h6><p>${escapeHtml(abstract.trim())}</p></div>
+      <div class="ltx-abstract"><h6>Abstract</h6><p>${escapeHtml((abstract ?? "").trim())}</p></div>
       ${note ? `<p class="missing-note">${escapeHtml(note)}</p>` : ""}
     </article></div>`,
     hasMath: false,
     hasContent: true
   };
+}
+
+/** Minimal, dependency-free markdown → HTML for README / paper.md rendering. Input is escaped
+ *  first; only the markdown constructs below produce markup, so arbitrary HTML never passes. */
+export function renderMarkdownBody(source: string): string {
+  const lines = escapeHtml(source).replaceAll("\r\n", "\n").split("\n");
+  const out: string[] = [];
+  let paragraph: string[] = [];
+  let listMode: "ul" | "ol" | null = null;
+  let codeMode = false;
+  let codeLines: string[] = [];
+
+  const inline = (text: string): string => text
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, href) =>
+      /^(https?:\/\/|\/|#|\.\/)/.test(href) ? `<a href="${href}" rel="noopener">${label}</a>` : match);
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      out.push(`<p>${inline(paragraph.join(" "))}</p>`);
+      paragraph = [];
+    }
+  };
+  const flushList = () => {
+    if (listMode) {
+      out.push(`</${listMode}>`);
+      listMode = null;
+    }
+  };
+
+  for (const line of lines) {
+    if (codeMode) {
+      if (/^```/.test(line)) {
+        out.push(`<pre class="md-code">${codeLines.join("\n")}</pre>`);
+        codeLines = [];
+        codeMode = false;
+      } else {
+        codeLines.push(line);
+      }
+      continue;
+    }
+    if (/^```/.test(line)) {
+      flushParagraph();
+      flushList();
+      codeMode = true;
+      continue;
+    }
+    const heading = line.match(/^(#{1,4})\s+(.*)$/);
+    if (heading) {
+      flushParagraph();
+      flushList();
+      const level = Math.min(heading[1].length + 1, 5);
+      out.push(`<h${level}>${inline(heading[2])}</h${level}>`);
+      continue;
+    }
+    const unordered = line.match(/^\s*[-*]\s+(.*)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (unordered || ordered) {
+      flushParagraph();
+      const mode = unordered ? "ul" : "ol";
+      if (listMode !== mode) {
+        flushList();
+        out.push(`<${mode}>`);
+        listMode = mode;
+      }
+      out.push(`<li>${inline((unordered ?? ordered)![1])}</li>`);
+      continue;
+    }
+    if (!line.trim()) {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+    paragraph.push(line.trim());
+  }
+  if (codeMode && codeLines.length) {
+    out.push(`<pre class="md-code">${codeLines.join("\n")}</pre>`);
+  }
+  flushParagraph();
+  flushList();
+  return out.join("\n");
+}
+
+function renderMarkdownPaper(source: string | undefined, fallbackTitle: string, fallbackAuthors: string): RenderedPaper {
+  if (!source) {
+    return { html: "", hasMath: false, hasContent: false };
+  }
+  // Lift a leading `# Title` into the document title to match the LaTeX layout.
+  const titleMatch = source.match(/^#\s+(.+)\n?/);
+  const body = titleMatch ? source.slice(titleMatch[0].length) : source;
+  const html = `<div class="ltx-page"><article class="ltx-document md-doc">
+    <h1 class="ltx-title">${escapeHtml(titleMatch?.[1]?.trim() || fallbackTitle)}</h1>
+    <div class="ltx-authors">${escapeHtml(fallbackAuthors)}</div>
+    ${renderMarkdownBody(body)}
+  </article></div>`;
+  return { html, hasMath: false, hasContent: true };
+}
+
+/** Block-explorer link config (HANDOFF §2.4-4): base URLs are overridable via env so the site
+ *  can point at any Sui / Walrus explorer without code changes. */
+export interface ExplorerConfig {
+  suiBase: string;
+  walrusBase: string;
+}
+
+export function loadExplorerConfig(env: NodeJS.ProcessEnv = process.env): ExplorerConfig {
+  return {
+    suiBase: (env.SUI_EXPLORER_BASE_URL ?? "https://suiscan.xyz/testnet").replace(/\/$/, ""),
+    walrusBase: (env.WALRUS_EXPLORER_BASE_URL ?? "https://walruscan.com/testnet").replace(/\/$/, "")
+  };
+}
+
+/** Render an on-chain identifier as a clickable explorer link when it looks real; simulated
+ *  local ids (tx_…, walrus:local:…, ra:local:…) stay plain text. */
+function explorerLink(kind: "object" | "tx" | "account" | "walrus-blob", value: unknown, explorer: ExplorerConfig): string {
+  const text = String(value ?? "");
+  const escaped = escapeHtml(text);
+  if (kind === "walrus-blob" && /^[A-Za-z0-9_-]{20,}$/.test(text)) {
+    return `<a href="${escapeHtml(`${explorer.walrusBase}/blob/${text}`)}" rel="noopener" target="_blank">${escaped}</a>`;
+  }
+  if ((kind === "object" || kind === "account") && /^0x[0-9a-fA-F]{4,64}$/.test(text)) {
+    return `<a href="${escapeHtml(`${explorer.suiBase}/${kind}/${text}`)}" rel="noopener" target="_blank">${escaped}</a>`;
+  }
+  if (kind === "tx" && /^[A-Za-z0-9]{32,50}$/.test(text) && !text.startsWith("tx_")) {
+    return `<a href="${escapeHtml(`${explorer.suiBase}/tx/${text}`)}" rel="noopener" target="_blank">${escaped}</a>`;
+  }
+  return escaped;
+}
+
+function isLocalTxDigest(value: unknown): boolean {
+  return String(value ?? "").startsWith("tx_");
+}
+
+function renderEventTxDigest(event: { tx_digest: string; event_seq: number }, explorer: ExplorerConfig): string {
+  const rendered = explorerLink("tx", event.tx_digest, explorer);
+  const eventSeq = `<span class="muted">#${event.event_seq}</span>`;
+  if (isLocalTxDigest(event.tx_digest)) {
+    return `<span class="local-tx" title="Local/demo simulated event ID, not a Sui transaction digest. Real Sui transaction digests link to the configured explorer.">${escapeHtml(event.tx_digest)}</span>${eventSeq}<span class="local-badge" title="This row comes from the local/demo event log, not from Sui RPC.">local</span>`;
+  }
+  return `${rendered}${eventSeq}`;
 }
 
 function renderPaperViewer(options: {
@@ -385,14 +549,296 @@ async function readExistingWalrusSitesResources(outputDir: string): Promise<stri
   }
 }
 
-function verificationRows(fields: Record<string, unknown>): string {
+type VerificationKind = "object" | "tx" | "account" | "walrus-blob" | "plain";
+
+function verificationRows(fields: Record<string, unknown>, explorer?: ExplorerConfig, kinds: Record<string, VerificationKind> = {}): string {
   return `<dl class="verification">${Object.entries(fields)
-    .map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`)
+    .map(([key, value]) => {
+      const kind = kinds[key];
+      const rendered = explorer && kind && kind !== "plain"
+        ? explorerLink(kind, value, explorer)
+        : escapeHtml(value);
+      return `<div><dt>${escapeHtml(key)}</dt><dd>${rendered}</dd></div>`;
+    })
     .join("")}</dl>`;
 }
 
 function jsonForInlineScript(value: unknown): string {
   return JSON.stringify(value).replaceAll("<", "\\u003c");
+}
+
+export interface AccountDirectoryAsset {
+  id: string;
+  title: string;
+  href: string;
+  authors: string;
+  githubs: string[];
+  created_at: string;
+}
+
+export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []): string {
+  const accountBody = `
+<h1>Account</h1>
+<div id="account-root"><p class="muted">Loading session…</p></div>
+<script>window.__ASSET_DIRECTORY__ = ${jsonForInlineScript(assetDirectory)};</script>
+<script>
+(function () {
+  function esc(v) { return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]; }); }
+  var root = document.getElementById("account-root");
+  var session = null, binding = null;
+  try { session = JSON.parse(localStorage.getItem("rn_session") || "null"); } catch (e) {}
+  try { binding = JSON.parse(localStorage.getItem("rn_github") || "null"); } catch (e) {}
+  function repoItems(gh) {
+    var seen = {};
+    var out = [];
+    var selected = selectedInstallationIds(gh);
+    var selectedMap = {};
+    selected.forEach(function (id) { selectedMap[String(id)] = true; });
+    (gh && gh.available_repos || []).forEach(function (repo) {
+      var name = typeof repo === "string" ? repo : repo.full_name;
+      var installationId = typeof repo === "string" ? gh.installation_id : repo.installation_id || null;
+      var granted = typeof repo === "string" ? true : repo.granted !== false;
+      if (!name || seen[name] || !granted || !installationId || !selectedMap[String(installationId)]) return;
+      seen[name] = true;
+      out.push({
+        full_name: name,
+        installation_id: installationId,
+        installation_account: typeof repo === "string" ? gh.account || null : repo.installation_account || null,
+        installation_account_type: typeof repo === "string" ? gh.account_type || null : repo.installation_account_type || null
+      });
+    });
+    (gh && gh.installations || []).forEach(function (installation) {
+      var installationId = installation && installation.id;
+      if (!installationId || !selectedMap[String(installationId)]) return;
+      (installation.repos || []).forEach(function (name) {
+        if (!name || seen[name]) return;
+        seen[name] = true;
+        out.push({
+          full_name: name,
+          installation_id: installationId,
+          installation_account: installation.account || null,
+          installation_account_type: installation.accountType || installation.account_type || null
+        });
+      });
+    });
+    (gh && gh.repos || []).forEach(function (name) {
+      if (!name || seen[name]) return;
+      seen[name] = true;
+      out.push({
+        full_name: name,
+        installation_id: gh.installation_id || null,
+        installation_account: gh.account || null,
+        installation_account_type: gh.account_type || null
+      });
+    });
+    out.sort(function (a, b) { return a.full_name.localeCompare(b.full_name); });
+    return out;
+  }
+  function accountItems(gh) {
+    return (gh && gh.installations || []).map(function (installation) {
+      return {
+        id: String(installation.id),
+        account: installation.account || "GitHub",
+        accountType: installation.accountType || installation.account_type || "Account",
+        repos: installation.repos || []
+      };
+    });
+  }
+  function selectedInstallationIds(gh) {
+    var accounts = accountItems(gh);
+    var ids = gh && gh.selected_installation_ids;
+    if (Array.isArray(ids)) return ids.map(function (id) { return String(id); });
+    return accounts.map(function (account) { return account.id; });
+  }
+  function selectedRepoItem(gh, repos) {
+    var selected = gh && gh.selected_repo;
+    for (var i = 0; selected && i < repos.length; i++) {
+      if (repos[i].full_name === selected) return repos[i];
+    }
+    return repos[0] || null;
+  }
+  function installationForRepo(gh, repo) {
+    if (!gh || !repo || !repo.installation_id) return null;
+    var id = String(repo.installation_id);
+    var installations = gh.installations || [];
+    for (var i = 0; i < installations.length; i++) {
+      if (String(installations[i].id) === id) return installations[i];
+    }
+    return null;
+  }
+  function applySelectedRepo(gh, repo) {
+    if (!gh || !repo || !repo.full_name) return gh;
+    gh.selected_repo = repo.full_name;
+    if (repo.installation_id) {
+      var installation = installationForRepo(gh, repo);
+      gh.installation_id = Number(repo.installation_id);
+      gh.account = repo.installation_account || (installation && installation.account) || gh.account || null;
+      gh.account_type = repo.installation_account_type || (installation && installation.accountType) || gh.account_type || null;
+      gh.repos = installation && installation.repos ? installation.repos : [repo.full_name];
+      var attestation = gh.binding_attestations && gh.binding_attestations[String(gh.installation_id)];
+      if (attestation) {
+        gh.binding_attestation = attestation.binding_attestation || gh.binding_attestation;
+        gh.binding_attestation_payload = attestation.binding_attestation_payload || gh.binding_attestation_payload;
+      }
+    }
+    return gh;
+  }
+  function syncCurrentRepo(gh) {
+    var repos = repoItems(gh);
+    var selected = selectedRepoItem(gh, repos);
+    if (selected) applySelectedRepo(gh, selected);
+    return selected;
+  }
+  function accountSelectorHtml(gh) {
+    var accounts = accountItems(gh);
+    if (!accounts.length) return "";
+    var selected = {};
+    selectedInstallationIds(gh).forEach(function (id) { selected[String(id)] = true; });
+    return '<fieldset class="repo-account-scope"><legend>GitHub account / organization</legend>'
+      + accounts.map(function (account) {
+        var label = account.account + (account.accountType ? " · " + account.accountType : "");
+        var detail = account.repos.length + " authorized repo(s)";
+        return '<label class="repo-account"><input class="rn-account-installation-scope" type="checkbox" value="' + esc(account.id) + '"' + (selected[account.id] ? " checked" : "") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
+      }).join("")
+      + '</fieldset>';
+  }
+  function repoSelectorHtml(gh, selectId) {
+    var repos = repoItems(gh);
+    if (!repos.length) return '<p class="muted">No repositories available in the selected accounts/orgs.</p>';
+    var selected = selectedRepoItem(gh, repos);
+    return '<label class="muted" for="' + esc(selectId) + '">Research repo</label><br>'
+      + '<select id="' + esc(selectId) + '" class="repo-select">'
+      + repos.map(function (repo) {
+          var label = repo.full_name + (repo.installation_account ? " · " + repo.installation_account : "");
+          return '<option value="' + esc(repo.full_name) + '" data-installation-id="' + esc(repo.installation_id || "") + '" data-installation-account="' + esc(repo.installation_account || "") + '" data-installation-account-type="' + esc(repo.installation_account_type || "") + '"' + (selected && repo.full_name === selected.full_name ? " selected" : "") + '>' + esc(label) + '</option>';
+        }).join("")
+      + '</select>';
+  }
+  function selectedOptionRepo(select) {
+    var option = select.options[select.selectedIndex];
+    return {
+      full_name: select.value,
+      installation_id: option.getAttribute("data-installation-id") || null,
+      installation_account: option.getAttribute("data-installation-account") || null,
+      installation_account_type: option.getAttribute("data-installation-account-type") || null
+    };
+  }
+  function wireRepoControls(gh, selectId, pickerId) {
+    if (!gh) return;
+    function persist() { localStorage.setItem("rn_github", JSON.stringify(gh)); }
+    function wireSelect() {
+      var select = document.getElementById(selectId);
+      if (!select) return;
+      if (select.value && gh.selected_repo !== select.value) {
+        applySelectedRepo(gh, selectedOptionRepo(select));
+        persist();
+      }
+      select.addEventListener("change", function () {
+        applySelectedRepo(gh, selectedOptionRepo(select));
+        persist();
+      });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll(".rn-account-installation-scope"), function (input) {
+      input.addEventListener("change", function () {
+        var checked = Array.prototype.slice.call(document.querySelectorAll(".rn-account-installation-scope"))
+          .filter(function (el) { return el.checked; })
+          .map(function (el) { return String(el.value); });
+        gh.selected_installation_ids = checked;
+        syncCurrentRepo(gh);
+        var picker = document.getElementById(pickerId);
+        if (picker) picker.innerHTML = repoSelectorHtml(gh, selectId);
+        persist();
+        wireSelect();
+      });
+    });
+    wireSelect();
+  }
+  function hasServerAttestation(gh) {
+    var payload = gh && gh.binding_attestation_payload;
+    return Boolean(
+      gh &&
+      gh.binding_attestation &&
+      payload &&
+      payload.sub === gh.sui_address &&
+      String(payload.installation_id) === String(gh.installation_id)
+    );
+  }
+  function verifyServerAttestation(gh, onDone) {
+    if (!gh || !gh.binding_attestation) { onDone(false); return; }
+    fetch("/api/github-binding", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        binding_attestation: gh.binding_attestation,
+        sui_address: gh.sui_address,
+        installation_id: Number(gh.installation_id),
+        repos: gh.repos || []
+      })
+    }).then(function (res) { return res.ok ? res.json() : null; }).then(function (body) {
+      var payload = body && body.payload;
+      onDone(Boolean(body && body.valid && payload && payload.sub === gh.sui_address && String(payload.installation_id) === String(gh.installation_id)));
+    }).catch(function () { onDone(false); });
+  }
+  function render(directory) {
+    if (!session || !session.address) {
+      root.innerHTML = '<p class="muted">Not signed in.</p><p><a class="button" href="/login.html">Sign in with Google (zkLogin)</a></p>';
+      return;
+    }
+    var html = '<h2>Sui identity</h2>'
+      + '<dl class="verification">'
+      + '<div><dt>zkLogin address</dt><dd>' + esc(session.address) + '</dd></div>'
+      + (session.email ? '<div><dt>Email</dt><dd>' + esc(session.email) + '</dd></div>' : '')
+      + '<div><dt>Provider</dt><dd>' + esc(session.iss || session.provider || "google") + '</dd></div>'
+      + '</dl>';
+    html += '<h2>Connected GitHub repositories</h2>';
+    if (binding && binding.sui_address === session.address && binding.installation_id) {
+      var manageUrl = '/login.html';
+      var attested = hasServerAttestation(binding);
+      var selectedCount = selectedInstallationIds(binding).length;
+      var repoCount = repoItems(binding).length;
+      html += '<p class="muted">' + esc(binding.login || "GitHub") + ' · ' + selectedCount + ' selected account/org scope(s), ' + repoCount + ' repo option(s)<span id="rn-account-attestation-status">' + (attested ? ' · checking attestation…' : ' · local binding') + '</span></p>'
+        + '<div class="repo-control">' + accountSelectorHtml(binding) + '<div id="rn-account-repo-picker">' + repoSelectorHtml(binding, "rn-account-repo-select") + '</div></div>'
+        + '<p class="repo-actions"><a class="button" href="/login.html">Refresh GitHub repos</a>'
+        + '<a class="button" href="' + esc(manageUrl) + '">Add GitHub account/org access</a>'
+        + '</p>';
+    } else {
+      html += '<p class="muted">No repositories connected yet.</p><p><a class="button" href="/login.html">Connect GitHub</a></p>';
+    }
+    html += '<h2>My publications</h2>';
+    var mine = [];
+    if (binding && binding.login) {
+      mine = (directory || []).filter(function (a) { return (a.githubs || []).indexOf(binding.login) !== -1; });
+    }
+    if (mine.length) {
+      html += '<ul class="small-list">' + mine.map(function (a) { return '<li><a href="' + esc(a.href) + '">' + esc(a.title) + '</a> <span class="muted">' + esc(a.id) + '</span></li>'; }).join("") + '</ul>';
+    } else {
+      html += '<p class="muted">No indexed publications are linked to this account yet' + (binding && binding.login ? ' (matched by GitHub author handle).' : ' — connect GitHub so publications can be matched to you.') + '</p>';
+    }
+    html += '<p style="margin-top:24px"><button class="button" id="signout" type="button">Sign out</button></p>';
+    root.innerHTML = html;
+    verifyServerAttestation(binding, function (valid) {
+      var status = document.getElementById("rn-account-attestation-status");
+      if (status) status.textContent = valid ? " · server-attested" : " · local binding";
+    });
+    document.getElementById("signout").addEventListener("click", function () {
+      ["rn_session", "rn_github"].forEach(function (k) { localStorage.removeItem(k); });
+      ["rn_zk_session", "rn_zk_eph", "rn_oauth_state", "rn_gh_state"].forEach(function (k) { sessionStorage.removeItem(k); });
+      location.href = "/login.html";
+    });
+    wireRepoControls(binding, "rn-account-repo-select", "rn-account-repo-picker");
+  }
+  var initialDirectory = window.__ASSET_DIRECTORY__ || [];
+  if (initialDirectory.length || !session || !session.address) {
+    render(initialDirectory);
+    return;
+  }
+  fetch("/site-data.json", { cache: "no-store" })
+    .then(function (res) { return res.ok ? res.json() : { assets: [] }; })
+    .then(function (data) { render(data && data.assets ? data.assets : []); })
+    .catch(function () { render([]); });
+})();
+</script>`;
+  return shell("Account", accountBody, { subject: "Account" });
 }
 
 const STYLES_CSS = `
@@ -497,6 +943,14 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .small-list { margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .small-list li { padding: 4px 0; border-bottom: 1px solid #eee; }
 .small-list li:last-child { border-bottom: 0; }
+.repo-control { margin: 8px 0 10px; }
+.repo-select { width: min(520px, 100%); margin-top: 4px; padding: 7px 10px; border: 1px solid #bbb; border-radius: 3px; background: #fff; color: var(--ink); font: inherit; }
+.repo-select:focus { outline: 2px solid rgba(0, 104, 172, .22); border-color: var(--link); }
+.repo-account-scope { margin: 0 0 12px; padding: 0; border: 0; }
+.repo-account-scope legend { margin: 0 0 6px; color: var(--muted); }
+.repo-account { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: 13.5px; }
+.repo-account input { margin-top: 3px; }
+.repo-actions { margin: 12px 0 14px; }
 
 /* rendered paper (ar5iv style) */
 .paper-viewer { margin: 24px 0 28px; }
@@ -549,6 +1003,10 @@ pre { white-space: pre-wrap; word-break: break-word; background: #fafafa; color:
 .stat { border: 1px solid var(--line); border-radius: 4px; padding: 10px 18px; min-width: 130px; background: #fafafa; }
 .stat b { display: block; font-size: 24px; }
 .stat span { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0 20px; }
+.data-table th, .data-table td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+.data-table th { background: #fafafa; font-weight: 700; }
+.data-table td { font-family: monospace; word-break: break-all; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
 .card { border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; background: #fff; }
 a.card { display: block; color: var(--ink); }
@@ -557,6 +1015,22 @@ a.card h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--link); }
 .result { display: block; padding: 12px 4px; border-bottom: 1px solid var(--line); color: var(--ink); }
 .result:hover { text-decoration: none; background: #fafafa; }
 .result strong { color: var(--link); font-size: 15.5px; }
+
+/* markdown rendering (README / paper.md) */
+.readme-box { border: 1px solid var(--line); border-radius: 4px; background: #fff; padding: 16px 20px; max-width: 800px; font-size: 14.5px; }
+.md-doc h2, .md-doc h3, .md-doc h4 { margin: 18px 0 8px; }
+.md-doc p { margin: 0 0 10px; }
+.md-doc ul, .md-doc ol { margin: 0 0 10px; padding-left: 26px; }
+.md-code { background: #f7f7f7; border: 1px solid #e3e3e3; padding: 12px 14px; font-size: 12.5px; overflow: auto; font-family: var(--mono); }
+
+/* explorer-style events table */
+.events-table td { font-family: var(--mono); font-size: 12px; }
+.events-table .event-name { font-weight: 700; color: var(--arxiv-red); white-space: nowrap; }
+.events-table .event-time { white-space: nowrap; color: var(--muted); }
+.event-field { display: inline-block; margin-right: 10px; }
+.event-key { color: var(--muted); }
+.local-tx { color: #444; }
+.local-badge { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font: 10px/1.5 var(--sans); text-transform: uppercase; vertical-align: 1px; }
 
 /* graph page */
 .graph-canvas-wrap { border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: #fff; margin: 16px 0 22px; }
@@ -597,16 +1071,24 @@ const SITE_JS = `
     });
   }
 
-  /* client-side search filter */
+  /* client-side search filter: works on search results and on the home listing (dt+dd pairs) */
   function setupFilter() {
     var input = document.getElementById("filter");
     if (!input) return;
     var rows = Array.prototype.slice.call(document.querySelectorAll(".result"));
+    var entries = Array.prototype.slice.call(document.querySelectorAll("dl.listing dt")).map(function (dt) {
+      var dd = dt.nextElementSibling;
+      return { els: dd ? [dt, dd] : [dt], text: (dt.textContent + " " + (dd ? dd.textContent : "")).toLowerCase() };
+    });
     function apply() {
       var q = input.value.trim().toLowerCase();
       rows.forEach(function (row) {
         var hit = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
         row.style.display = hit ? "" : "none";
+      });
+      entries.forEach(function (entry) {
+        var hit = !q || entry.text.indexOf(q) !== -1;
+        entry.els.forEach(function (el) { el.style.display = hit ? "" : "none"; });
       });
     }
     input.addEventListener("input", apply);
@@ -732,8 +1214,9 @@ const SITE_JS = `
     sync();
   }
 
-  var PDFJS_VERSION = "3.11.174";
+  var PDFJS_VERSION = "${PDFJS_VERSION}";
   var PDFJS_BASE = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/" + PDFJS_VERSION;
+  var PDFJS_SCRIPT_INTEGRITY = "${PDFJS_SCRIPT_INTEGRITY}";
   var pdfJsLoadPromise = null;
 
   function loadPdfJs() {
@@ -742,6 +1225,8 @@ const SITE_JS = `
       if (window.pdfjsLib) { resolve(window.pdfjsLib); return; }
       var s = document.createElement("script");
       s.src = PDFJS_BASE + "/pdf.min.js";
+      s.integrity = PDFJS_SCRIPT_INTEGRITY;
+      s.crossOrigin = "anonymous";
       s.onload = function () {
         if (window.pdfjsLib) {
           window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_BASE + "/pdf.worker.min.js";
@@ -808,6 +1293,7 @@ const SITE_JS = `
 
 export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: string): Promise<string> {
   const index = await readIndex(localnetRoot);
+  const explorer = loadExplorerConfig();
   const walrusSitesResources = await readExistingWalrusSitesResources(outputDir);
   await fs.rm(outputDir, { recursive: true, force: true });
   await fs.mkdir(path.join(outputDir, "abs"), { recursive: true });
@@ -831,17 +1317,107 @@ export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: st
 ${Object.values(index.search_documents).map((document) => `<a class="result" href="${document.entity_type === "asset" ? escapeHtml(webPath("abs", `${routeSegment(document.entity_id)}.html`)) : document.entity_type === "skill" ? escapeHtml(webPath("skill", `${routeSegment(document.entity_id)}.html`)) : "#"}"><strong>${escapeHtml(document.title)}</strong><br><span class="muted">${escapeHtml(document.entity_type)} &middot; ${escapeHtml(document.tags.join(", "))}</span></a>`).join("")}`;
   await fs.writeFile(path.join(outputDir, "search.html"), shell("Search", searchBody, { subject: "Search" }), "utf8");
 
+  const revenuePools = Object.values(index.revenue_pools);
+  const payments = Object.values(index.payments);
+  const reports = Object.values(index.reports);
+  const encryptedReports = reports.filter((report) => report.visibility === "encrypted");
+  const privateReports = reports.filter((report) => report.visibility === "private_delegation");
+  const platformMemberships = Object.values(index.platform_memberships);
+  const agentSubscriptions = Object.values(index.agent_subscriptions);
+  const accessReceipts = Object.values(index.access_receipts);
+  const delegations = Object.values(index.delegations);
+  const agentEarnings = Object.values(index.agent_earnings);
+  const totalReceived = revenuePools.reduce((sum, pool) => sum + pool.total_received, 0);
+  const totalClaimed = revenuePools.reduce((sum, pool) => sum + pool.total_claimed, 0);
+  const poolRows = revenuePools
+    .map((pool) => `<tr><td>${escapeHtml(pool.id)}</td><td>${escapeHtml(pool.asset_id)}</td><td>${pool.total_received}</td><td>${pool.total_claimed}</td><td>${pool.total_received - pool.total_claimed}</td></tr>`)
+    .join("");
+  const paymentRows = payments
+    .map((payment) => `<tr><td>${escapeHtml(payment.order_hash)}</td><td>${escapeHtml(payment.source_chain)}</td><td>${escapeHtml(payment.buyer)}</td><td>${payment.amount}</td></tr>`)
+    .join("");
+  const reportRows = reports
+    .map((report) => `<tr><td>${escapeHtml(report.id)}</td><td>${escapeHtml(report.visibility)}</td><td>${escapeHtml(report.agent)}</td><td>${escapeHtml(report.title ?? "")}</td></tr>`)
+    .join("");
+  const receiptRows = accessReceipts
+    .map((receipt) => `<tr><td>${escapeHtml(receipt.id)}</td><td>${receipt.period_id}</td><td>${escapeHtml(receipt.report_id)}</td><td>${escapeHtml(receipt.agent)}</td><td>${escapeHtml(receipt.access_type)}</td></tr>`)
+    .join("");
+  const delegationRows = delegations
+    .map((job) => `<tr><td>${escapeHtml(job.id)}</td><td>${escapeHtml(job.status)}</td><td>${escapeHtml(job.buyer)}</td><td>${escapeHtml(job.agent)}</td><td>${job.budget}</td></tr>`)
+    .join("");
+  const earningsRows = agentEarnings
+    .map((row) => `<tr><td>${escapeHtml(row.agent)}</td><td>${row.total_earned}</td><td>${row.total_claimed}</td><td>${row.total_earned - row.total_claimed}</td></tr>`)
+    .join("");
+
+  // Explorer-style event listing (HANDOFF §2.4-3): one row per event, newest first, with the
+  // payload reduced to its scalar fields — never a raw JSON dump.
+  const eventDetail = (payload: Record<string, unknown>): string => Object.entries(payload)
+    .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
+    .slice(0, 4)
+    .map(([key, value]) => {
+      const text = String(value);
+      const rendered = /^0x[0-9a-fA-F]{4,64}$/.test(text)
+        ? explorerLink("object", text, explorer)
+        : escapeHtml(text.length > 46 ? `${text.slice(0, 45)}…` : text);
+      return `<span class="event-field"><span class="event-key">${escapeHtml(key)}</span>=${rendered}</span>`;
+    })
+    .join(" ");
+  const eventRows = [...index.events]
+    .sort((a, b) => b.timestamp_ms - a.timestamp_ms || b.event_seq - a.event_seq)
+    .slice(0, 50)
+    .map((event) => `<tr>
+      <td class="event-name">${escapeHtml(event.event_type)}</td>
+      <td>${renderEventTxDigest(event, explorer)}</td>
+      <td class="event-time">${escapeHtml(new Date(event.timestamp_ms).toISOString().replace("T", " ").slice(0, 19))}</td>
+      <td>${eventDetail(event.payload)}</td>
+    </tr>`);
+
   const dashboardBody = `
 <div class="stats">
   <div class="stat"><b>${assets.length}</b><span>Assets</span></div>
   <div class="stat"><b>${skills.length}</b><span>Skills</span></div>
+  <div class="stat"><b>${reports.length}</b><span>Reports</span></div>
+  <div class="stat"><b>${encryptedReports.length}</b><span>Encrypted</span></div>
+  <div class="stat"><b>${privateReports.length}</b><span>Private</span></div>
+  <div class="stat"><b>${relationshipCount}</b><span>Relationships</span></div>
   <div class="stat"><b>${index.events.length}</b><span>Events</span></div>
-  <div class="stat"><b>${Object.keys(index.licenses).length}</b><span>Licenses</span></div>
+  <div class="stat"><b>${accessReceipts.length}</b><span>Access receipts</span></div>
 </div>
+<p class="muted">Commerce figures are projected from indexed protocol events. Encrypted reports store only Walrus/Seal references here; private delegation reports are never indexed as searchable public content.</p>
+<h2>Seal Access</h2>
+${reports.length ? `<table class="data-table"><thead><tr><th>Report</th><th>Visibility</th><th>Agent</th><th>Title</th></tr></thead><tbody>${reportRows}</tbody></table>` : `<p class="muted">No reports indexed yet.</p>`}
+<h2>Membership Reads</h2>
+${accessReceipts.length ? `<table class="data-table"><thead><tr><th>Receipt</th><th>Period</th><th>Report</th><th>Agent</th><th>Type</th></tr></thead><tbody>${receiptRows}</tbody></table>` : `<p class="muted">No access receipts indexed yet.</p>`}
+<h2>Agent Earnings</h2>
+${agentEarnings.length ? `<table class="data-table"><thead><tr><th>Agent</th><th>Earned</th><th>Claimed</th><th>Unclaimed</th></tr></thead><tbody>${earningsRows}</tbody></table>` : `<p class="muted">No agent earnings indexed yet.</p>`}
+<h2>Legacy Revenue Pools</h2>
+<div class="stats">
+  <div class="stat"><b>${totalReceived}</b><span>Total received</span></div>
+  <div class="stat"><b>${totalClaimed}</b><span>Total claimed</span></div>
+  <div class="stat"><b>${totalReceived - totalClaimed}</b><span>Unclaimed</span></div>
+</div>
+${revenuePools.length ? `<table class="data-table"><thead><tr><th>Pool</th><th>Asset</th><th>Received</th><th>Claimed</th><th>Unclaimed</th></tr></thead><tbody>${poolRows}</tbody></table>` : `<p class="muted">No revenue pools indexed yet.</p>`}
+<h2>Delegations</h2>
+${delegations.length ? `<table class="data-table"><thead><tr><th>Job</th><th>Status</th><th>Buyer</th><th>Agent</th><th>Budget</th></tr></thead><tbody>${delegationRows}</tbody></table>` : `<p class="muted">No private delegation jobs indexed yet.</p>`}
+<h2>Cross-chain Payments</h2>
+${payments.length ? `<table class="data-table"><thead><tr><th>Order</th><th>Source chain</th><th>Buyer</th><th>Amount</th></tr></thead><tbody>${paymentRows}</tbody></table>` : `<p class="muted">No settlements indexed yet.</p>`}
 <h2>Events</h2>
-<pre>${escapeHtml(JSON.stringify(index.events.slice(-20), null, 2))}</pre>`;
+${eventRows.length
+    ? `<table class="data-table events-table"><thead><tr><th>Event</th><th>Tx digest</th><th>Time</th><th>Details</th></tr></thead><tbody>${eventRows.join("")}</tbody></table>`
+    : `<p class="muted">No protocol events indexed yet.</p>`}`;
   await fs.writeFile(path.join(outputDir, "dashboard.html"), shell("Dashboard", dashboardBody, { subject: "Dashboard" }), "utf8");
-  await fs.writeFile(path.join(outputDir, "licenses.html"), shell("Licenses", `<pre>${escapeHtml(JSON.stringify(index.licenses, null, 2))}</pre>`, { subject: "Licenses" }), "utf8");
+  const membershipBody = `
+<p class="muted">Platform membership unlocks encrypted research reports through Seal. Monthly fees are settled to the reports each member actually opened.</p>
+<div class="stats">
+  <div class="stat"><b>${platformMemberships.length}</b><span>Platform passes</span></div>
+  <div class="stat"><b>${agentSubscriptions.length}</b><span>Agent subscriptions</span></div>
+  <div class="stat"><b>${accessReceipts.length}</b><span>Read receipts</span></div>
+</div>
+${receiptRows ? `<table class="data-table"><thead><tr><th>Receipt</th><th>Period</th><th>Report</th><th>Agent</th><th>Type</th></tr></thead><tbody>${receiptRows}</tbody></table>` : `<p class="muted">No encrypted report reads have been recorded yet.</p>`}`;
+  await fs.writeFile(path.join(outputDir, "membership.html"), shell("Membership", membershipBody, { subject: "Membership" }), "utf8");
+  const delegationsBody = `
+<p class="muted">Private Delegation results are encrypted on Walrus and decryptable only by the buyer and agent, with temporary arbitration access during disputes.</p>
+${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status</th><th>Buyer</th><th>Agent</th><th>Budget</th></tr></thead><tbody>${delegationRows}</tbody></table>` : `<p class="muted">No private delegation jobs indexed yet.</p>`}`;
+  await fs.writeFile(path.join(outputDir, "delegations.html"), shell("Delegations", delegationsBody, { subject: "Delegations" }), "utf8");
 
   for (const asset of assets) {
     const seg = routeSegment(asset.id);
@@ -850,21 +1426,43 @@ ${Object.values(index.search_documents).map((document) => `<a class="result" hre
     const paperPdf = await copyPaperArtifact(outputDir, asset.id, asset.repo_url, paper?.path);
     const paperSource = await copyPaperArtifact(outputDir, asset.id, asset.repo_url, paper?.source);
     const paperSourceText = await readPaperSource(asset.repo_url, paper?.source);
+    // Markdown rendering path (HANDOFF §2.4-1): paper.md declared as source, or repo-level
+    // paper/paper.md + README.md picked up even when the manifest only knows LaTeX/PDF.
+    const sourceIsMarkdown = Boolean(paper?.source?.endsWith(".md"));
+    const paperMdText = sourceIsMarkdown ? paperSourceText : await readPaperSource(asset.repo_url, "paper/paper.md");
+    const readmeText = await readPaperSource(asset.repo_url, "README.md");
     const workflowPath = asset.manifest.assets.assets?.workflow?.path;
+    const assetAccess = asset.manifest.assets.access ?? {
+      visibility: asset.manifest.assets.publish.visibility === "encrypted"
+        ? "encrypted"
+        : asset.manifest.assets.publish.visibility === "private_delegation"
+          ? "private_delegation"
+          : "public"
+    };
+    const assetReports = reports.filter((report) => report.asset_id === asset.id);
+    const accessLabel = assetAccess.visibility === "private_delegation" ? "Private Delegation" : assetAccess.visibility[0].toUpperCase() + assetAccess.visibility.slice(1);
+    const accessNote = assetAccess.visibility === "public"
+      ? "Open research, no Seal decrypt required."
+      : assetAccess.visibility === "encrypted"
+        ? "Encrypted on Walrus; Seal unlocks for platform members or agent subscribers."
+        : "Private delegation result; Seal unlocks only for buyer and agent unless dispute arbitration is authorized.";
     const authors = authorLine(asset.manifest.assets.authors);
     const typeLabel = asset.types.map((type) => type[0].toUpperCase() + type.slice(1)).join("; ");
     const primarySkill = asset.manifest.skills[0];
-    const renderedFromTex = renderPaperHtml(paperSourceText, asset.title, authors);
-    const rendered = renderedFromTex.hasContent
-      ? renderedFromTex
+    const renderedFromTex = sourceIsMarkdown
+      ? renderMarkdownPaper(paperSourceText, asset.title, authors)
+      : renderPaperHtml(paperSourceText, asset.title, authors);
+    const renderedFromMd = renderedFromTex.hasContent ? renderedFromTex : renderMarkdownPaper(paperMdText, asset.title, authors);
+    const rendered = renderedFromMd.hasContent
+      ? renderedFromMd
       : paperPdf
         ? renderMetadataHtml(asset.title, authors, asset.abstract, !paperSourceText)
         : renderedFromTex;
     const paperViewer = renderPaperViewer({
       paperPdf,
       paperSource,
-      paperSourceLabel: paper?.source,
-      paperSourceText,
+      paperSourceLabel: paper?.source ?? (renderedFromMd !== renderedFromTex && renderedFromMd.hasContent ? "paper/paper.md" : undefined),
+      paperSourceText: sourceIsMarkdown ? undefined : paperSourceText,
       rendered
     });
     const accessLinks = formatLinks(paperPdf, paperSource, seg, rendered.hasContent);
@@ -885,7 +1483,8 @@ ${Object.values(index.search_documents).map((document) => `<a class="result" hre
     <div class="abs-tags">${asset.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>
     <div class="metatable"><table>
       <tr><td class="label">Subjects:</td><td>${escapeHtml(typeLabel)}</td></tr>
-      <tr><td class="label">License:</td><td>${escapeHtml(asset.manifest.assets.license.paper ?? "unspecified")}</td></tr>
+      <tr><td class="label">Access:</td><td>${escapeHtml(accessLabel)}</td></tr>
+      ${assetAccess.seal_id ? `<tr><td class="label">Seal ID:</td><td><code>${escapeHtml(assetAccess.seal_id)}</code></td></tr>` : ""}
       <tr><td class="label">Cite as:</td><td><span class="arxiv-id">${escapeHtml(paperCode(asset.id))}</span></td></tr>
       <tr><td class="label">Asset ID:</td><td><code>${escapeHtml(asset.id)}</code></td></tr>
       <tr><td class="label">Submission history:</td><td>From ${escapeHtml(String(asset.manifest.assets.generated_by?.agent ?? "workflow"))} &mdash; [${escapeHtml(asset.version)}] ${escapeHtml(humanDate(asset.created_at))}</td></tr>
@@ -893,18 +1492,22 @@ ${Object.values(index.search_documents).map((document) => `<a class="result" hre
 
     ${paperViewer}
 
+    ${readmeText ? `<h2>README</h2><div class="readme-box md-doc">${renderMarkdownBody(readmeText)}</div>` : ""}
+
     <h2>Agent-Native Assets</h2>
     <div class="grid">${asset.manifest.skills.map((skill) => `<a class="card" href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}"><h3>${escapeHtml(skill.manifest.name)}</h3><p>${escapeHtml(skill.manifest.description)}</p><span class="muted">${escapeHtml(skill.manifest.capabilities.join(", "))}</span></a>`).join("") || "<p class=\"muted\">No skills declared.</p>"}</div>
   </div>
   <aside class="extra-services">
     <div class="access-box">
-      <h2>Access Paper:</h2>
+      <h2>Access Research:</h2>
       <ul>
         ${paperPdf ? `<li><a class="download-pdf" href="${escapeHtml(paperPdf)}">View PDF</a></li>` : `<li><span class="disabled">PDF unavailable</span></li>`}
         ${rendered.hasContent ? `<li><a href="#paper">HTML (rendered)</a></li>` : paperPdf ? `<li><a href="#pdf">PDF preview</a></li>` : `<li><span class="disabled">HTML unavailable</span></li>`}
         ${paperSourceText ? `<li><a href="#tex">TeX Source</a></li>` : paperSource ? `<li><a href="${escapeHtml(paperSource)}" download>TeX Source</a></li>` : ""}
         ${repoLink(asset.repo_url)}
       </ul>
+      <p class="muted">${escapeHtml(accessNote)}</p>
+      ${assetReports.length ? `<ul class="small-list">${assetReports.map((report) => `<li>${escapeHtml(report.visibility)} report: <code>${escapeHtml(report.id)}</code></li>`).join("")}</ul>` : ""}
     </div>
     <div class="sidebar-section">
       <h3>Tools</h3>
@@ -915,7 +1518,11 @@ ${Object.values(index.search_documents).map((document) => `<a class="result" hre
     </div>
     <div class="sidebar-section">
       <h3>Verifiable Record</h3>
-      ${verificationRows({ "Sui object": asset.sui_object_id, "Walrus blob": asset.walrus_blob_id, Manifest: asset.manifest_hash, "Content hash": asset.content_hash, Commit: asset.repo_commit })}
+      ${verificationRows(
+        { "Sui object": asset.sui_object_id, "Walrus blob": asset.walrus_blob_id, Manifest: asset.manifest_hash, "Content hash": asset.content_hash, Commit: asset.repo_commit },
+        explorer,
+        { "Sui object": "object", "Walrus blob": "walrus-blob" }
+      )}
     </div>
     <div class="sidebar-section">
       <h3>Related</h3>
@@ -942,12 +1549,34 @@ ${Object.values(index.search_documents).map((document) => `<a class="result" hre
   const homeBody = `
 <p class="intro">An agent-native, decentralized research asset network. Papers, skills, workflows, datasets and code are authored in Git, snapshotted on Walrus, registered on Sui, and indexed as one verifiable graph for humans and agents alike.</p>
 <p class="stats-line">${assets.length} research asset${assets.length === 1 ? "" : "s"} &middot; ${skills.length} skill${skills.length === 1 ? "" : "s"} &middot; ${relationshipCount} graph relationship${relationshipCount === 1 ? "" : "s"} &middot; ${index.events.length} protocol event${index.events.length === 1 ? "" : "s"} &middot; indexed ${escapeHtml(humanDate(index.updated_at))}</p>
+<div class="search-box"><input id="filter" type="search" placeholder="Search titles, authors, tags&hellip;" autocomplete="off" aria-label="Search submissions"></div>
 <h2>Recent submissions</h2>
 ${listingParts.length ? `<dl class="listing">${listingParts.join("")}</dl>` : "<p class=\"muted\">No indexed assets yet. Run <code>research publish</code> first.</p>"}`;
   await fs.writeFile(path.join(outputDir, "index.html"), shell("Home", homeBody, { subject: "Research Network" }), "utf8");
 
+  // Account page (HANDOFF §2.4-5): session + GitHub binding live in the browser, so the page
+  // ships a compact asset directory and resolves "my assets" client-side. The same directory is
+  // also published as /site-data.json so the Vercel-only auth shell can reuse Walrus index data.
+  const assetDirectory: AccountDirectoryAsset[] = assets.map((asset) => ({
+    id: asset.id,
+    title: asset.title,
+    href: webPath("abs", `${routeSegment(asset.id)}.html`),
+    authors: authorLine(asset.manifest.assets.authors),
+    githubs: (asset.manifest.assets.authors ?? [])
+      .map((author) => author.github)
+      .filter((github): github is string => Boolean(github)),
+    created_at: asset.created_at
+  }));
+  await fs.writeFile(
+    path.join(outputDir, "site-data.json"),
+    JSON.stringify({ generated_at: new Date().toISOString(), assets: assetDirectory }, null, 2),
+    "utf8"
+  );
+  await fs.writeFile(path.join(outputDir, "account.html"), renderAccountPage(assetDirectory), "utf8");
+
   for (const skill of skills) {
     const installCommand = `research install ${skill.id}`;
+    const skillAccess = skill.access ?? { visibility: "public" };
     const body = `
 <h1>${escapeHtml(skill.name)}</h1>
 <p class="muted">${escapeHtml(skill.relation)} skill &middot; ${escapeHtml(skill.description)}</p>
@@ -955,7 +1584,11 @@ ${listingParts.length ? `<dl class="listing">${listingParts.join("")}</dl>` : "<
 <div class="copy-row"><code>${escapeHtml(installCommand)}</code><button class="copy-btn" type="button" data-copy="${escapeHtml(installCommand)}">copy</button></div>
 <p><a class="button" href="${escapeHtml(webPath("abs", `${routeSegment(skill.source_asset_id)}.html`))}">Source asset</a><a class="button" href="/api/skills/${escapeHtml(routeSegment(skill.id))}/install">Install manifest</a></p>
 <h2>Verification</h2>
-${verificationRows({ "Skill ID": skill.id, "Sui object": skill.sui_object_id, "Walrus blob": skill.walrus_blob_id, "License": skill.license, "Manifest": skill.manifest_hash })}
+${verificationRows(
+  { "Skill ID": skill.id, "Sui object": skill.sui_object_id, "Walrus blob": skill.walrus_blob_id, "Access": skillAccess.visibility, "Manifest": skill.manifest_hash },
+  explorer,
+  { "Sui object": "object", "Walrus blob": "walrus-blob" }
+)}
 <h2>Manifest</h2>
 <pre>${escapeHtml(JSON.stringify(skill.manifest, null, 2))}</pre>`;
     await fs.writeFile(path.join(outputDir, "skill", `${routeSegment(skill.id)}.html`), shell(skill.name, body, { subject: "Skill" }), "utf8");

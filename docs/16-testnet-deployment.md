@@ -4,6 +4,31 @@ Deployment date: 2026-06-10
 
 This deployment used the local `research deploy:testnet` flow against Walrus testnet and Sui testnet. The CLI now also publishes the generated static frontend to Walrus Sites when `site-builder` is installed; use `--skip-walrus-sites` to leave site publication as a manual step.
 
+> **版本说明**：本报告记录历史 testnet 部署。`## Sui Testnet` 是 v0.1 骨架包；`## v2 Deployment` 是 2026-06-12 的 revenue/payment 经济安全包。2026-06-15 的 Seal Access 重构删除了旧 `license.move` 并新增 `report/access/delegation/settlement`，本报告尚未记录该新源码的 testnet 发布。不要把本报告中的历史包当作当前 Seal Access 已上线证明。
+
+## v2 Deployment（historical economic safety package，2026-06-12）
+
+v2（真实 Coin 托管/分账、历史 paid access 入口、跨链 attestation + `Table` 幂等去重、capability 权限、链上 `Clock`）已发布到 Sui testnet 并完成链上经济冒烟验证。
+
+- Publisher address: `0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788`
+- **v2 Package ID:** `0x1c8ecc61ae13c03d8d0f7427e12abf39f286aac3235732f02928352be770b592`
+- Publish tx: `EBL2fpKvaaXnUtFTwXPUND5UVJoBDJjL362kjaJ8UdnJ`
+- Upgrade capability: `0x06eb8f841f64c85bd2fc6ec23eedf91746fcfd257910e1b3ea5490929a1143c9`
+- Shared `SettlementRegistry` (payment): `0x9ea83c3ad8b01e78015b2eb99c3329aeabfa75c35f28e847941438857cb98997`
+- `SettlerCap` (payment, owned by publisher): `0x8ec361a334ede8ceae94d4c1c81a79dd6a35c2463c9eaaa58c07e405f99e35b5`
+- Modules: `agent`, `badge`, `license`, `payment`, `reputation`, `research_asset`, `revenue`, `skill`
+
+### 链上经济冒烟验证（revenue escrow + 真实分账）
+
+证明真实 `Coin<SUI>` 托管与按 bps 领取在链上生效：
+
+- `create_revenue_pool`（recipients=[publisher], weights=[10000]）→ 共享 RevenuePool `0x7e25e7c8bbe6954b11eb64bb0d55fc609b2065be13edb24569f58b9d75f8b402`，tx `5d3LeA7qBZZ6uwKWSMrdkZXVFykmhxbSEPEvbA4hTooR`，emit `RevenuePoolCreated`。
+- `deposit_revenue`（存入 0.013 SUI 的 Coin）→ tx `F4RSn2uCGvJjSnYe7Yi261NxUfizn92H2buUNXGH7j57`，emit `RevenueDeposited{amount=13000000, total_received=13000000, created_ms 来自链上 Clock}`。
+- `record_revenue_claim`（唯一受益人领取 100%）→ tx `KaMa3jVgTrsZNrsrkW48Sgt5ATVbiZpu1wZzb14iaJ7`，emit `RevenueClaimed{amount=13000000}`，铸出 `Coin<SUI>` `0x979e4a411a8fe7d4f6539ce1acfd5abde993ad50e2de03838728e370626bf082`（balance 13000000）转给领取人。
+- 余额变动核对：deposit 净 −13057372 MIST（13000000 入池 + gas），claim 净 +9327308 MIST（13000000 提取 − gas）。**真实资金完成 入池→托管→按份额提取 闭环。**
+
+> 范围说明（不 overclaim）：本次链上验证覆盖 **revenue 托管/分账** 路径。历史 paid access 入口与 `settle_cross_chain_payment` 由当时的 Move 单元测试覆盖、合约已部署，但本会话**未**在链上单独跑这两条。Seal Access 新模块需要后续单独发布与验证。
+
 ## Sui Testnet
 
 - Active environment: `testnet`
@@ -72,7 +97,8 @@ Published site resources:
 - `/index.html`
 - `/search.html`
 - `/dashboard.html`
-- `/licenses.html`
+- `/membership.html`（当前新构建；历史部署中可能仍保留 `/licenses.html`）
+- `/delegations.html`（当前新构建）
 - `/styles.css`
 - `/abs/ra%3Alocal%3Ae01d55009f82ef530594.html`
 - `/graph/ra%3Alocal%3Ae01d55009f82ef530594.html`
@@ -148,7 +174,93 @@ npx tsx src/cli.ts deploy:testnet .research-network/demo-workspace \
 - Local: `http://148p7vy4nrikdcc8rgk5fqot9lvy9m7y37ut3hp1ksp94zsvfu.localhost:3000`
 - PDF-only abs page: `http://148p7vy4nrikdcc8rgk5fqot9lvy9m7y37ut3hp1ksp94zsvfu.localhost:3000/abs/cmE6bG9jYWw6M2Y5YTAwMWIwYjk1ZTg3ZDFiZTM.html#paper`
 
-> `wal.app` is mainnet-only. Testnet always uses the `{base36}.localhost:3000` subdomain (or your own domain in front of the portal).
+> `wal.app` is mainnet-only. Testnet uses a self-hosted portal on `{base36}.localhost:<portal-port>` (or your own domain in front of the portal); older examples in this report used `:3000`, while the current local container is exposed on `:3010`.
+
+## 2026-06-12 — Login / GitHub install update
+
+The existing Walrus Site object was updated in place to add the static login surface and GitHub App post-install callback.
+
+- Site object ID unchanged: `0x2cd9764af24dde6e202bf8454ca11f312e0b21312867422fd685955f39a7f12a`
+- Base36 host unchanged: `148p7vy4nrikdcc8rgk5fqot9lvy9m7y37ut3hp1ksp94zsvfu`
+- Current local portal URL (`research-walrus-portal` maps host `3010` to container `3000`): `http://148p7vy4nrikdcc8rgk5fqot9lvy9m7y37ut3hp1ksp94zsvfu.localhost:3010`
+- GitHub App slug: `research-network-app`
+- GitHub install URL: `https://github.com/apps/research-network-app/installations/new`
+
+New/updated auth resources:
+
+- `/login.html`
+- `/auth/callback.html`
+- `/auth/config.js`
+- `/auth/login.js`
+- `/auth/github-callback.html`
+- `/auth/github-callback.js`
+- `/zklogin-browser.js`
+
+Verification notes:
+
+- `npm run build` passed after adding the auth site generator.
+- `npm test` passed after this continuation with 34 vitest tests, including auth-asset E2E coverage.
+- The portal served `/login.html` with "Connect GitHub" and "Sign in with Google".
+- `/auth/config.js` served the public Google client id and GitHub install URL.
+- `/zklogin-browser.js` initially returned a transient portal/aggregator 503 on cold fetch, then retried successfully with HTTP 200, `688252` bytes, `text/javascript`.
+- `/auth/github-callback.html` served successfully after the incremental upload.
+- After the 2026-06-12 Codex continuation, `/auth/github-callback.js` was redeployed and verified through the local portal at `:3010` with HTTP 200 and the callback output escaping fix (`function esc`).
+
+Required GitHub App setting:
+
+- Set **Callback URL** and **Setup URL** to `https://research-network-web.vercel.app/auth/github-callback.html` for public testing/production.
+- Enable **Request user authorization during installation** so GitHub returns a user OAuth `code` after installation/repository selection.
+- Store the generated GitHub App client secret only in Vercel env as `GITHUB_APP_CLIENT_SECRET`; do not commit it.
+- Until Setup URL is configured, GitHub can install the App and choose repositories, but the user remains on GitHub after installation instead of returning to Research Network with `installation_id`.
+
+## 2026-06-13 — Vercel shell + Walrus proxy production update
+
+The production Vercel entrypoint now separates mutable auth/account UI from Walrus content:
+
+- `vercel.json` runs `npm run vercel:shell` and serves `.vercel-shell` as the static output.
+- `/login.html`, `/account.html`, `/auth/callback.html`, `/auth/github-callback.html`, `/auth/*.js`, and `/zklogin-browser.js` are served directly by Vercel.
+- All non-`/api/*` content misses rewrite to `api/walrus.ts`, which resolves the current Walrus Site resources and serves content/PDF from testnet Walrus.
+- `/site-data.json` is generated by `buildStaticWeb`; the account shell can fetch it through the Walrus proxy to render "my assets" by zkLogin address.
+
+Walrus Site object updated in place:
+
+- Site object ID unchanged: `0x2cd9764af24dde6e202bf8454ca11f312e0b21312867422fd685955f39a7f12a`
+- Base36 host unchanged: `148p7vy4nrikdcc8rgk5fqot9lvy9m7y37ut3hp1ksp94zsvfu`
+- Added/updated resource: `/site-data.json` plus current auth/account assets for portal parity.
+
+Vercel production deployment:
+
+- URL: `https://research-network-web.vercel.app`
+- Latest production deployment recorded in handoff: `dpl_CkohPTfb5fiM58PQL5WZCJRS9iRC`
+- Build command: `npm run vercel:shell`
+- Output directory: `.vercel-shell`
+
+Production cache-bust probes from the repair session:
+
+- `/site-data.json` returned `200 application/json` with `x-research-network-source: walrus-testnet`.
+- `/paper/.../main.pdf` returned `200 application/pdf`, `%PDF-1.4`, 3328 bytes.
+- A missing path returned `404 text/plain` instead of the old `index.html` fallback.
+- A Range request returned `302` to the aggregator, avoiding Vercel function response-size and byte-range limits.
+- 2026-06-14 attestation probe: `/auth/login.js` and `/account.html` contain `/api/github-binding` + `server-attested`; `POST /api/github-binding` without a token returns `400 {"error":"missing_binding_attestation"}`.
+- 2026-06-14 01:10 persistence deploy probe: production deployment `dpl_8JWHYgk1HQq87zjZGwJwfXYKFqbG` is Ready and aliased to the main domain; `/auth/github-callback.js` contains `selected_repo`, `available_repositories`, `binding_attestation`, `server_persisted`, and `account_id`; `POST /api/github-oauth {}` returns `400 {"error":"missing_code"}`.
+- 2026-06-14 01:29 final proxy probe: production deployment `dpl_AVxGoNxHVsPsDEfY3EuinpoQnVxH` is Ready and aliased to the main domain; `api/walrus` includes ws-resources routes fallback V1. The Walrus Site object was updated in place and expired blobs were re-stored; `/site-data.json`, `/dashboard.html`, and `/paper/.../main.pdf` returned 200 in repeated cache-bust probes.
+- 2026-06-14 09:05 GitHub all-repo authorization state-fix probe: production deployment `dpl_x5kLYf92nDpDs9ELgBgyDAwt3Na7` is Ready and aliased to the main domain; `/auth/github-callback.js` contains `readGithubState`, localStorage-backed `rn_gh_state`, `setup_action` restart handling, `server_persisted`, and `account_id`; API probes still return `missing_code` / `missing_binding_attestation` for empty POSTs.
+- 2026-06-14 09:13 GitHub all-repo authorization state recovery hardening: production deployment `dpl_CkohPTfb5fiM58PQL5WZCJRS9iRC` is Ready and aliased to the main domain; `/auth/github-callback.js` contains `readGithubRecovery`, `recoverGithubStateMismatch`, `rn_gh_recovery`, and `GitHub authorization state expired`, so any GitHub OAuth state mismatch is safely retried without consuming the mismatched code. Empty API probes still return `missing_code` / `missing_binding_attestation`.
+
+Local DNS on the repair machine sometimes resolved `research-network-web.vercel.app` to `198.18.*`; use an explicit Vercel edge IP when reproducing probes if needed:
+
+```bash
+curl --resolve research-network-web.vercel.app:443:76.76.21.21 https://research-network-web.vercel.app/site-data.json
+```
+
+Validation for this update:
+
+- `npm run build` passed.
+- `npm test` passed（6 files / 54 tests in the latest repair session）.
+- `npm run web:build` passed.
+- `npm run move:build` passed.
+- `sui move test --path move --silence-warnings` passed（19 tests）.
+- Earlier repair session: `research whoami` / `research logout` / `research whoami` CLI smoke passed.
 
 ## Local Receipt
 

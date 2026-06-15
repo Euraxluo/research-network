@@ -5,7 +5,7 @@
 ### Schema 测试
 
 - `asset.yaml` 合法样例通过。
-- 缺少 License 报错。
+- encrypted/private 缺少 Seal Access 字段报错。
 - revenue_split 不等于 10000 报错。
 - 修改 Skill 未声明 forked 报错。
 
@@ -21,13 +21,15 @@
 - upload release package。
 - fetch manifest。
 - hash match。
-- encrypted skill package unlock。
+- encrypted report/package Seal access unlock。
 
 ### Move 单元测试
 
 - publish asset。
 - publish skill。
-- purchase license。
+- publish public / encrypted / private report。
+- buy platform membership / agent subscription。
+- create and settle private delegation。
 - revenue split。
 - duplicate cross-chain order rejected。
 - emit events。
@@ -63,7 +65,8 @@
 ```text
 asset.yaml schema valid
 required files exist
-license declared
+legal terms declared
+access visibility declared
 hashes generated
 no secret leak
 manifest generated
@@ -94,7 +97,7 @@ quality_score =
 fixtures/
 ├── valid-paper-only/
 ├── valid-paper-skill-workflow/
-├── invalid-missing-license/
+├── invalid-encrypted-missing-seal/
 ├── invalid-bad-revenue-split/
 ├── forked-skill/
 ├── referenced-skill/

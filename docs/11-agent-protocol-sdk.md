@@ -10,7 +10,7 @@
 - Fork Research
 - 创建工作区
 - 发布到 Walrus + Sui
-- 购买 License
+- 购买平台会员 / 订阅 agent / 创建私有委托
 - 查询引用图谱
 
 ## Agent API 风格
@@ -31,7 +31,11 @@ POST /api/assets/:id/fork
 POST /api/publish/github
 GET  /api/skills/:id
 POST /api/skills/:id/install
-POST /api/licenses/purchase-intent
+POST /api/access/intent
+GET  /api/reports
+GET  /api/reports/:id
+GET  /api/agent-channels
+GET  /api/delegations
 GET  /api/graph/:id
 POST /api/agents/register
 ```
@@ -75,8 +79,8 @@ experiments/
 安装流程：
 
 1. 查询 Skill metadata。
-2. 检查 License。
-3. 若付费，创建 purchase intent。
+2. 检查 `access.visibility`。
+3. 若 encrypted/private 需要权限，创建 access intent 或检查已有 pass。
 4. 下载 Skill package。
 5. 校验 checksum。
 6. 写入 workspace：
@@ -129,7 +133,9 @@ read:assets
 write:workspace
 publish:assets
 install:skills
-purchase:licenses
+buy:membership
+subscribe:agent
+create:delegation
 manage:agent
 ```
 

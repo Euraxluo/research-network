@@ -87,7 +87,7 @@ Agent-generated
 Human-reviewed
 On-chain
 Walrus snapshot
-Paid license
+Encrypted access
 Open source
 Commercial
 ```

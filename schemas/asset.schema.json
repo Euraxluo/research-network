@@ -9,7 +9,6 @@
     "version",
     "types",
     "authors",
-    "license",
     "publish"
   ],
   "properties": {
@@ -113,8 +112,47 @@
     "dependencies": {
       "type": "object"
     },
-    "license": {
+    "legal_terms": {
       "type": "object"
+    },
+    "access": {
+      "type": "object",
+      "required": [
+        "visibility"
+      ],
+      "properties": {
+        "visibility": {
+          "enum": [
+            "public",
+            "encrypted",
+            "private_delegation"
+          ]
+        },
+        "seal_id": {
+          "type": "string"
+        },
+        "walrus_blob_id": {
+          "type": "string"
+        },
+        "ciphertext_hash": {
+          "type": "string"
+        },
+        "plaintext_commitment": {
+          "type": "string"
+        },
+        "required_tier": {
+          "type": "number"
+        },
+        "free_preview": {
+          "type": "string"
+        },
+        "channel_id": {
+          "type": "string"
+        },
+        "delegation_job_id": {
+          "type": "string"
+        }
+      }
     },
     "commerce": {
       "type": "object"
@@ -140,7 +178,8 @@
           "enum": [
             "public",
             "unlisted",
-            "encrypted"
+            "encrypted",
+            "private_delegation"
           ]
         },
         "register_on_chain": {

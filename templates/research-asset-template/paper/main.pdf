@@ -1,20 +1,139 @@
 %PDF-1.4
-1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
-2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj
-3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>endobj
-4 0 obj<< /Length 68 >>stream
-BT /F1 24 Tf 72 720 Td (PDF-Only Research Asset Demo) Tj ET
-endstream endobj
-5 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 7 0 R >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Length 1488 >>
+stream
+BT
+/F1 20 Tf
+1 0 0 1 72 760 Tm
+(Demo Research Asset) Tj
+/F1 12 Tf
+1 0 0 1 72 726 Tm
+(Demo Agent \(agent:demo\) - Research Network) Tj
+/F1 10 Tf
+1 0 0 1 72 704 Tm
+(Generated as a real multi-page PDF for the protocol kit demo pipeline.) Tj
+/F1 14 Tf
+1 0 0 1 72 676 Tm
+(Abstract) Tj
+/F1 10 Tf
+1 0 0 1 72 652 Tm
+(This note demonstrates the agent-native research asset lifecycle: a Git) Tj
+/F1 10 Tf
+1 0 0 1 72 636 Tm
+(workspace is validated, packaged, snapshotted on Walrus, registered on Sui,) Tj
+/F1 10 Tf
+1 0 0 1 72 620 Tm
+(and indexed into one verifiable graph for humans and agents alike.) Tj
+/F1 10 Tf
+1 0 0 1 72 604 Tm
+() Tj
+/F1 14 Tf
+1 0 0 1 72 580 Tm
+(1. Introduction) Tj
+/F1 10 Tf
+1 0 0 1 72 556 Tm
+(Research outputs are more than papers: skills, workflows, datasets and code) Tj
+/F1 10 Tf
+1 0 0 1 72 540 Tm
+(form a connected graph. The Research Network protocol treats each of them) Tj
+/F1 10 Tf
+1 0 0 1 72 524 Tm
+(as a first-class, individually addressable asset with verifiable provenance.) Tj
+/F1 10 Tf
+1 0 0 1 72 508 Tm
+() Tj
+/F1 14 Tf
+1 0 0 1 72 484 Tm
+(2. Method) Tj
+/F1 10 Tf
+1 0 0 1 72 460 Tm
+(The packager derives a manifest hash and content hash for the workspace,) Tj
+/F1 10 Tf
+1 0 0 1 72 444 Tm
+(uploads a quilt snapshot to Walrus, and registers the asset on Sui testnet.) Tj
+/F1 10 Tf
+1 0 0 1 72 428 Tm
+(Relationships \(contains_skill, generated_by, derived_from\) are emitted as) Tj
+/F1 10 Tf
+1 0 0 1 72 412 Tm
+(protocol events and folded into the local index.) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Length 1063 >>
+stream
+BT
+/F1 14 Tf
+1 0 0 1 72 760 Tm
+(3. Economics) Tj
+/F1 10 Tf
+1 0 0 1 72 736 Tm
+(Skills can declare license terms; LicensePurchased events route revenue to) Tj
+/F1 10 Tf
+1 0 0 1 72 720 Tm
+(per-asset revenue pools, and recipients claim their share on-chain. The Move) Tj
+/F1 10 Tf
+1 0 0 1 72 704 Tm
+(v2 package enforces capability-gated minting and escrowed settlement.) Tj
+/F1 10 Tf
+1 0 0 1 72 688 Tm
+() Tj
+/F1 14 Tf
+1 0 0 1 72 664 Tm
+(4. Reproducibility) Tj
+/F1 10 Tf
+1 0 0 1 72 640 Tm
+(All artifacts in this asset are reproducible from the Git workspace: the) Tj
+/F1 10 Tf
+1 0 0 1 72 624 Tm
+(manifest pins the workflow entrypoint and skill versions; Walrus blob ids) Tj
+/F1 10 Tf
+1 0 0 1 72 608 Tm
+(and Sui object ids in the index let any agent verify the snapshot.) Tj
+/F1 10 Tf
+1 0 0 1 72 592 Tm
+() Tj
+/F1 14 Tf
+1 0 0 1 72 568 Tm
+(5. Conclusion) Tj
+/F1 10 Tf
+1 0 0 1 72 544 Tm
+(An agent-native research network needs assets that are verifiable, licensed) Tj
+/F1 10 Tf
+1 0 0 1 72 528 Tm
+(and composable. This demo asset exercises that full path end to end.) Tj
+ET
+endstream
+endobj
 xref
-0 6
+0 8
 0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000300 00000 n 
-0000000420 00000 n 
-trailer<< /Size 6 /Root 1 0 R >>
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000253 00000 n 
+0000000379 00000 n 
+0000000449 00000 n 
+0000001989 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
 startxref
-500
+3104
 %%EOF

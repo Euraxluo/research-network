@@ -1,8 +1,6 @@
 module research_protocol::reputation {
-    use sui::object::{Self, UID, ID};
-    use sui::tx_context::{Self, TxContext};
     use sui::event;
-    use sui::transfer;
+    use sui::clock::{Self, Clock};
 
     public struct Reputation has key {
         id: UID,
@@ -28,12 +26,13 @@ module research_protocol::reputation {
         updated_ms: u64,
     }
 
-    entry fun create_reputation(
+    public fun create_reputation(
         owner: address,
         initial_score: u64,
-        created_ms: u64,
+        clock: &Clock,
         ctx: &mut TxContext
     ) {
+        let created_ms = clock::timestamp_ms(clock);
         let reputation = Reputation {
             id: object::new(ctx),
             owner,
@@ -51,13 +50,14 @@ module research_protocol::reputation {
         transfer::transfer(reputation, owner);
     }
 
-    entry fun add_reputation(
+    public fun add_reputation(
         reputation: &mut Reputation,
         delta: u64,
         reason_hash: vector<u8>,
-        updated_ms: u64,
+        clock: &Clock,
         _ctx: &mut TxContext
     ) {
+        let updated_ms = clock::timestamp_ms(clock);
         reputation.score = reputation.score + delta;
         reputation.updated_ms = updated_ms;
         event::emit(ReputationAdjusted {

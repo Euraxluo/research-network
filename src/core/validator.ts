@@ -207,8 +207,15 @@ export async function validateWorkspace(rootInput = "."): Promise<ValidationRepo
     }
   }
 
-  if (!asset.license || Object.keys(asset.license).length === 0) {
-    errors.push(issue("error", "license.missing", "All publishable assets must declare license terms", "asset.yaml"));
+  const access = asset.access ?? { visibility: asset.publish.visibility === "encrypted" ? "encrypted" : asset.publish.visibility === "private_delegation" ? "private_delegation" : "public" };
+  if ((access.visibility === "encrypted" || access.visibility === "private_delegation") && !access.seal_id) {
+    errors.push(issue("error", "access.seal_id_missing", "Encrypted and private delegation assets must declare access.seal_id", "asset.yaml"));
+  }
+  if ((access.visibility === "encrypted" || access.visibility === "private_delegation") && !access.ciphertext_hash) {
+    errors.push(issue("error", "access.ciphertext_hash_missing", "Encrypted and private delegation assets must declare access.ciphertext_hash", "asset.yaml"));
+  }
+  if (access.visibility === "private_delegation" && !access.delegation_job_id) {
+    errors.push(issue("error", "access.delegation_job_id_missing", "Private delegation assets must declare access.delegation_job_id", "asset.yaml"));
   }
   if (asset.commerce?.purchasable && !asset.commerce.price_policy) {
     errors.push(issue("error", "commerce.price_policy_missing", "Purchasable assets must declare commerce.price_policy", "asset.yaml"));

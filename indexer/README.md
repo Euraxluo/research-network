@@ -41,12 +41,40 @@ npx tsx src/cli.ts replay
 npx tsx src/cli.ts search "query" --type asset
 ```
 
-The projection aligns with `indexer/sql/schema.sql` and currently covers assets, skills, relationships, agents, licenses, and search documents.
+The projection aligns with `indexer/sql/schema.sql` and currently covers assets, skills, relationships, agents, reports, memberships, subscriptions, access receipts, delegations, settlements, revenue pools, payments, and search documents.
 
 Handled events:
 
 - `ResearchAssetPublished`
 - `SkillPublished`
-- `AssetRelationshipRegistered`
+- `AssetCited`
+- `AssetForked`
+- `SkillInstalled`
+- `ResearchReportPublished`
+- `AgentChannelCreated`
+- `PlatformMembershipPurchased`
+- `AgentSubscriptionPurchased`
+- `AccessReceiptRecorded`
+- `DelegationCreated`
+- `DelegationAccepted`
+- `DelegationFunded`
+- `DelegationResultSubmitted`
+- `DelegationCompleted`
+- `DelegationRefunded`
+- `DelegationDisputeOpened`
+- `DelegationDisputeResolved`
+- `AgentSubscriptionPaid`
+- `MembershipSettlementCreated`
+- `MembershipReportSettled`
+- `AgentEarningsClaimed`
+- `RevenuePoolCreated`
+- `RevenueDeposited`
+- `RevenueClaimed`
+- `AgentPassportCreated`
+- `ReputationCreated`
+- `ReputationAdjusted`
+- `BadgeIssued`
+- `CrossChainPaymentReceived`
+- `AssetRelationshipRegistered` (local bridge event only)
 
 A production Sui listener can feed the same `ProtocolEvent` shape into the replay pipeline.

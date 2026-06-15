@@ -3,6 +3,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { packageWorkspace } from "./packager.js";
 import { buildStaticWeb } from "./web.js";
+import { buildAuthAssets, loadAuthSiteConfig } from "./web-auth.js";
 import { DEFAULT_RELEASE_DIR, PROJECT_ROOT, WEB_DIST_DIR } from "./paths.js";
 import { writeJsonFile } from "./fs.js";
 
@@ -55,6 +56,7 @@ export interface TestnetDeployReceipt {
   };
   web: {
     dist_dir: string;
+    walrus_sites_tool?: string;
     walrus_sites_mode?: "deploy" | "update";
     walrus_sites_target_object_id?: string;
     walrus_sites_status: "not-installed" | "skipped" | "success" | "failed";
@@ -300,6 +302,12 @@ export async function deployToTestnet(options: TestnetDeployOptions): Promise<Te
   const existingSiteObjectId = await readExistingSiteObjectId(WEB_DIST_DIR);
   const pkg = await packageWorkspace(options.workspace, DEFAULT_RELEASE_DIR);
   const webDist = await buildStaticWeb();
+  // The deployed site must keep the login surface — without this, every deploy:testnet would
+  // silently strip /login.html and /auth/* from the Walrus Site.
+  const authConfig = await loadAuthSiteConfig();
+  if (authConfig) {
+    await buildAuthAssets(webDist, authConfig);
+  }
   const siteObjectId = (await readExistingSiteObjectId(webDist)) ?? existingSiteObjectId ?? options.siteObjectId;
 
   const walrusOutput = runJson("walrus", [
@@ -383,7 +391,9 @@ export async function deployToTestnet(options: TestnetDeployOptions): Promise<Te
         bytesArg(receipt.walrus.blob_id ?? JSON.stringify(walrusOutput)),
         bytesArg(pkg.manifest.commit),
         "[]",
-        String(Date.now()),
+        // v2 takes the on-chain Clock (shared object 0x6) instead of a caller-supplied
+        // created_ms; requires publishing the current move/ (v2) package, not the v0.1 one.
+        "0x6",
         "--gas-budget",
         gasBudget,
         "--json"

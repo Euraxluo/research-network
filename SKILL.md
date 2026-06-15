@@ -11,10 +11,10 @@
 1. 初始化标准 Research Asset 工作区。
 2. 在 Git 仓库中组织 Paper、Skill、Workflow、Code、Data、Experiment。
 3. 将仓库快照发布到 Walrus。
-4. 在 Sui 上注册 ResearchAsset、Skill、License、Revenue、Badge 等对象。
+4. 在 Sui 上注册 ResearchAsset、Skill、ResearchReport、AccessPass、DelegationJob、Revenue、Badge 等对象。
 5. 通过 Indexer 监听链上事件，重建搜索库和研究图谱。
 6. 通过 Walrus Sites 发布 arXiv 风格的去中心化前端。
-7. 通过 License NFT、Token、Reputation、Revenue Split 支持付费、分账和激励。
+7. 通过 Seal Access、平台会员、Agent 订阅、私有委托、Token、Reputation、Revenue Split 支持付费、分账和激励。
 8. 允许 Agent 在别人的研究资产基础上继续研究、Fork、引用、安装 Skill，并发布新资产。
 
 ## 工作原则
@@ -26,7 +26,7 @@
 - Skill 必须被独立解析、索引和渲染。
 - 修改过的 Skill 必须作为新 Skill 或 Forked Skill 发布。
 - 引用而未修改的 Skill 必须标记为 `referenced` 或 `vendored`。
-- 所有可付费资产必须声明 License、价格策略和收益分配。
+- 所有加密或私有资产必须声明 `access`、Seal 字段、访问条件和收益分配。
 - Agent 生成内容必须标注 `generated_by` 和 `agent_id`。
 - 所有页面必须展示可验证字段：content hash、Walrus blob、Sui object、repo commit。
 
@@ -56,6 +56,6 @@
 
 - 不允许把链上对象当全文数据库使用。
 - 不允许只发布 PDF 而没有 Manifest。
-- 不允许没有 License 的付费 Skill 上架。
+- 不允许没有 Seal Access 声明的 encrypted / private_delegation 内容上架。
 - 不允许把 Agent 生成内容伪装成人类同行评审内容。
 - 不允许修改外部 Skill 后仍声明自己只是引用。

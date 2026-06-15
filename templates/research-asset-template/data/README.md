@@ -1,3 +1,3 @@
 # Data
 
-Describe datasets and licenses here.
+Describe datasets, provenance, checksums, and legal terms here.

@@ -22,6 +22,20 @@ export interface RevenueSplit {
   weight_bps: number;
 }
 
+export type ResearchAccessVisibility = "public" | "encrypted" | "private_delegation";
+
+export interface ResearchAccessPolicy {
+  visibility: ResearchAccessVisibility;
+  seal_id?: string;
+  walrus_blob_id?: string;
+  ciphertext_hash?: string;
+  plaintext_commitment?: string;
+  required_tier?: number;
+  free_preview?: string;
+  channel_id?: string;
+  delegation_job_id?: string;
+}
+
 export interface ResearchAssetManifest {
   schema: "research-asset/v0.1";
   id?: string | null;
@@ -53,7 +67,8 @@ export interface ResearchAssetManifest {
   derived_from?: Array<Record<string, unknown>>;
   references?: Record<string, unknown>;
   dependencies?: Record<string, unknown>;
-  license: Record<string, unknown>;
+  access?: ResearchAccessPolicy;
+  legal_terms?: Record<string, unknown>;
   commerce?: {
     purchasable?: boolean;
     price_policy?: Record<string, unknown>;
@@ -62,7 +77,7 @@ export interface ResearchAssetManifest {
   publish: {
     storage: "walrus";
     chain: "sui";
-    visibility?: "public" | "unlisted" | "encrypted";
+    visibility?: "public" | "unlisted" | "encrypted" | "private_delegation";
     register_on_chain?: boolean;
   };
 }
@@ -77,8 +92,7 @@ export interface ResearchSkillManifest {
   derived_from?: Record<string, unknown> | null;
   depends_on?: Array<Record<string, unknown>>;
   entry?: string;
-  license: string;
-  price_policy?: Record<string, unknown>;
+  access?: ResearchAccessPolicy;
   tests?: string[];
 }
 
@@ -204,8 +218,7 @@ export interface IndexedSkill {
   relation: ResearchSkillManifest["relation"];
   walrus_blob_id: string;
   manifest_hash: string;
-  license: string;
-  price_policy?: Record<string, unknown>;
+  access?: ResearchAccessPolicy;
   owner_address: string;
   created_at: string;
   manifest: ResearchSkillManifest;
@@ -253,6 +266,8 @@ export interface AuthLoginIntent {
   nonce: string;
   created_at: string;
   expires_at: string;
+  /** Set when the intent has been completed; a consumed intent cannot be completed again. */
+  consumed_at?: string;
   zklogin: {
     enabled: boolean;
     issuer?: string;
@@ -280,6 +295,20 @@ export interface GitIdentity {
   scopes: string[];
 }
 
+export interface GithubRepositoryBinding {
+  provider: "github";
+  github_login: string | null;
+  sui_address: string;
+  installation_id: number;
+  account: string | null;
+  repos: string[];
+  selected_repo?: string | null;
+  binding_attestation: string;
+  binding_attestation_payload: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WalletBinding {
   chain: "sui" | "evm" | "solana" | "bitcoin" | "other";
   address: string;
@@ -301,6 +330,7 @@ export interface PlatformAccount {
   display_name: string;
   primary_provider: GitProvider | CrossChainAuthProvider;
   git?: GitIdentity;
+  github_bindings?: GithubRepositoryBinding[];
   zklogin?: ZkLoginBinding;
   wallets: WalletBinding[];
   roles: string[];
@@ -308,26 +338,160 @@ export interface PlatformAccount {
   updated_at: string;
 }
 
+export interface CliAuthSession {
+  provider: "google";
+  account_id: string;
+  address: string;
+  email?: string;
+  issuer: string;
+  subject: string;
+  audience: string;
+  encrypted_id_token: {
+    alg: "aes-256-gcm";
+    kid: string;
+    iv: string;
+    tag: string;
+    ciphertext: string;
+  };
+  created_at: string;
+  updated_at: string;
+  expires_at?: string;
+}
+
 export interface AuthState {
   intents: Record<string, AuthLoginIntent>;
   accounts: Record<string, PlatformAccount>;
+  cli_session?: CliAuthSession;
 }
 
-export interface LicenseRecord {
+export interface RevenuePoolRecord {
+  id: string;
+  asset_id: string;
+  recipients: string[];
+  weights_bps: number[];
+  total_received: number;
+  total_claimed: number;
+  claimed_by: Record<string, number>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResearchReportRecord {
   id: string;
   sui_object_id: string;
-  skill_id: string;
+  agent: string;
+  visibility: ResearchAccessVisibility;
+  required_tier: number;
+  walrus_blob_id: string;
+  seal_id?: string;
+  ciphertext_hash?: string;
+  plaintext_commitment?: string;
+  free_preview_hash?: string;
+  delegation_job_id?: string;
+  asset_id?: string;
+  title?: string;
+  free_preview?: string;
+  created_at: string;
+}
+
+export interface AgentChannelRecord {
+  id: string;
+  agent: string;
+  metadata_hash: string;
+  created_at: string;
+}
+
+export interface PlatformMembershipRecord {
+  pass_id: string;
   owner_address: string;
-  license_type: string;
-  expires_at?: string;
-  commercial: boolean;
-  agent_allowed: boolean;
-  seats: number;
+  tier: number;
+  started_at: string;
+  expires_at: string;
+}
+
+export interface AgentSubscriptionRecord {
+  pass_id: string;
+  owner_address: string;
+  agent: string;
+  tier: number;
+  started_at: string;
+  expires_at: string;
+}
+
+export interface AccessReceiptRecord {
+  id: string;
+  period_id: number;
+  user: string;
+  report_id: string;
+  agent: string;
+  access_type: "platform_member" | "agent_subscription";
+  created_at: string;
+}
+
+export interface DelegationJobRecord {
+  id: string;
+  buyer: string;
+  agent: string;
+  budget: number;
+  deadline_at?: string;
+  status: "open" | "accepted" | "funded" | "submitted" | "completed" | "refunded" | "disputed" | "resolved" | "expired";
+  result_report_id?: string;
+  arbitrator?: string;
+  payout?: number;
+  refund?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MembershipSettlementRecord {
+  id: string;
+  period_id: number;
+  user: string;
+  report_id?: string;
+  agent?: string;
+  report_count: number;
+  net_amount: number;
+  amount_per_report: number;
+  created_at: string;
+}
+
+export interface AgentEarningsRecord {
+  agent: string;
+  total_earned: number;
+  total_claimed: number;
+  updated_at: string;
+}
+
+export interface CrossChainPaymentRecord {
+  order_hash: string;
+  source_chain: string;
+  source_tx: string;
+  buyer: string;
+  amount: number;
+  created_at: string;
+}
+
+export interface ReputationRecord {
+  id: string;
+  owner_address: string;
+  score: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BadgeRecord {
+  id: string;
+  asset_id: string;
+  recipient: string;
+  issuer: string;
+  badge_type: number;
+  metadata_hash?: string;
+  created_at: string;
 }
 
 export interface SearchDocument {
   id: string;
-  entity_type: "asset" | "skill" | "workflow" | "agent" | "license";
+  entity_type: "asset" | "skill" | "workflow" | "agent" | "report" | "channel" | "delegation";
   entity_id: string;
   title: string;
   body: string;
@@ -342,9 +506,36 @@ export interface IndexState {
   skills: Record<string, IndexedSkill>;
   relationships: Record<string, IndexedRelationship>;
   agents: Record<string, AgentPassport>;
-  licenses: Record<string, LicenseRecord>;
+  reports: Record<string, ResearchReportRecord>;
+  agent_channels: Record<string, AgentChannelRecord>;
+  platform_memberships: Record<string, PlatformMembershipRecord>;
+  agent_subscriptions: Record<string, AgentSubscriptionRecord>;
+  access_receipts: Record<string, AccessReceiptRecord>;
+  delegations: Record<string, DelegationJobRecord>;
+  membership_settlements: Record<string, MembershipSettlementRecord>;
+  agent_earnings: Record<string, AgentEarningsRecord>;
+  revenue_pools: Record<string, RevenuePoolRecord>;
+  payments: Record<string, CrossChainPaymentRecord>;
+  reputations: Record<string, ReputationRecord>;
+  badges: Record<string, BadgeRecord>;
   search_documents: Record<string, SearchDocument>;
   processed_event_keys: string[];
+  updated_at: string;
+}
+
+export interface SuiEventCursor {
+  txDigest: string;
+  eventSeq: string | number;
+}
+
+export interface SuiEventPollerState {
+  package_id?: string;
+  rpc_url?: string;
+  module_cursors: Record<string, SuiEventCursor | null>;
+  last_checkpoints: Record<string, number>;
+  pages_fetched: number;
+  events_seen: number;
+  events_ingested: number;
   updated_at: string;
 }
 

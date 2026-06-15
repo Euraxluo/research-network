@@ -7,6 +7,7 @@ capabilities:
   - method-selection
 relation: owned
 entry: SKILL.md
-license: commercial-license
+access:
+  visibility: public
 depends_on: []
 tests: []

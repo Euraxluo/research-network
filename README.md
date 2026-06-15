@@ -8,8 +8,8 @@
 - zkLogin、Sui Move 合约、链上事件、对象模型
 - Walrus 快照发布、Walrus Sites 网站发布
 - Indexer、搜索、语义检索、图谱索引
-- NFT、License NFT、Agent Passport、Founder Pass、Badge
-- Token 经济学、声誉系统、收益分账、质押、策展、反垃圾
+- Agent Passport、ResearchReport、AccessPass、DelegationJob、Badge
+- Token 经济学、Seal Access、会员/订阅分账、私有委托、声誉系统、质押、策展、反垃圾
 - 跨链支付、USDC、CCTP、Wormhole、Sui 结算
 - 前端网站、arXiv 风格渲染、Skill 页面、资产图谱
 - API、SDK、Agent 接入协议
@@ -46,7 +46,7 @@ Review      = Curation Asset       策展/审稿资产
 6. `docs/03-publish-pipeline.md`：GitHub → Walrus → Sui → Indexer → Web。
 7. `move/README.md`：链上协议设计。
 8. `docs/06-indexer-search-graph.md`：Indexer、搜索和图谱。
-9. `docs/08-tokenomics-nft.md`：Token / NFT 经济设计。
+9. `docs/18-research-commerce-access.md`：Seal Access 研究商业协议。
 10. `skills/research-workspace-init/SKILL.md`：Agent 初始化工作区 Skill。
 11. `templates/research-asset-template/`：仓库模板。
 
@@ -66,11 +66,11 @@ Review      = Curation Asset       策展/审稿资产
 本目录现在也是一个可运行的本地协议实现包，提供：
 
 - `research init`：从标准模板初始化 Research Asset 工作区。
-- `research validate`：校验 `asset.yaml`、Skill、Workflow、文件路径、License、收益分账和 secret 风险。
+- `research validate`：校验 `asset.yaml`、Skill、Workflow、文件路径、Seal Access、收益分账和 secret 风险。
 - `research package`：生成 `manifest.json`、`checksums.json` 和 `release.tar.zst`。
 - `research publish`：通过本地 Walrus/Sui adapter 生成 blob、对象和链上风格事件。
 - `research replay`：幂等重放事件，投影出 asset/skill/search/graph 索引。
-- `research search`、`research graph`、`research fork`、`research install`：Agent 无网页核心流程。
+- `research search`、`research graph`、`research reports`、`research channels`、`research delegations`、`research fork`、`research install`：Agent 无网页核心流程。
 - `research auth:start`、`research auth:complete`：支持 GitHub/GitLab/Gitea、zkLogin 和 Privy/Dynamic/Web3Auth 等跨链登录平台的账户绑定流程。
 - `research serve`：启动 REST API。
 - `research web:build`：生成可静态托管/Walrus Sites 发布的前端站点。
@@ -110,6 +110,6 @@ npx tsx src/cli.ts deploy:testnet ./my-asset --epochs 1 --site-name research-net
 
 本地状态写入 `.research-network/localnet/`，包括 Walrus 风格 blob、Sui 风格事件日志和 Indexer 投影。
 
-> 注意：本地 `publish` 产生的是模拟事件；已部署的 testnet Move 合约目前是事件公证层，不承载真实支付/License/分账。能力边界详见 `docs/17-implementation-status-and-decisions.md`。
+> 注意：本地 `publish` 产生的是模拟事件；本轮 Seal Access 协议重构先完成本地 Move、schema、indexer、web 与测试，是否重新部署 Sui testnet package 单独决策。能力边界详见 `docs/17-implementation-status-and-decisions.md`。
 
 已完成的 Walrus/Sui testnet 部署记录见 `docs/16-testnet-deployment.md`。

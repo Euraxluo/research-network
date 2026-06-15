@@ -134,6 +134,31 @@ paths:
       summary: Publish a connected GitHub repo to Walrus and Sui
       responses:
         '200': { description: Publish started }
+  /api/github/connect:
+    post:
+      summary: Connect a GitHub repo via GitHub App (installation token, commit, tree, asset.yaml). Requires GITHUB_APP_ID / GITHUB_APP_PRIVATE_KEY.
+      responses:
+        '200': { description: 'commit, tree, manifest' }
+        '500': { description: GitHub App not configured or API error }
+  /api/github/fork:
+    post:
+      summary: Fork a GitHub repo via GitHub App. Disabled unless RN_GITHUB_FORK_API_TOKEN is configured and Authorization: Bearer <token> matches.
+      responses:
+        '200': { description: Forked repo }
+        '401': { description: Bearer token missing or invalid }
+        '503': { description: Fork proxy disabled }
+  /api/zklogin/address:
+    post:
+      summary: Derive the canonical Sui zkLogin address from an OIDC id_token (via @mysten/sui)
+      responses:
+        '200': { description: 'address, issuer, subject, audience' }
+        '400': { description: jwt required }
+  /api/zklogin/prove:
+    post:
+      summary: Obtain a zkLogin ZK proof from the configured prover (ZKLOGIN_PROVER_URL)
+      responses:
+        '200': { description: ZK proof }
+        '500': { description: prover not configured }
   /api/skills/{id}/install:
     post:
       summary: Install or reference a skill in an agent workspace
@@ -164,11 +189,153 @@ paths:
           schema: { type: string }
       responses:
         '200': { description: OK }
-  /api/licenses/purchase-intent:
-    post:
-      summary: Create a payment intent for a skill license
+  /api/assets/{id}/economics:
+    get:
+      summary: Aggregate Seal Access reports, receipts, settlements, and revenue pools for an asset (indexed events; simulated in local mode)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
       responses:
-        '200': { description: Payment intent }
+        '200': { description: Asset economics summary }
+  /api/access/intent:
+    post:
+      summary: Create an access payment intent for platform membership, agent subscription, or private delegation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind]
+              properties:
+                kind:
+                  type: string
+                  enum: [platform_membership, agent_subscription, private_delegation]
+                buyer: { type: string }
+                target:
+                  type: string
+                  description: Agent id, report id, or delegation target depending on intent kind
+      responses:
+        '200': { description: Access payment intent }
+        '400': { description: Invalid access intent kind }
+  /api/membership/buy:
+    post:
+      summary: Record a local platform membership purchase event
+      responses:
+        '200': { description: Platform membership projection }
+  /api/membership/settle:
+    post:
+      summary: Settle a platform membership period across unique decrypted encrypted reports
+      responses:
+        '200': { description: Membership settlement projection }
+  /api/agents/{agent}/subscribe:
+    post:
+      summary: Record a local direct agent subscription purchase event
+      parameters:
+        - name: agent
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Agent subscription projection }
+  /api/access/receipt:
+    post:
+      summary: Record the first successful report decrypt receipt for a user and period
+      responses:
+        '200': { description: Access receipt projection }
+  /api/reports:
+    get:
+      summary: List indexed research reports
+      responses:
+        '200': { description: Research reports }
+  /api/reports/{id}:
+    get:
+      summary: Get an indexed research report by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Research report }
+        '404': { description: Not found }
+  /api/agent-channels:
+    get:
+      summary: List indexed agent research channels
+      responses:
+        '200': { description: Agent channels }
+  /api/delegations:
+    get:
+      summary: List indexed private delegation jobs
+      responses:
+        '200': { description: Delegation jobs }
+    post:
+      summary: Create a local private delegation job event
+      responses:
+        '200': { description: Delegation job projection }
+  /api/delegations/{id}/accept:
+    post:
+      summary: Accept a private delegation job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Delegation accepted projection }
+  /api/delegations/{id}/submit:
+    post:
+      summary: Submit an encrypted private delegation result report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Private result projection }
+  /api/delegations/{id}/complete:
+    post:
+      summary: Complete a private delegation job and release payout
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Delegation completion projection }
+  /api/delegations/{id}/dispute:
+    post:
+      summary: Open a private delegation dispute and grant temporary arbitrator access
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Delegation dispute projection }
+  /api/revenue-pools:
+    get:
+      summary: List indexed legacy revenue pools
+      responses:
+        '200': { description: Revenue pools }
+  /api/revenue-pools/{id}:
+    get:
+      summary: Get a legacy revenue pool by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Revenue pool }
+        '404': { description: Not found }
+  /api/payments:
+    get:
+      summary: List indexed cross-chain payment settlements
+      responses:
+        '200': { description: Payments }
   /api/agents/register:
     post:
       summary: Register an Agent Passport

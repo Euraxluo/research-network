@@ -1,7 +1,7 @@
+#[allow(lint(self_transfer))]
 module research_protocol::agent {
-    use sui::object::{Self, UID, ID};
-    use sui::tx_context::{Self, TxContext};
     use sui::event;
+    use sui::clock::{Self, Clock};
 
     public struct AgentPassport has key, store {
         id: UID,
@@ -21,14 +21,15 @@ module research_protocol::agent {
         created_ms: u64,
     }
 
-    entry fun create_passport(
+    public fun create_passport(
         name_hash: vector<u8>,
         github_hash: vector<u8>,
         scopes_hash: vector<u8>,
-        created_ms: u64,
+        clock: &Clock,
         ctx: &mut TxContext
     ) {
         let owner = tx_context::sender(ctx);
+        let created_ms = clock::timestamp_ms(clock);
         let passport = AgentPassport {
             id: object::new(ctx),
             owner,

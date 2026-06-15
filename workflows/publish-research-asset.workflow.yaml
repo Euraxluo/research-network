@@ -16,7 +16,7 @@ stages:
     instructions: "Use GitHub App installation token to read repo tree and asset.yaml."
   - id: validate
     name: Validate Research Asset
-    instructions: "Validate schema, required files, license, revenue split, and skill relationships."
+    instructions: "Validate schema, required files, legal terms, Seal Access fields, revenue split, and skill relationships."
   - id: package
     name: Build Release Package
     instructions: "Generate manifest.json, checksums.json, and tar.zst package."

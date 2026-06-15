@@ -2,127 +2,154 @@
 
 **实施 Agent 必须先读本篇，再读其他文档。**
 
-docs/01–14 描述的是目标态设计；本目录同时包含一个可运行的本地协议实现（`src/`）和一套已部署到 testnet 的 Move 合约（`move/`）。三者进度不同，且历史上存在命名不一致。本篇做三件事：
+docs/01-16 可能保留历史设计脉络；本篇给出当前代码与产品语义的最终裁决。文档与本篇冲突时，以本篇为准；文档与代码冲突且本篇未裁决时，以代码为准，并顺手修正文档。
 
-1. 给出**实施状态矩阵**：哪些已实现、哪些是本地模拟、哪些仅是设计。
-2. 给出**规范裁决**：文档之间、文档与代码之间冲突时的最终结论。
-3. 给出**实施 Agent 工作守则**。
+## 当前总裁决
 
-冲突处理规则：其他文档与本篇裁决冲突时，以本篇为准；文档与代码冲突且本篇未裁决时，以代码为准，并顺手修正文档。
+2026-06-15 起，商业访问协议改为 **Seal Access**：
+
+- 旧 `license.move` / License NFT / paid skill license 路线已删除。
+- 新核心对象是 `Agent`、`ResearchReport`、`AccessPass`、`DelegationJob`。
+- 内容可见性是 `public`、`encrypted`、`private_delegation`。
+- encrypted/private 内容只在 Walrus 存密文，Seal 判断解密资格。
+- 平台会员、agent 订阅、私有委托和结算以 `report.move`、`access.move`、`delegation.move`、`settlement.move` 为准。
+- `revenue.move` 可以作为底层分账工具保留，但不再作为产品命名。
 
 ## 实施状态矩阵
 
 | 能力 | 状态 | 位置 | 说明 |
 | --- | --- | --- | --- |
-| Schema / 模板 / `init` / `validate` / `package` | ✅ 已实现 | `src/core/`、`schemas/`、`templates/` | vitest 覆盖 |
-| 本地 `publish` / `replay` / `search` / `fork` / `install` | ✅ 已实现（**本地模拟**） | `src/core/adapters.ts`、`indexer.ts` | 事件由本地 adapter 生成，非链上事件 |
-| REST API / SDK / CLI | ✅ 已实现（本地后端） | `src/api/`、`src/core/sdk.ts`、`src/cli.ts` | 无鉴权、无生产级数据库 |
-| 静态站点生成 + Walrus Sites 部署 | ✅ 已实现 | `src/core/web.ts`、`testnet.ts` | testnet 已验证，见 docs/16 |
-| Move 合约 | ⚠️ 骨架（事件公证层） | `move/sources/` | 见下文信任边界；**没有 Move 测试** |
-| Move 包 testnet 部署 | ✅ 已完成 | `move/Published.toml`、docs/16 | 升级用 upgrade-capability |
-| zkLogin | 🔶 模拟 | `src/core/auth.ts` | 地址为本地确定性派生，无真实 proof / prover |
-| GitHub App 仓库接入 | ❌ 仅设计 | docs/04 | `auth:start` 只生成授权 URL，无 installation token 流程 |
-| 真链 Indexer（消费 Sui 事件） | ❌ 仅设计 | docs/06 | 本地 replay 已有；不消费链上事件 |
-| 支付 / License / 分账（真实资金） | ❌ 仅设计 | docs/08、09 | 合约不收 Coin，License 可免费自铸 |
-| 跨链支付 CCTP / Wormhole | ❌ 仅设计 | docs/09 | 结算入口无 attestation 验证 |
-| Token / 声誉 / 治理 / 仲裁 | ❌ 仅设计 | docs/08、12 | — |
+| Schema / 模板 / `init` / `validate` / `package` | ✅ 已实现 | `src/core/`、`schemas/`、`templates/` | `asset.yaml`/`skill.yaml` 已使用 `access`；旧 product license 字段不再必填 |
+| 本地 `publish` / `replay` / `search` / `fork` / `install` | ✅ 已实现（本地模拟） | `src/core/adapters.ts`、`indexer.ts` | 本地 publish 会生成 `ResearchReportPublished`，并投影 report/search/graph |
+| REST API / SDK / CLI | ✅ 已实现（本地后端） | `src/api/`、`src/core/sdk.ts`、`src/cli.ts` | 新增 reports/channels/delegations/access intent；旧 `/licenses` 和 `license:intent` 已移除 |
+| 静态站点生成 + Walrus Sites + Vercel 入口 | ✅ 已实现 | `src/core/web.ts`、`web-auth.ts`、`api/walrus.ts`、`vercel.json` | Web 已从 Licenses 切到 Membership / Delegations；Vercel shell + Walrus proxy 仍按历史部署策略工作 |
+| Move 合约（Seal Access 本地源码） | ✅ 已实现 + Move 测试 | `move/sources/`、`move/tests/` | 新增 report/access/delegation/settlement，删除 license；本地 build/test 通过 |
+| Move 包 testnet 部署 | 🔶 历史包已部署；Seal Access 未默认重发 | `move/Published.toml`、docs/16 | 已部署包记录了历史 revenue/payment 验证；本轮不默认重新部署 Sui package |
+| zkLogin | 🔶 真实地址派生 + salt service + CLI login | `src/core/zklogin.ts`、`web-auth.ts`、`api/zklogin-salt.ts`、`cli-login.ts` | Google Console 已配置；真实交易签名仍需 prover/钱包闭环 |
+| GitHub App 仓库接入 | 🔶 真实流程已实现 + 测试 + 生产配置已补齐 | `src/core/github.ts`、`github-binding.ts`、`api/github-oauth.ts` | 站内 repo 下拉、server-signed binding attestation、server-side account store V1 已实现 |
+| Indexer 事件投影 | 🔶 全量本地目录 + Sui RPC poller V1 | `src/core/indexer.ts`、`sui-events.ts` | 新增 report/membership/subscription/receipt/delegation/settlement/earnings 投影；剩生产常驻调度和实时 Walrus fetcher |
+| Seal Access 交易闭环 | 🔶 本地协议与测试完成 | `move/sources/`、`src/core/adapters.ts` | 会员购买、订阅、委托、解密 receipt、月末结算的产品语义已在本地投影与 Move 测试覆盖；生产交易 UI/链上部署待后续 |
+| 跨链支付 CCTP / Wormhole | 🔶 合约入口历史实现；真实 VAA 待接 | `move/sources/payment.move`、docs/09 | payment intent 已改为 access intent；真实 relayer/prover 仍未完成 |
+| Token / 声誉 / 治理 / 仲裁 | ❌ 仅设计 / 局部事件骨架 | docs/08、docs/12 | 仲裁在 private delegation dispute 中有最小授权语义；完整治理仍未实现 |
 
-## 信任边界声明（重要）
+## 信任边界声明
 
-**当前 Move 合约是"事件公证层"，不是"执行层"。链上数据目前不能作为经济事实源。** 具体：
+本轮 Seal Access 重构是**本地协议、schema、indexer、web 和测试**变更。不要对外宣称新的 report/access/delegation/settlement 包已经部署到 Sui testnet，除非之后明确执行并记录部署。
 
-- `revenue::record_revenue_claim`：任何人可调用，`amount` 由调用者随意填写，无 Coin 转账，`total_received` 永不更新；`RevenuePool` 是 owned object（transfer 给创建者），其他受益人无法操作。
-- `payment::settle_cross_chain_payment`：无权限控制、无跨链 attestation 验证（无 Wormhole VAA / CCTP 校验），任何人可凭空"结算"；`processed_orders` 用 vector 线性查重，gas 随订单数无上限增长。
-- `license::mint_license`：无支付、无权限，任何人可免费给自己铸造任意 Skill 的 License。
-- `research_asset::cite_asset` / `record_fork`：不验证资产存在性和调用者权限，引用/Fork 图谱可被任意刷写。
-- 所有 `created_ms` / `issued_ms` 由调用者传入而非链上 `Clock`，时间戳可伪造。
+历史部署记录仍有价值：
 
-这对原型阶段是可接受的，但意味着：**所有经济安全目前都在链下；任何 UI、文档、对外说明不得暗示链上支付/License/分账已生效。**
+- v0.1 package `0x03d2...` 是早期骨架，保留为历史记录。
+- v2 revenue/payment package `0x1c8ecc...` 曾完成真实 SUI revenue 入池和领取冒烟验证，详见 docs/16。
+- 这些历史包不等同于本轮 Seal Access 新源码的线上状态。
 
-Move v2 升级必须包含：Coin<SUI>/Coin<USDC> 托管与结算、shared object + `Table`、capability 对象做权限控制、`Clock` 取时、跨链消息 attestation 验证、Move 单元测试（docs/10 测试用例清单）。
+对外可说：
+
+- 本地 Seal Access Move 源码和 TS/web/indexer 已实现并测试通过。
+- testnet 是否重发包是单独发布决策。
+- 私有委托内容默认平台不可见，只有 dispute 授权后仲裁者可临时解密。
 
 ## 规范裁决
 
-### 裁决 1：合约入口函数命名以已部署代码为准
+### 裁决 1：商业访问命名
 
-testnet 包已发布（package id 见 `move/Published.toml`），命名锁定为现有实现。历史文档中的旧名一律按下表理解：
+| 废弃命名 | 新命名 |
+| --- | --- |
+| License NFT | AccessPass / PlatformMembershipPass / AgentSubscriptionPass |
+| Skill license purchase | access intent / subscription / membership |
+| `/api/licenses` | `/api/reports`、`/api/agent-channels`、`/api/delegations` |
+| `license:intent` | `access:intent` |
+| paid skill unlock | Seal Access decrypt eligibility |
 
-| 文档曾用名 | 实际函数（canonical） | 备注 |
-| --- | --- | --- |
-| `register_research_asset` | `research_asset::publish_research_asset` | |
-| `register_skill` | `skill::publish_skill` | |
-| `fork_asset` | `research_asset::record_fork` | |
-| `claim_revenue` | `revenue::record_revenue_claim` | v2 改为真实领取 |
-| `create_agent_passport` | `agent::create_passport` | |
-| `accrue_reputation` | `reputation::add_reputation` | |
-| `purchase_license`（收 Coin） | 当前为 `license::mint_license`（不收款） | v2 升级为收 Coin 版本，届时再命名 `purchase_license` |
-| `mint_asset_nft` | **不存在** | v2 规划 |
-| `create_license_policy` | **不存在** | v2 规划 |
-| `register_relationships` | **不存在** | 链上用 `cite_asset` / `record_fork` 表达关系 |
+法律意义上的开源协议、论文版权条款、数据使用条款仍然可以存在，但必须放在 `legal_terms` 或仓库 `LICENSE`，不能用来表达平台访问权。
 
-`registry.move`、`errors.move`（docs/10 包结构）尚不存在，属规划文件。
+### 裁决 2：Move 模块目录
 
-### 裁决 2：事件目录与 Indexer 对接
+Canonical 模块：
 
-链上真实事件（`move/sources/` 实际 emit）：
+```text
+research_asset, skill, report, access, delegation, settlement,
+revenue, agent, reputation, badge, payment
+```
+
+`license` 不再是协议模块。
+
+### 裁决 3：事件目录
+
+Canonical 事件目录：
 
 ```text
 ResearchAssetPublished, AssetCited, AssetForked,
 SkillPublished, SkillInstalled,
-LicensePurchased,
-RevenuePoolCreated, RevenueClaimed,
+ResearchReportPublished,
+AgentChannelCreated,
+PlatformMembershipPurchased, AgentSubscriptionPurchased,
+AccessReceiptRecorded,
+DelegationCreated, DelegationAccepted, DelegationFunded,
+DelegationResultSubmitted, DelegationCompleted, DelegationRefunded,
+DelegationDisputeOpened, DelegationDisputeResolved,
+AgentSubscriptionPaid,
+MembershipSettlementCreated, MembershipReportSettled, AgentEarningsClaimed,
+RevenuePoolCreated, RevenueDeposited, RevenueClaimed,
 AgentPassportCreated,
 ReputationCreated, ReputationAdjusted,
 BadgeIssued,
 CrossChainPaymentReceived
 ```
 
-- 文档曾用名 `ReputationAccrued` = 实际 `ReputationAdjusted`。
-- **`AssetRelationshipRegistered` 是本地模拟专用事件**（`src/core/adapters.ts` 生成），链上不存在。对接真链时，Indexer 必须改为消费 `AssetCited` / `AssetForked` 并投影为 relationship；本地事件仅为开发期桥接。
-- 当前本地 Indexer（`src/core/indexer.ts`）只处理 3 种事件：`ResearchAssetPublished`、`SkillPublished`、`AssetRelationshipRegistered`。接真链前必须扩展到全量事件目录。
+`AssetRelationshipRegistered` 是本地模拟专用事件；真链使用 `AssetCited` / `AssetForked`。
 
-### 裁决 3：Asset ID 格式
+### 裁决 4：Asset ID 格式
 
-文档中出现过 `ra:local:<hash>`、`ra:sui:0xabc:1`、`RA:2026.00001` 三种写法。裁决如下：
+canonical ID：`ra:<network>:<identifier>`，不含版本。
 
-- **canonical ID**：`ra:<network>:<identifier>`，不含版本。
-  - 链上：`ra:sui:<sui_object_id>`
-  - 本地模拟：`ra:local:<hash>`（现有实现）
-- 引用特定版本时用 `@` 后缀：`ra:sui:0xabc...@0.2.0`。版本是资产对象的字段，不是身份的一部分。
-- `RA:2026.00001` 是 Indexer 分配的**展示编号**（arXiv 风格 display number），仅用于页面渲染和人类引用，不上链、不作身份标识。
-- `asset.yaml` 中 `id: null` 的语义：首次发布前为 null；发布时由注册流程（本地或链上）分配并写入 manifest；ID 一经分配不可变，后续版本沿用。
+- 链上：`ra:sui:<sui_object_id>`
+- 本地模拟：`ra:local:<hash>`
+- 引用特定版本：`ra:sui:0xabc...@0.2.0`
+- `RA:2026.00001` 是 Indexer 展示编号，不上链、不作身份标识。
 
-### 裁决 4：Release Manifest 以 v0.1 实现为准
+### 裁决 5：Release Manifest
 
-`schema: research-asset-manifest/v0.1` 的 canonical 结构是**扁平结构**（docs/03 §3 与 `src/core/packager.ts` 实际输出一致）：顶层 `schema / repo / commit / asset_yaml_hash / content_hash / created_at / files / assets / skills / workflows / relationships / manifest_hash`。
+`schema: research-asset-manifest/v0.1` 的 canonical 结构仍是 `src/core/packager.ts` 输出的扁平结构：顶层 `schema / repo / commit / asset_yaml_hash / content_hash / created_at / files / assets / skills / workflows / relationships / manifest_hash`。
 
-docs/05 早期版本中的嵌套结构（`repo: {}`、`walrus: {}`、`hashes: {}`）作废；其中的增量能力（单独 PDF blob、manifest blob 引用）列入 v0.2 提案，引入时必须升级 schema 版本号。
+新增访问控制字段在 `asset.yaml` / `skill.yaml` 的 `access` 中表达，不改变 release manifest 顶层结构。
 
-relationship 字段名：manifest 内为 `src_id` / `dst_id`（packager 实现）；数据库投影为 `src_asset_id` / `dst_asset_id`（docs/06 SQL）。映射由 Indexer 负责，新代码不要混用两套名字。
+### 裁决 6：CLI 命令
 
-### 裁决 5：CLI 命令以 `src/cli.ts` 为准
+以 `src/cli.ts` 为准：
 
-| 文档曾用写法 | 实际命令 |
-| --- | --- |
-| `research site publish` / `research-cli site publish` | `research web:build` + `research deploy:testnet` |
-| `research-agent install ...` | `research install ...` |
-| `research cite ...` | 尚未实现（规划中） |
+```text
+research reports [report-id]
+research channels
+research delegations [job-id]
+research access:intent --kind platform_membership|agent_subscription|private_delegation
+```
+
+历史 `research licenses` / `research license:intent` 不再使用。
 
 ## 实施 Agent 工作守则
 
-1. **开工前确认基线绿色**：`npm install && npm run build && npm test && npm run demo`。任何改动后这四条必须保持通过。
-2. **选工作流看依赖图**（docs/15），结合状态矩阵当前推荐的下一步（按价值排序）：
-   - Move v2 经济安全（信任边界清单逐条消除 + Move 测试）；
-   - GitHub App 真实接入（工作流 B）；
-   - 真链 Indexer（工作流 F，按裁决 2 扩展事件处理）。
-   不要在同一时间并行修改同一模块。
-3. **命名纪律**：新增函数/事件/字段前先查裁决 1、2、4，不要引入第四套命名。
-4. **每完成一项能力**：更新本篇状态矩阵、docs/15 对应工作流的状态行，并补测试。完成标准以 docs/15 各工作流"完成标准"为验收口径。
-5. **Move 改动**：先在 `move/tests/` 补测试，`sui move build` + `sui move test` 通过后再部署；升级使用 `Published.toml` 记录的 upgrade-capability，**不要重新发包**导致 package id 漂移。
-6. **不得对外暗示链上经济已生效**（见信任边界），直到 Move v2 落地。
-7. **安全红线**：不提交 `.env`/私钥；validator 的 secret 扫描保持启用；`.research-network/deployments/*.json` 含环境敏感信息，保持 gitignore。
-8. **版本控制**：本目录当前尚未 `git init`，开始持续开发前先初始化仓库；`dist/` 不入库（加入 `.gitignore`），以 `npm run build` 重建。
+1. **开工前确认基线绿色**：`npm install && npm run build && npm test`，Move 改动还要跑 `npm run move:build` 和 `sui move test --path move --silence-warnings`。
+2. **不要恢复旧 License 模型**：新增访问、订阅、委托、解密都接 Seal Access。
+3. **不要默认部署 Sui**：本轮要求是本地协议与测试；testnet 发布必须由用户单独拍板。
+4. **private delegation 默认不可搜索、平台不可见**：只有买家、agent 和 dispute 临时仲裁者能解密。
+5. **文档与代码同步**：修改 API/CLI/schema/indexer 时同步 OpenAPI、docs/06、docs/10、docs/18。
+6. **安全红线**：不提交 `.env`/私钥；validator 的 secret 扫描保持启用；`.research-network/deployments/*.json` 保持 gitignored。
+7. **版本控制**：保留用户/其他 Agent 既有改动，不做无关回退；`dist/` 不入库，以 build 重建。
+
+## 验证命令
+
+本轮完成标准：
+
+```bash
+npm run build
+npm test
+npm run web:build
+npm run move:build
+sui move test --path move --silence-warnings
+```
+
+在本 Codex 环境中执行命令需按根目录 AGENTS 指示加 `rtk` 前缀。
 
 ## 修订记录
 
-- 2026-06-11：创建本篇；按裁决 1–5 同步修正 docs/00、03、05、06、07、09、10、11、15 与 README。
+- 2026-06-15：Seal Access 协议重构。删除 `license.move` / license tests；新增 `report.move`、`access.move`、`delegation.move`、`settlement.move`；schema/API/CLI/SDK/indexer/web 从 licenses 改为 reports/access/membership/subscriptions/delegations；新增 Move 和 TS 测试；testnet 重发包留待单独决策。

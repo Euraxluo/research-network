@@ -149,28 +149,25 @@ dependencies:
       - pandas
       - numpy
 
-license:
+legal_terms:
   paper: CC-BY-4.0
   code: MIT
-  skill: commercial-license
-  workflow: commercial-license
+  data: "dataset terms"
+
+access:
+  visibility: public
+  required_tier: 0
+  free_preview: ""
 
 commerce:
-  purchasable: true
-  price_policy:
-    default_currency: USDC
-    one_time_price: "49.00"
-    subscription_price_monthly: "19.00"
+  settlement_model: seal_access
   revenue_split:
     - recipient: "0x..."
       role: creator
-      weight_bps: 7000
+      weight_bps: 8500
     - recipient: "treasury"
-      role: protocol
-      weight_bps: 2000
-    - recipient: "rewards_pool"
-      role: ecosystem
-      weight_bps: 1000
+      role: platform_treasury
+      weight_bps: 1500
 
 publish:
   storage: walrus

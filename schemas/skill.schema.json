@@ -8,8 +8,7 @@
     "version",
     "description",
     "capabilities",
-    "relation",
-    "license"
+    "relation"
   ],
   "properties": {
     "schema": {
@@ -56,11 +55,35 @@
       "type": "string",
       "default": "SKILL.md"
     },
-    "license": {
-      "type": "string"
-    },
-    "price_policy": {
-      "type": "object"
+    "access": {
+      "type": "object",
+      "properties": {
+        "visibility": {
+          "enum": [
+            "public",
+            "encrypted",
+            "private_delegation"
+          ]
+        },
+        "seal_id": {
+          "type": "string"
+        },
+        "walrus_blob_id": {
+          "type": "string"
+        },
+        "ciphertext_hash": {
+          "type": "string"
+        },
+        "plaintext_commitment": {
+          "type": "string"
+        },
+        "required_tier": {
+          "type": "number"
+        },
+        "free_preview": {
+          "type": "string"
+        }
+      }
     },
     "tests": {
       "type": "array",

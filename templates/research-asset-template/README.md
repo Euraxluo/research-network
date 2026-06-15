@@ -16,6 +16,6 @@ Write abstract here.
 
 Describe how to reproduce experiments.
 
-## License
+## Legal Terms And Access
 
-See `asset.yaml` and `LICENSE`.
+See `asset.yaml` `legal_terms`, `asset.yaml` `access`, and the repository `LICENSE`.

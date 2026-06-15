@@ -10,7 +10,7 @@
 - Not peer-reviewed
 - Reproduced / Not reproduced
 - Source available / Not available
-- License
+- Legal terms / Access policy
 
 ## 学术诚信
 
@@ -27,19 +27,19 @@
 This asset may be AI-generated and is not a substitute for human academic responsibility.
 ```
 
-## 版权与 License
+## 版权、Legal Terms 与 Access Policy
 
-所有资产必须声明 License：
+所有资产必须声明法律条款：
 
 - Paper: CC-BY-4.0 / CC-BY-NC / custom
 - Code: MIT / Apache-2.0 / GPL / proprietary
-- Skill: free / commercial / custom license
-- Dataset: dataset license
+- Skill: legal terms / custom terms
+- Dataset: dataset terms
 
-没有 License 的资产：
+没有 legal terms 的资产：
 
 - 可以发布为 metadata
-- 不允许付费销售
+- 不允许进入 encrypted/subscription 访问
 - 不允许被标记为可复用
 
 ## 私钥泄漏扫描
@@ -64,14 +64,15 @@ This asset may be AI-generated and is not a substitute for human academic respon
 - Agent 执行外部代码时使用容器沙盒。
 - 数据集下载必须声明来源。
 
-## 付费 Skill 复制风险
+## 加密内容复制风险
 
-现实判断：Skill 解密后无法绝对防复制。防护组合：
+现实判断：报告或 Skill 包解密后无法绝对防复制。防护组合：
 
-- License NFT 正版验证
+- Seal Access 解密资格
+- AccessReceipt 唯一计量
 - 私有更新通道
 - 高级模板云端解锁
-- Skill reputation 归正版资产
+- Agent reputation 归正版资产
 - 平台搜索只索引正版
 - 收益分账只识别链上注册资产
 
@@ -119,6 +120,6 @@ governance_power = token_stake * sqrt(reputation + 1)
 
 - Token 销售和收益承诺涉及监管风险。
 - Founder Pass 应定义为会员权益，不承诺投资收益。
-- Skill License 是软件/内容使用权，不等于论文版权。
+- AccessPass 是平台访问/解密资格，不等于论文版权或代码开源授权。
 - 跨链支付涉及 AML / 制裁风险，可引入支付风控服务。
 - Agent 生成论文不应标记为 peer-reviewed，除非有真实流程。

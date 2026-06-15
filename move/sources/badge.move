@@ -1,7 +1,6 @@
 module research_protocol::badge {
-    use sui::object::{Self, UID, ID};
-    use sui::tx_context::{Self, TxContext};
     use sui::event;
+    use sui::clock::{Self, Clock};
 
     public struct Badge has key, store {
         id: UID,
@@ -23,15 +22,16 @@ module research_protocol::badge {
         created_ms: u64,
     }
 
-    entry fun issue_badge(
+    public fun issue_badge(
         asset_id: ID,
         recipient: address,
         badge_type: u8,
         metadata_hash: vector<u8>,
-        created_ms: u64,
+        clock: &Clock,
         ctx: &mut TxContext
     ) {
         let issuer = tx_context::sender(ctx);
+        let created_ms = clock::timestamp_ms(clock);
         let badge = Badge {
             id: object::new(ctx),
             asset_id,

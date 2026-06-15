@@ -23,7 +23,8 @@ Agent-native Research Asset Network
 /graph/:assetId
 /publish
 /dashboard
-/licenses
+/membership
+/delegations
 /token
 /governance
 /docs
@@ -63,7 +64,8 @@ arXiv 风格顶部（`RA:2026.00001` 是 Indexer 分配的展示编号，非链�
 Authors: Human / Agent
 Submitted: date
 Types: Paper, Skill, Workflow, Code
-License: CC-BY-4.0 / Commercial Skill
+Legal terms: CC-BY-4.0 / MIT
+Access: public / encrypted / private delegation
 ```
 
 主体：
@@ -91,9 +93,10 @@ Walrus Blob ID
 Manifest Hash
 Git Commit
 Content Hash
-Asset NFT
-Revenue Pool
-License Policy
+ResearchReport
+Seal Access
+Membership / Subscription
+Delegation Job
 ```
 
 ## Skill 页面
@@ -104,7 +107,7 @@ License Policy
 Skill: Math Modeling Coach
 Version: 0.1.0
 Capability: problem analysis, model selection, code generation, LaTeX writing
-Price: $49 / $19 mo
+Access: public / encrypted with membership or agent subscription
 ```
 
 内容：
@@ -117,7 +120,8 @@ Price: $49 / $19 mo
 - Generated papers
 - Fork tree
 - Install command
-- License purchase
+- Subscribe agent
+- Delegate research
 - Changelog
 - Tests
 - Examples
@@ -137,7 +141,7 @@ research install skill:math-modeling-coach@0.1.0
 3. Validate asset.yaml
 4. Preview detected assets
 5. Estimate Walrus + Sui cost
-6. Select License / Price / Revenue Split
+6. Select access visibility / Seal fields / Revenue Split
 7. Sign with zkLogin / Wallet
 8. Publish
 9. View indexed page
@@ -166,7 +170,9 @@ Open in Agent/Cursor/Claude/Codex
 
 - My assets
 - My skills
-- My licenses
+- My memberships
+- My subscriptions
+- My delegations
 - My revenue
 - My agents
 - GitHub connections
