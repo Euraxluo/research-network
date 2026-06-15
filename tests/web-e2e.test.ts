@@ -243,6 +243,7 @@ describe("static web E2E", () => {
       expect(loginScript).toContain("repoSelectorHtml");
       expect(loginScript).toContain("selected_repo");
       expect(loginScript).toContain("selected_installation_ids");
+      expect(loginScript).toContain("organization_scopes");
       expect(loginScript).toContain("repo-account-scope");
       expect(loginScript).toContain("rn-session-repo-select");
       expect(loginScript).toContain("rn-installation-scope");
@@ -269,6 +270,7 @@ describe("static web E2E", () => {
       expect(callbackJs).toContain("localStorage.setItem");
       expect(callbackJs).toContain("function esc");
       expect(callbackJs).toContain("available_repositories");
+      expect(callbackJs).toContain("organization_scopes");
       expect(callbackJs).toContain("selected_repo");
       expect(callbackJs).toContain("selected_installation_ids");
       expect(callbackJs).toContain("binding_attestations");
@@ -443,6 +445,50 @@ describe("static web E2E", () => {
     dom.window.close();
   });
 
+  it("shows uninstalled GitHub organizations without adding their repos to the selector", async () => {
+    const localnet = await makeTempDir("workbench-org-scopes-localnet");
+    const siteDir = path.join(tempRoot, "workbench-org-scopes-site");
+    await buildStaticWeb(siteDir, localnet);
+
+    const dom = await loadWorkbenchDom(siteDir, (window) => {
+      window.localStorage.setItem("rn_session", JSON.stringify({
+        provider: "google",
+        address: "0xREAL",
+        email: "real@example.com"
+      }));
+      window.localStorage.setItem("rn_github", JSON.stringify({
+        sui_address: "0xREAL",
+        login: "Euraxluo",
+        installation_id: 139753991,
+        selected_installation_ids: ["139753991"],
+        selected_repo: "Euraxluo/seal-101",
+        installations: [
+          { id: 139753991, account: "Euraxluo", accountType: "User", repos: ["Euraxluo/seal-101"] }
+        ],
+        organization_scopes: [
+          { id: "139753991", account: "Euraxluo", accountType: "User", installed: true, installation_id: 139753991, repos: ["Euraxluo/seal-101"] },
+          { id: "uninstalled:lab-org", account: "lab-org", accountType: "Organization", installed: false, installation_id: null, repos: [] }
+        ],
+        available_repos: [
+          { full_name: "Euraxluo/seal-101", granted: true, installation_id: 139753991, installation_account: "Euraxluo", installation_account_type: "User" },
+          { full_name: "lab-org/private-research", granted: false, installation_id: null, installation_account: null, installation_account_type: null }
+        ]
+      }));
+    });
+    const doc = dom.window.document;
+    const text = doc.getElementById("workbench-root")?.textContent ?? "";
+    expect(text).toContain("lab-org · Organization");
+    expect(text).toContain("Not authorized yet");
+
+    const disabledOrg = doc.querySelector('.rn-workbench-installation[value="uninstalled:lab-org"]') as HTMLInputElement | null;
+    expect(disabledOrg?.disabled).toBe(true);
+    const repoOptions = Array.from(doc.querySelectorAll("#workbench-repo option")).map((option) => option.textContent ?? "");
+    expect(repoOptions).toEqual(["Euraxluo/seal-101 · Euraxluo"]);
+    expect(repoOptions.join("\n")).not.toContain("lab-org/private-research");
+
+    dom.window.close();
+  });
+
   it("builds a Vercel auth shell without shadowing Walrus content pages", async () => {
     const shellDir = path.join(tempRoot, "vercel-shell");
     await buildVercelAuthShell(shellDir, {
@@ -474,8 +520,10 @@ describe("static web E2E", () => {
     expect(accountHtml).toContain("rn-account-repo-select");
     expect(accountHtml).toContain("selected_repo");
     expect(accountHtml).toContain("selected_installation_ids");
+    expect(accountHtml).toContain("organization_scopes");
     expect(accountHtml).toContain("repo-account-scope");
     expect(accountHtml).toContain("Add GitHub account/org access");
+    expect(accountHtml).toContain("Not authorized yet");
     expect(accountHtml).toContain("binding_attestation");
     expect(accountHtml).toContain("server-attested");
     expect(accountHtml).toContain("Refresh GitHub repos");

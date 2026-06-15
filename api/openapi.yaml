@@ -140,6 +140,18 @@ paths:
       responses:
         '200': { description: 'commit, tree, manifest' }
         '500': { description: GitHub App not configured or API error }
+  /api/github/installations:
+    get:
+      summary: List the current GitHub user's authorized app installations, org scopes, and selectable repositories. Requires Authorization Bearer GitHub user token.
+      responses:
+        '200': { description: GitHub installations, organizations, organization_scopes, available_repositories }
+        '401': { description: GitHub user token missing }
+  /api/github/orgs:
+    get:
+      summary: List GitHub organizations/scopes for the current GitHub user. Requires Authorization Bearer GitHub user token.
+      responses:
+        '200': { description: GitHub organizations and organization_scopes }
+        '401': { description: GitHub user token missing }
   /api/github/fork:
     post:
       summary: Fork a GitHub repo via GitHub App. Disabled unless RN_GITHUB_FORK_API_TOKEN is configured and Authorization: Bearer <token> matches.

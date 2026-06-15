@@ -18,7 +18,7 @@ import {
 import { registerAgentPassport } from "../core/agents.js";
 import { completeAuthLogin, startAuthLogin } from "../core/auth.js";
 import { getGraph, replayIndexer, searchIndex, summarizeAssetEconomics } from "../core/indexer.js";
-import { connectGithubRepo, githubAppFromEnv } from "../core/github.js";
+import { collectGithubUserAccess, connectGithubRepo, githubAppFromEnv } from "../core/github.js";
 import { decodeJwtClaims, deriveUserSalt, deriveZkLoginAddress, requestZkProof, verifyJwt } from "../core/zklogin.js";
 import { readAuthState, readIndex } from "../core/local-store.js";
 import { forkWorkspace, installSkill } from "../core/workspace.js";
@@ -63,6 +63,15 @@ function requireGithubForkAuthorization(req: express.Request): void {
   if (!token || !constantTimeEqual(token, expected)) {
     throw new HttpError(401, "github_fork_unauthorized");
   }
+}
+
+function requireGithubUserAccessToken(req: express.Request): string {
+  const header = String(req.headers.authorization ?? "");
+  const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+  if (!token) {
+    throw new HttpError(401, "github_user_token_required");
+  }
+  return token;
 }
 
 export function createApiServer(options: { localnetRoot?: string; workspaceRoot?: string; allowRemote?: boolean } = {}) {
@@ -242,6 +251,54 @@ export function createApiServer(options: { localnetRoot?: string; workspaceRoot?
 
   // Real GitHub App: connect a repo (mint installation token → resolve commit → tree → asset.yaml).
   // Requires GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY in the environment.
+  app.get("/api/github/installations", async (req, res, next) => {
+    try {
+      const snapshot = await collectGithubUserAccess(requireGithubUserAccessToken(req), {
+        appSlug: process.env.GITHUB_APP_SLUG
+      });
+      res.json({
+        login: snapshot.user.login,
+        installed: snapshot.installations.length > 0,
+        installations: snapshot.installations.map((installation) => ({
+          id: installation.id,
+          account: installation.account.login,
+          accountType: installation.account.type,
+          appSlug: installation.app_slug,
+          repos: installation.repos
+        })),
+        organizations: snapshot.organizations,
+        organization_scopes: snapshot.organization_scopes,
+        available_repositories: snapshot.available_repositories.map((repo) => ({
+          id: repo.id,
+          full_name: repo.full_name,
+          private: repo.private,
+          html_url: repo.html_url,
+          granted: repo.granted,
+          installation_id: repo.installation_id,
+          installation_account: repo.installation_account,
+          installation_account_type: repo.installation_account_type
+        }))
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/api/github/orgs", async (req, res, next) => {
+    try {
+      const snapshot = await collectGithubUserAccess(requireGithubUserAccessToken(req), {
+        appSlug: process.env.GITHUB_APP_SLUG
+      });
+      res.json({
+        login: snapshot.user.login,
+        organizations: snapshot.organizations,
+        organization_scopes: snapshot.organization_scopes
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post("/api/github/connect", async (req, res, next) => {
     try {
       const client = githubAppFromEnv();

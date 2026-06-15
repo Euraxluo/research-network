@@ -185,6 +185,7 @@ const AUTH_STYLE = `<style>
 .repo-account-scope legend{margin:0 0 6px;color:#686868}
 .repo-account{display:flex;gap:8px;align-items:flex-start;margin:6px 0}
 .repo-account input{margin-top:3px}
+.repo-account.unavailable{opacity:.68}
 .repo-summary{margin:8px 0 0;color:#686868}
 .repo-actions{margin-top:10px}
 .repo-actions a{margin-right:14px}
@@ -311,6 +312,21 @@ const LOGIN_JS = `(function(){
     return out;
   }
   function accountItems(binding){
+    var scopes = binding && Array.isArray(binding.organization_scopes) ? binding.organization_scopes : [];
+    if (scopes.length) {
+      return scopes.map(function(scope){
+        return {
+          id: String(scope.id || scope.installation_id || ("uninstalled:" + scope.account)),
+          account: scope.account || "GitHub",
+          accountType: scope.accountType || scope.account_type || "Account",
+          installed: scope.installed !== false,
+          repos: Array.isArray(scope.repos) ? scope.repos : []
+        };
+      }).sort(function(a,b){
+        if (a.installed !== b.installed) return a.installed ? -1 : 1;
+        return a.account.localeCompare(b.account);
+      });
+    }
     var installations = binding && Array.isArray(binding.installations) ? binding.installations : [];
     if (installations.length) {
       var byAccount = {};
@@ -318,7 +334,7 @@ const LOGIN_JS = `(function(){
         var account = installation.account || "GitHub";
         var accountType = installation.accountType || installation.account_type || "Account";
         var key = account + "\u0000" + accountType;
-        if (!byAccount[key]) byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, repos: [] };
+        if (!byAccount[key]) byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, installed: true, repos: [] };
         (installation.repos || []).forEach(function(repo){ if (byAccount[key].repos.indexOf(repo) === -1) byAccount[key].repos.push(repo); });
       });
       return Object.keys(byAccount).map(function(key){ return byAccount[key]; });
@@ -337,7 +353,7 @@ const LOGIN_JS = `(function(){
         delete accounts[existingId];
       }
       scopeByOwner[owner] = id;
-      if (!accounts[id]) accounts[id] = { id: id, account: owner, accountType: resolvedType, repos: [] };
+      if (!accounts[id]) accounts[id] = { id: id, account: owner, accountType: resolvedType, installed: true, repos: [] };
       if (accounts[id].repos.indexOf(name) === -1) accounts[id].repos.push(name);
     }
     (binding && binding.available_repos || []).forEach(function(repo){
@@ -353,15 +369,16 @@ const LOGIN_JS = `(function(){
   }
   function selectedInstallationIds(binding){
     var accounts = accountItems(binding);
+    var selectable = accounts.filter(function(account){ return account.installed !== false; });
     var ids = binding && binding.selected_installation_ids;
     if (Array.isArray(ids)) {
       var valid = {};
-      accounts.forEach(function(account){ valid[String(account.id)] = true; });
+      selectable.forEach(function(account){ valid[String(account.id)] = true; });
       var normalized = ids.map(function(id){ return String(id); }).filter(function(id){ return valid[id]; });
-      if (ids.length > 0 && !normalized.length) return accounts.map(function(account){ return account.id; });
+      if (ids.length > 0 && !normalized.length) return selectable.map(function(account){ return account.id; });
       return normalized;
     }
-    return accounts.map(function(account){ return account.id; });
+    return selectable.map(function(account){ return account.id; });
   }
   function selectedRepoItem(binding, repos){
     var selected = binding && binding.selected_repo;
@@ -416,8 +433,9 @@ const LOGIN_JS = `(function(){
     return '<fieldset class="repo-account-scope"><legend>GitHub account / organization</legend>'
       + accounts.map(function(account){
         var label = account.account + (account.accountType ? " · " + account.accountType : "");
-        var detail = account.repos.length + " authorized repo(s)";
-        return '<label class="repo-account"><input class="rn-installation-scope" type="checkbox" value="' + esc(account.id) + '"' + (selected[account.id] ? " checked" : "") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
+        var installed = account.installed !== false;
+        var detail = installed ? (account.repos.length + " authorized repo(s)") : "Not authorized yet";
+        return '<label class="repo-account' + (installed ? "" : " unavailable") + '"><input class="rn-installation-scope" type="checkbox" value="' + esc(account.id) + '"' + (selected[account.id] && installed ? " checked" : "") + (installed ? "" : " disabled") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
       }).join("")
       + '</fieldset>';
   }
@@ -711,6 +729,21 @@ const GITHUB_CALLBACK_JS = `(function(){
     return out;
   }
   function accountItems(binding){
+    var scopes = binding && Array.isArray(binding.organization_scopes) ? binding.organization_scopes : [];
+    if (scopes.length) {
+      return scopes.map(function(scope){
+        return {
+          id: String(scope.id || scope.installation_id || ("uninstalled:" + scope.account)),
+          account: scope.account || "GitHub",
+          accountType: scope.accountType || scope.account_type || "Account",
+          installed: scope.installed !== false,
+          repos: Array.isArray(scope.repos) ? scope.repos : []
+        };
+      }).sort(function(a,b){
+        if (a.installed !== b.installed) return a.installed ? -1 : 1;
+        return a.account.localeCompare(b.account);
+      });
+    }
     var installations = binding && Array.isArray(binding.installations) ? binding.installations : [];
     if (installations.length) {
       var byAccount = {};
@@ -718,7 +751,7 @@ const GITHUB_CALLBACK_JS = `(function(){
         var account = installation.account || "GitHub";
         var accountType = installation.accountType || installation.account_type || "Account";
         var key = account + "\u0000" + accountType;
-        if (!byAccount[key]) byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, repos: [] };
+        if (!byAccount[key]) byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, installed: true, repos: [] };
         (installation.repos || []).forEach(function(repo){ if (byAccount[key].repos.indexOf(repo) === -1) byAccount[key].repos.push(repo); });
       });
       return Object.keys(byAccount).map(function(key){ return byAccount[key]; });
@@ -737,7 +770,7 @@ const GITHUB_CALLBACK_JS = `(function(){
         delete accounts[existingId];
       }
       scopeByOwner[owner] = id;
-      if (!accounts[id]) accounts[id] = { id: id, account: owner, accountType: resolvedType, repos: [] };
+      if (!accounts[id]) accounts[id] = { id: id, account: owner, accountType: resolvedType, installed: true, repos: [] };
       if (accounts[id].repos.indexOf(name) === -1) accounts[id].repos.push(name);
     }
     (binding && binding.available_repos || []).forEach(function(repo){
@@ -753,15 +786,16 @@ const GITHUB_CALLBACK_JS = `(function(){
   }
   function selectedInstallationIds(binding){
     var accounts = accountItems(binding);
+    var selectable = accounts.filter(function(account){ return account.installed !== false; });
     var ids = binding && binding.selected_installation_ids;
     if (Array.isArray(ids)) {
       var valid = {};
-      accounts.forEach(function(account){ valid[String(account.id)] = true; });
+      selectable.forEach(function(account){ valid[String(account.id)] = true; });
       var normalized = ids.map(function(id){ return String(id); }).filter(function(id){ return valid[id]; });
-      if (ids.length > 0 && !normalized.length) return accounts.map(function(account){ return account.id; });
+      if (ids.length > 0 && !normalized.length) return selectable.map(function(account){ return account.id; });
       return normalized;
     }
-    return accounts.map(function(account){ return account.id; });
+    return selectable.map(function(account){ return account.id; });
   }
   function selectedRepoItem(binding, repos){
     var selected = binding && binding.selected_repo;
@@ -816,8 +850,9 @@ const GITHUB_CALLBACK_JS = `(function(){
     return '<fieldset class="repo-account-scope"><legend>GitHub account / organization</legend>'
       + accounts.map(function(account){
         var label = account.account + (account.accountType ? " · " + account.accountType : "");
-        var detail = account.repos.length + " authorized repo(s)";
-        return '<label class="repo-account"><input class="rn-installation-scope" type="checkbox" value="' + esc(account.id) + '"' + (selected[account.id] ? " checked" : "") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
+        var installed = account.installed !== false;
+        var detail = installed ? (account.repos.length + " authorized repo(s)") : "Not authorized yet";
+        return '<label class="repo-account' + (installed ? "" : " unavailable") + '"><input class="rn-installation-scope" type="checkbox" value="' + esc(account.id) + '"' + (selected[account.id] && installed ? " checked" : "") + (installed ? "" : " disabled") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
       }).join("")
       + '</fieldset>';
   }
@@ -997,6 +1032,8 @@ const GITHUB_CALLBACK_JS = `(function(){
       account: inst && inst.account || null,
       account_type: inst && (inst.accountType || inst.account_type) || null,
       installations: installations,
+      organizations: body.organizations || [],
+      organization_scopes: body.organization_scopes || [],
       selected_installation_ids: selectedInstallationIds,
       repos: inst && inst.repos || [],
       available_repos: availableRepos,

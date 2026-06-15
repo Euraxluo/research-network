@@ -9,6 +9,7 @@ export interface FetchResponseLike {
   status: number;
   json: () => Promise<any>;
   text: () => Promise<string>;
+  headers?: { get: (name: string) => string | null };
 }
 
 export type FetchLike = (
@@ -37,6 +38,71 @@ export interface RepoTreeEntry {
   size?: number;
 }
 
+export interface GithubUserSummary {
+  id: number | null;
+  login: string;
+  html_url: string | null;
+  avatar_url: string | null;
+}
+
+export interface GithubOrganizationSummary {
+  id: number | null;
+  login: string;
+  description: string | null;
+  html_url: string | null;
+  avatar_url: string | null;
+  installed?: boolean;
+  installation_id?: number | null;
+}
+
+export interface GithubUserInstallationSummary {
+  id: number;
+  app_slug: string | null;
+  repository_selection: string | null;
+  account: {
+    id: number | null;
+    login: string | null;
+    type: string | null;
+    html_url: string | null;
+    avatar_url: string | null;
+  };
+}
+
+export interface GithubRepositorySummary {
+  id: number | null;
+  full_name: string;
+  private: boolean;
+  html_url: string | null;
+  owner: {
+    login: string | null;
+    type: string | null;
+  };
+}
+
+export interface GithubAuthorizedRepositorySummary extends GithubRepositorySummary {
+  granted: boolean;
+  installation_id: number | null;
+  installation_account: string | null;
+  installation_account_type: string | null;
+}
+
+export interface GithubAccountScopeSummary {
+  id: string;
+  account: string;
+  accountType: string;
+  installed: boolean;
+  installation_id: number | null;
+  repos: string[];
+}
+
+export interface GithubUserAccessSnapshot {
+  user: GithubUserSummary;
+  installations: Array<GithubUserInstallationSummary & { repos: string[] }>;
+  organizations: GithubOrganizationSummary[];
+  organization_scopes: GithubAccountScopeSummary[];
+  available_repositories: GithubAuthorizedRepositorySummary[];
+}
+
 function base64url(input: Buffer | string): string {
   return Buffer.from(input)
     .toString("base64")
@@ -61,6 +127,324 @@ export function createAppJwt(appId: string, privateKeyPem: string, nowSeconds = 
 
 const API_VERSION = "2022-11-28";
 const TOKEN_EXPIRY_SKEW_MS = 5 * 60 * 1000;
+
+function githubApiBase(apiBaseUrl?: string): string {
+  return (apiBaseUrl ?? "https://api.github.com").replace(/\/$/, "");
+}
+
+function githubUserHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": API_VERSION,
+    "User-Agent": "research-network-protocol-kit"
+  };
+}
+
+function nextLink(linkHeader: string | null | undefined): string | null {
+  if (!linkHeader) {
+    return null;
+  }
+  for (const part of linkHeader.split(",")) {
+    const [urlPart, ...params] = part.trim().split(";");
+    if (params.some((param) => param.trim() === 'rel="next"')) {
+      const match = urlPart.trim().match(/^<(.+)>$/);
+      return match ? match[1] : null;
+    }
+  }
+  return null;
+}
+
+async function getGithubJson(
+  url: string,
+  token: string,
+  options: { fetchImpl?: FetchLike; label?: string } = {}
+): Promise<{ body: any; link: string | null }> {
+  const fetchImpl = options.fetchImpl ?? (globalThis.fetch as unknown as FetchLike | undefined);
+  if (!fetchImpl) {
+    throw new Error("No fetch implementation available; pass fetchImpl");
+  }
+  const res = await fetchImpl(url, { headers: githubUserHeaders(token) });
+  if (!res.ok) {
+    throw new Error(`GitHub ${options.label ?? "GET"} failed: ${res.status} ${await res.text()}`);
+  }
+  return { body: await res.json(), link: res.headers?.get("link") ?? null };
+}
+
+async function paginateGithub<T>(
+  firstUrl: string,
+  token: string,
+  extract: (body: any) => T[],
+  options: { fetchImpl?: FetchLike; label?: string } = {}
+): Promise<T[]> {
+  const out: T[] = [];
+  let url: string | null = firstUrl;
+  let page = 1;
+  while (url) {
+    const { body, link } = await getGithubJson(url, token, options);
+    const items = extract(body);
+    out.push(...items);
+    const fromLink = nextLink(link);
+    if (fromLink) {
+      url = fromLink;
+    } else if (items.length >= 100 && !/[?&]page=\d+/.test(url)) {
+      page += 1;
+      url = `${url}${url.includes("?") ? "&" : "?"}page=${page}`;
+    } else if (items.length >= 100) {
+      page += 1;
+      url = url.replace(/([?&]page=)\d+/, `$1${page}`);
+    } else {
+      url = null;
+    }
+  }
+  return out;
+}
+
+function normalizeUser(body: any): GithubUserSummary {
+  return {
+    id: typeof body.id === "number" ? body.id : null,
+    login: String(body.login ?? ""),
+    html_url: body.html_url ? String(body.html_url) : null,
+    avatar_url: body.avatar_url ? String(body.avatar_url) : null
+  };
+}
+
+function normalizeOrg(body: any): GithubOrganizationSummary {
+  return {
+    id: typeof body.id === "number" ? body.id : null,
+    login: String(body.login ?? ""),
+    description: body.description ? String(body.description) : null,
+    html_url: body.html_url ? String(body.html_url) : null,
+    avatar_url: body.avatar_url ? String(body.avatar_url) : null
+  };
+}
+
+function normalizeInstallation(body: any): GithubUserInstallationSummary {
+  return {
+    id: Number(body.id),
+    app_slug: body.app_slug ? String(body.app_slug) : null,
+    repository_selection: body.repository_selection ? String(body.repository_selection) : null,
+    account: {
+      id: typeof body.account?.id === "number" ? body.account.id : null,
+      login: body.account?.login ? String(body.account.login) : null,
+      type: body.account?.type ? String(body.account.type) : null,
+      html_url: body.account?.html_url ? String(body.account.html_url) : null,
+      avatar_url: body.account?.avatar_url ? String(body.account.avatar_url) : null
+    }
+  };
+}
+
+function normalizeRepo(body: any): GithubRepositorySummary {
+  return {
+    id: typeof body.id === "number" ? body.id : null,
+    full_name: String(body.full_name ?? ""),
+    private: Boolean(body.private),
+    html_url: body.html_url ? String(body.html_url) : null,
+    owner: {
+      login: body.owner?.login ? String(body.owner.login) : (String(body.full_name ?? "").split("/")[0] || null),
+      type: body.owner?.type ? String(body.owner.type) : null
+    }
+  };
+}
+
+export async function getAuthenticatedGithubUser(
+  userAccessToken: string,
+  options: { apiBaseUrl?: string; fetchImpl?: FetchLike } = {}
+): Promise<GithubUserSummary> {
+  const { body } = await getGithubJson(`${githubApiBase(options.apiBaseUrl)}/user`, userAccessToken, {
+    fetchImpl: options.fetchImpl,
+    label: "user fetch"
+  });
+  return normalizeUser(body);
+}
+
+export async function listUserOrgs(
+  userAccessToken: string,
+  options: { apiBaseUrl?: string; fetchImpl?: FetchLike } = {}
+): Promise<GithubOrganizationSummary[]> {
+  return paginateGithub<GithubOrganizationSummary>(
+    `${githubApiBase(options.apiBaseUrl)}/user/orgs?per_page=100`,
+    userAccessToken,
+    (body) => Array.isArray(body) ? body.map((raw: any) => normalizeOrg(raw)).filter((org: GithubOrganizationSummary) => org.login) : [],
+    { fetchImpl: options.fetchImpl, label: "org list" }
+  );
+}
+
+export async function listUserInstallations(
+  userAccessToken: string,
+  options: { apiBaseUrl?: string; fetchImpl?: FetchLike; appSlug?: string } = {}
+): Promise<GithubUserInstallationSummary[]> {
+  const installations = await paginateGithub<GithubUserInstallationSummary>(
+    `${githubApiBase(options.apiBaseUrl)}/user/installations?per_page=100`,
+    userAccessToken,
+    (body) => Array.isArray(body?.installations)
+      ? body.installations.map((raw: any) => normalizeInstallation(raw)).filter((installation: GithubUserInstallationSummary) => Number.isFinite(installation.id))
+      : [],
+    { fetchImpl: options.fetchImpl, label: "installation list" }
+  );
+  return options.appSlug
+    ? installations.filter((installation) => installation.app_slug === options.appSlug)
+    : installations;
+}
+
+export async function listInstallationRepos(
+  userAccessToken: string,
+  installationId: string | number,
+  options: { apiBaseUrl?: string; fetchImpl?: FetchLike } = {}
+): Promise<GithubRepositorySummary[]> {
+  return paginateGithub<GithubRepositorySummary>(
+    `${githubApiBase(options.apiBaseUrl)}/user/installations/${installationId}/repositories?per_page=100`,
+    userAccessToken,
+    (body) => Array.isArray(body?.repositories)
+      ? body.repositories.map((raw: any) => normalizeRepo(raw)).filter((repo: GithubRepositorySummary) => repo.full_name)
+      : [],
+    { fetchImpl: options.fetchImpl, label: "installation repo list" }
+  );
+}
+
+export async function listUserRepositories(
+  userAccessToken: string,
+  options: { apiBaseUrl?: string; fetchImpl?: FetchLike } = {}
+): Promise<GithubRepositorySummary[]> {
+  return paginateGithub<GithubRepositorySummary>(
+    `${githubApiBase(options.apiBaseUrl)}/user/repos?per_page=100&affiliation=owner,collaborator,organization_member&visibility=all&sort=updated`,
+    userAccessToken,
+    (body) => Array.isArray(body) ? body.map((raw: any) => normalizeRepo(raw)).filter((repo: GithubRepositorySummary) => repo.full_name) : [],
+    { fetchImpl: options.fetchImpl, label: "user repo list" }
+  );
+}
+
+export function buildGithubAccountScopes(params: {
+  user: GithubUserSummary;
+  installations: Array<GithubUserInstallationSummary & { repos: string[] }>;
+  organizations?: GithubOrganizationSummary[];
+}): GithubAccountScopeSummary[] {
+  const byAccount = new Map<string, GithubAccountScopeSummary>();
+  for (const installation of params.installations) {
+    const account = installation.account.login ?? "GitHub";
+    const accountType = installation.account.type ?? "Account";
+    const key = `${account}\0${accountType}`;
+    const existing = byAccount.get(key);
+    const repos = [...new Set(installation.repos)].sort((a, b) => a.localeCompare(b));
+    if (existing) {
+      existing.repos = [...new Set([...existing.repos, ...repos])].sort((a, b) => a.localeCompare(b));
+    } else {
+      byAccount.set(key, {
+        id: String(installation.id),
+        account,
+        accountType,
+        installed: true,
+        installation_id: installation.id,
+        repos
+      });
+    }
+  }
+  if (params.user.login) {
+    const key = `${params.user.login}\0User`;
+    if (!byAccount.has(key)) {
+      byAccount.set(key, {
+        id: `uninstalled:${params.user.login}`,
+        account: params.user.login,
+        accountType: "User",
+        installed: false,
+        installation_id: null,
+        repos: []
+      });
+    }
+  }
+  for (const org of params.organizations ?? []) {
+    if (!org.login) {
+      continue;
+    }
+    const key = `${org.login}\0Organization`;
+    if (!byAccount.has(key)) {
+      byAccount.set(key, {
+        id: `uninstalled:${org.login}`,
+        account: org.login,
+        accountType: "Organization",
+        installed: false,
+        installation_id: null,
+        repos: []
+      });
+    }
+  }
+  return [...byAccount.values()].sort((a, b) => {
+    if (a.installed !== b.installed) {
+      return a.installed ? -1 : 1;
+    }
+    return a.account.localeCompare(b.account);
+  });
+}
+
+export async function collectGithubUserAccess(
+  userAccessToken: string,
+  options: { apiBaseUrl?: string; fetchImpl?: FetchLike; appSlug?: string } = {}
+): Promise<GithubUserAccessSnapshot> {
+  const [user, installations, organizations] = await Promise.all([
+    getAuthenticatedGithubUser(userAccessToken, options),
+    listUserInstallations(userAccessToken, options),
+    listUserOrgs(userAccessToken, options).catch(() => [] as GithubOrganizationSummary[])
+  ]);
+  const installedWithRepos: Array<GithubUserInstallationSummary & { repos: string[] }> = [];
+  const grantedRepoInstallations = new Map<string, { installationId: number; account: string | null; accountType: string | null }>();
+  for (const installation of installations) {
+    const repos = (await listInstallationRepos(userAccessToken, installation.id, options)).map((repo) => repo.full_name);
+    const dedupedRepos = [...new Set(repos)].sort((a, b) => a.localeCompare(b));
+    installedWithRepos.push({ ...installation, repos: dedupedRepos });
+    for (const fullName of dedupedRepos) {
+      grantedRepoInstallations.set(fullName, {
+        installationId: installation.id,
+        account: installation.account.login,
+        accountType: installation.account.type
+      });
+    }
+  }
+
+  const availableRepositories: GithubAuthorizedRepositorySummary[] = [];
+  try {
+    for (const repo of await listUserRepositories(userAccessToken, options)) {
+      const grant = grantedRepoInstallations.get(repo.full_name);
+      availableRepositories.push({
+        ...repo,
+        granted: Boolean(grant),
+        installation_id: grant?.installationId ?? null,
+        installation_account: grant?.account ?? null,
+        installation_account_type: grant?.accountType ?? null
+      });
+    }
+  } catch {
+    // Repository enumeration is a best-effort UX enhancement; installation repos are authoritative.
+  }
+  for (const [fullName, grant] of grantedRepoInstallations) {
+    if (!availableRepositories.some((repo) => repo.full_name === fullName)) {
+      availableRepositories.push({
+        id: null,
+        full_name: fullName,
+        private: false,
+        html_url: `https://github.com/${fullName}`,
+        owner: { login: fullName.split("/")[0] ?? null, type: null },
+        granted: true,
+        installation_id: grant.installationId,
+        installation_account: grant.account,
+        installation_account_type: grant.accountType
+      });
+    }
+  }
+
+  const installedByLogin = new Map(installedWithRepos.map((installation) => [installation.account.login, installation.id]));
+  const normalizedOrganizations = organizations.map((org) => ({
+    ...org,
+    installed: installedByLogin.has(org.login),
+    installation_id: installedByLogin.get(org.login) ?? null
+  }));
+  return {
+    user,
+    installations: installedWithRepos,
+    organizations: normalizedOrganizations,
+    organization_scopes: buildGithubAccountScopes({ user, installations: installedWithRepos, organizations: normalizedOrganizations }),
+    available_repositories: availableRepositories
+  };
+}
 
 /** A real GitHub App API client: app-JWT → installation token → repo reads / fork.
  *  All HTTP goes through an injectable `fetchImpl`, so the flow is exercised in tests with a

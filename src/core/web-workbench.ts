@@ -129,6 +129,21 @@ export const WORKBENCH_JS = `
     return "owner:" + String(account || "GitHub");
   }
   function accountItems(gh) {
+    var scopes = gh && Array.isArray(gh.organization_scopes) ? gh.organization_scopes : [];
+    if (scopes.length) {
+      return scopes.map(function (scope) {
+        return {
+          id: String(scope.id || scope.installation_id || ("uninstalled:" + scope.account)),
+          account: scope.account || "GitHub",
+          accountType: scope.accountType || scope.account_type || "Account",
+          installed: scope.installed !== false,
+          repos: Array.isArray(scope.repos) ? scope.repos : []
+        };
+      }).sort(function (a, b) {
+        if (a.installed !== b.installed) return a.installed ? -1 : 1;
+        return a.account.localeCompare(b.account);
+      });
+    }
     var installations = gh && Array.isArray(gh.installations) ? gh.installations : [];
     if (installations.length) {
       var byAccount = {};
@@ -137,7 +152,7 @@ export const WORKBENCH_JS = `
         var accountType = installation.accountType || installation.account_type || "Account";
         var key = account + "\u0000" + accountType;
         if (!byAccount[key]) {
-          byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, repos: [] };
+          byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, installed: true, repos: [] };
         }
         (installation.repos || []).forEach(function (repo) {
           if (byAccount[key].repos.indexOf(repo) === -1) byAccount[key].repos.push(repo);
@@ -164,6 +179,7 @@ export const WORKBENCH_JS = `
           id: id,
           account: owner,
           accountType: resolvedType,
+          installed: true,
           repos: []
         };
       }
@@ -187,12 +203,13 @@ export const WORKBENCH_JS = `
   }
   function selectedInstallationIds(gh) {
     var accounts = accountItems(gh);
-    var selected = gh && Array.isArray(gh.selected_installation_ids) ? gh.selected_installation_ids : accounts.map(function (item) { return item.id; });
+    var selectable = accounts.filter(function (item) { return item.installed !== false; });
+    var selected = gh && Array.isArray(gh.selected_installation_ids) ? gh.selected_installation_ids : selectable.map(function (item) { return item.id; });
     var valid = {};
-    accounts.forEach(function (account) { valid[String(account.id)] = true; });
+    selectable.forEach(function (account) { valid[String(account.id)] = true; });
     var normalized = selected.map(function (id) { return String(id); }).filter(function (id) { return valid[id]; });
     if (Array.isArray(gh && gh.selected_installation_ids) && selected.length > 0 && !normalized.length) {
-      return accounts.map(function (account) { return String(account.id); });
+      return selectable.map(function (account) { return String(account.id); });
     }
     return normalized;
   }
@@ -279,8 +296,9 @@ export const WORKBENCH_JS = `
       installations.map(function (installation) {
         var id = String(installation.id);
         var label = (installation.account || "GitHub") + (installation.accountType || installation.account_type ? " · " + (installation.accountType || installation.account_type) : "");
-        var detail = (installation.repos || []).length + " repo option(s)";
-        return '<label class="repo-account"><input class="rn-workbench-installation" type="checkbox" value="' + esc(id) + '"' + (selected[id] ? " checked" : "") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
+        var installed = installation.installed !== false;
+        var detail = installed ? ((installation.repos || []).length + " authorized repo option(s)") : "Not authorized yet";
+        return '<label class="repo-account' + (installed ? "" : " unavailable") + '"><input class="rn-workbench-installation" type="checkbox" value="' + esc(id) + '"' + (selected[id] && installed ? " checked" : "") + (installed ? "" : " disabled") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
       }).join("") +
       '</fieldset>';
   }

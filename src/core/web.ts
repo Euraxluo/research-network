@@ -653,6 +653,21 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
     return out;
   }
   function accountItems(gh) {
+    var scopes = gh && Array.isArray(gh.organization_scopes) ? gh.organization_scopes : [];
+    if (scopes.length) {
+      return scopes.map(function (scope) {
+        return {
+          id: String(scope.id || scope.installation_id || ("uninstalled:" + scope.account)),
+          account: scope.account || "GitHub",
+          accountType: scope.accountType || scope.account_type || "Account",
+          installed: scope.installed !== false,
+          repos: Array.isArray(scope.repos) ? scope.repos : []
+        };
+      }).sort(function (a, b) {
+        if (a.installed !== b.installed) return a.installed ? -1 : 1;
+        return a.account.localeCompare(b.account);
+      });
+    }
     var installations = gh && Array.isArray(gh.installations) ? gh.installations : [];
     if (installations.length) {
       var byAccount = {};
@@ -661,7 +676,7 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
         var accountType = installation.accountType || installation.account_type || "Account";
         var key = account + "\u0000" + accountType;
         if (!byAccount[key]) {
-          byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, repos: [] };
+          byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, installed: true, repos: [] };
         }
         (installation.repos || []).forEach(function (repo) {
           if (byAccount[key].repos.indexOf(repo) === -1) byAccount[key].repos.push(repo);
@@ -688,6 +703,7 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
           id: id,
           account: owner,
           accountType: resolvedType,
+          installed: true,
           repos: []
         };
       }
@@ -711,15 +727,16 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
   }
   function selectedInstallationIds(gh) {
     var accounts = accountItems(gh);
+    var selectable = accounts.filter(function (account) { return account.installed !== false; });
     var ids = gh && gh.selected_installation_ids;
     if (Array.isArray(ids)) {
       var valid = {};
-      accounts.forEach(function (account) { valid[String(account.id)] = true; });
+      selectable.forEach(function (account) { valid[String(account.id)] = true; });
       var normalized = ids.map(function (id) { return String(id); }).filter(function (id) { return valid[id]; });
-      if (ids.length > 0 && !normalized.length) return accounts.map(function (account) { return account.id; });
+      if (ids.length > 0 && !normalized.length) return selectable.map(function (account) { return account.id; });
       return normalized;
     }
-    return accounts.map(function (account) { return account.id; });
+    return selectable.map(function (account) { return account.id; });
   }
   function selectedRepoItem(gh, repos) {
     var selected = gh && gh.selected_repo;
@@ -771,8 +788,9 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
     return '<fieldset class="repo-account-scope"><legend>GitHub account / organization</legend>'
       + accounts.map(function (account) {
         var label = account.account + (account.accountType ? " · " + account.accountType : "");
-        var detail = account.repos.length + " authorized repo(s)";
-        return '<label class="repo-account"><input class="rn-account-installation-scope" type="checkbox" value="' + esc(account.id) + '"' + (selected[account.id] ? " checked" : "") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
+        var installed = account.installed !== false;
+        var detail = installed ? (account.repos.length + " authorized repo(s)") : "Not authorized yet";
+        return '<label class="repo-account' + (installed ? "" : " unavailable") + '"><input class="rn-account-installation-scope" type="checkbox" value="' + esc(account.id) + '"' + (selected[account.id] && installed ? " checked" : "") + (installed ? "" : " disabled") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
       }).join("")
       + '</fieldset>';
   }
@@ -1024,6 +1042,7 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .repo-account-scope legend { margin: 0 0 6px; color: var(--muted); }
 .repo-account { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: 13.5px; }
 .repo-account input { margin-top: 3px; }
+.repo-account.unavailable { opacity: .68; }
 .repo-actions { margin: 12px 0 14px; }
 
 /* protocol workbench */

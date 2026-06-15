@@ -1,4 +1,5 @@
 import { createGithubBindingAttestation } from "../src/core/github-binding.js";
+import { collectGithubUserAccess } from "../src/core/github.js";
 import { upsertGithubRepositoryBinding } from "../src/core/local-store.js";
 import { deriveUserSalt, deriveZkLoginAddress, JwtVerificationError, verifyJwt } from "../src/core/zklogin.js";
 
@@ -19,6 +20,15 @@ interface RepositorySummary {
   installation_id: number | null;
   installation_account: string | null;
   installation_account_type: string | null;
+}
+
+interface GithubScopeSummary {
+  id: string;
+  account: string;
+  accountType: string;
+  installed: boolean;
+  installation_id: number | null;
+  repos: string[];
 }
 
 /** GitHub user-authorization callback exchange (Cursor-style flow, HANDOFF §2.3).
@@ -79,113 +89,28 @@ export default async function handler(req: any, res: any) {
       }));
       return;
     }
-    const userToken = tokenBody.access_token;
-    const apiHeaders = {
-      authorization: `Bearer ${userToken}`,
-      accept: "application/vnd.github+json",
-      "x-github-api-version": "2022-11-28",
-      "user-agent": "research-network"
-    };
-
-    const userResponse = await fetch("https://api.github.com/user", { headers: apiHeaders });
-    if (!userResponse.ok) {
-      res.status(502).send(JSON.stringify({ error: "github_user_fetch_failed" }));
-      return;
-    }
-    const user = await userResponse.json() as { login?: string };
-
-    const availableRepos: RepositorySummary[] = [];
-    const grantedRepoNames = new Set<string>();
-    const grantedRepoInstallations = new Map<string, {
-      installationId: number;
-      account: string | null;
-      accountType: string | null;
-    }>();
-
-    const installationsResponse = await fetch("https://api.github.com/user/installations?per_page=100", { headers: apiHeaders });
-    if (!installationsResponse.ok) {
-      res.status(502).send(JSON.stringify({ error: "github_installations_fetch_failed" }));
-      return;
-    }
-    const installationsBody = await installationsResponse.json() as {
-      installations?: Array<{ id: number; app_slug?: string; account?: { login?: string; type?: string } }>;
-    };
-    const appSlug = process.env.GITHUB_APP_SLUG;
-    const installations = (installationsBody.installations ?? [])
-      .filter((installation) => !appSlug || installation.app_slug === appSlug);
-
-    const summaries: InstallationSummary[] = [];
-    for (const installation of installations) {
-      const repos: string[] = [];
-      const installationAccount = installation.account?.login ?? null;
-      const installationAccountType = installation.account?.type ?? null;
-      const reposResponse = await fetch(
-        `https://api.github.com/user/installations/${installation.id}/repositories?per_page=100`,
-        { headers: apiHeaders }
-      );
-      if (reposResponse.ok) {
-        const reposBody = await reposResponse.json() as { repositories?: Array<{ full_name?: string }> };
-        for (const repo of reposBody.repositories ?? []) {
-          if (repo.full_name) {
-            repos.push(repo.full_name);
-            grantedRepoNames.add(repo.full_name);
-            grantedRepoInstallations.set(repo.full_name, {
-              installationId: installation.id,
-              account: installationAccount,
-              accountType: installationAccountType
-            });
-          }
-        }
-      }
-      summaries.push({
-        id: installation.id,
-        account: installationAccount,
-        accountType: installationAccountType,
-        appSlug: installation.app_slug ?? null,
-        repos
-      });
-    }
-
-    // Best effort: GitHub App user tokens can expose the repositories visible to the user, depending
-    // on the App/OAuth permissions. When available, the browser can render a Vercel-style selector
-    // in our own UI; granted=false repos still require GitHub App access to be expanded on GitHub.
-    const userReposResponse = await fetch(
-      "https://api.github.com/user/repos?per_page=100&affiliation=owner,collaborator,organization_member&visibility=all&sort=updated",
-      { headers: apiHeaders }
-    );
-    if (userReposResponse.ok) {
-      const reposBody = await userReposResponse.json() as Array<{ id?: number; full_name?: string; private?: boolean; html_url?: string }>;
-      for (const repo of reposBody) {
-        if (!repo.full_name) {
-          continue;
-        }
-        const grant = grantedRepoInstallations.get(repo.full_name);
-        availableRepos.push({
-          id: typeof repo.id === "number" ? repo.id : null,
-          full_name: repo.full_name,
-          private: Boolean(repo.private),
-          html_url: repo.html_url ?? null,
-          granted: grantedRepoNames.has(repo.full_name),
-          installation_id: grant?.installationId ?? null,
-          installation_account: grant?.account ?? null,
-          installation_account_type: grant?.accountType ?? null
-        });
-      }
-    }
-    for (const [fullName, grant] of grantedRepoInstallations) {
-      if (!availableRepos.some((repo) => repo.full_name === fullName)) {
-        availableRepos.push({
-          id: null,
-          full_name: fullName,
-          private: false,
-          html_url: `https://github.com/${fullName}`,
-          granted: true,
-          installation_id: grant.installationId,
-          installation_account: grant.account,
-          installation_account_type: grant.accountType
-        });
-      }
-    }
+    const snapshot = await collectGithubUserAccess(tokenBody.access_token, {
+      appSlug: process.env.GITHUB_APP_SLUG
+    });
+    const user = snapshot.user;
+    const summaries: InstallationSummary[] = snapshot.installations.map((installation) => ({
+      id: installation.id,
+      account: installation.account.login,
+      accountType: installation.account.type,
+      appSlug: installation.app_slug,
+      repos: installation.repos
+    }));
+    const availableRepos: RepositorySummary[] = snapshot.available_repositories.map((repo) => ({
+      id: repo.id,
+      full_name: repo.full_name,
+      private: repo.private,
+      html_url: repo.html_url,
+      granted: repo.granted,
+      installation_id: repo.installation_id,
+      installation_account: repo.installation_account,
+      installation_account_type: repo.installation_account_type
+    }));
+    const organizationScopes: GithubScopeSummary[] = snapshot.organization_scopes;
 
     const attestationByInstallation = new Map<number, ReturnType<typeof createGithubBindingAttestation>>();
     for (const installation of summaries) {
@@ -212,7 +137,7 @@ export default async function handler(req: any, res: any) {
       try {
         const account = await upsertGithubRepositoryBinding({
           provider: "github",
-          github_login: user.login ?? null,
+          github_login: user.login || null,
           sui_address: suiAddress,
           installation_id: installation.id,
           account: installation.account,
@@ -242,6 +167,8 @@ export default async function handler(req: any, res: any) {
       sui_address: suiAddress,
       installed: summaries.length > 0,
       installations: summaries,
+      organizations: snapshot.organizations,
+      organization_scopes: organizationScopes,
       available_repositories: availableRepos,
       binding_attestation: attestation ? attestation.token : null,
       binding_attestation_payload: attestation ? attestation.payload : null,

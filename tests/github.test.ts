@@ -11,8 +11,10 @@ import {
   createGithubBindingAttestation,
   createAppJwt,
   GithubAppClient,
+  collectGithubUserAccess,
   connectGithubRepo,
   githubAppFromEnv,
+  listUserOrgs,
   verifyGithubBindingAttestation,
   type FetchLike,
   type FetchResponseLike
@@ -39,8 +41,14 @@ function signTestJwt(claims: Record<string, unknown>, key = oauthPrivateKey, kid
   return `${signed}.${signer.sign(key).toString("base64url")}`;
 }
 
-function ok(json: unknown): FetchResponseLike {
-  return { ok: true, status: 200, json: async () => json, text: async () => JSON.stringify(json) };
+function ok(json: unknown, link?: string): FetchResponseLike {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => json,
+    text: async () => JSON.stringify(json),
+    headers: { get: (name: string) => name.toLowerCase() === "link" ? link ?? null : null }
+  };
 }
 
 const originalForkToken = process.env.RN_GITHUB_FORK_API_TOKEN;
@@ -226,6 +234,82 @@ describe("GitHub App client", () => {
     expect(() => githubAppFromEnv({})).toThrow(/not configured/);
   });
 
+  it("paginates GitHub user organizations from a user access token", async () => {
+    const fetchImpl: FetchLike = async (url) => {
+      if (url === "https://api.github.test/user/orgs?per_page=100") {
+        return ok(
+          [{ id: 1, login: "alpha-lab", html_url: "https://github.com/alpha-lab" }],
+          '<https://api.github.test/user/orgs?per_page=100&page=2>; rel="next"'
+        );
+      }
+      if (url === "https://api.github.test/user/orgs?per_page=100&page=2") {
+        return ok([{ id: 2, login: "beta-lab", html_url: "https://github.com/beta-lab" }]);
+      }
+      throw new Error(`unexpected url ${url}`);
+    };
+
+    await expect(listUserOrgs("gho_user", { apiBaseUrl: "https://api.github.test", fetchImpl }))
+      .resolves.toEqual([
+        { id: 1, login: "alpha-lab", description: null, html_url: "https://github.com/alpha-lab", avatar_url: null },
+        { id: 2, login: "beta-lab", description: null, html_url: "https://github.com/beta-lab", avatar_url: null }
+      ]);
+  });
+
+  it("collects authorized installations plus uninstalled organization scopes", async () => {
+    const fetchImpl: FetchLike = async (url) => {
+      if (url === "https://api.github.test/user") {
+        return ok({ id: 10, login: "octo", html_url: "https://github.com/octo" });
+      }
+      if (url === "https://api.github.test/user/installations?per_page=100") {
+        return ok({
+          installations: [
+            { id: 42, app_slug: "research-network-app", account: { id: 10, login: "octo", type: "User" } },
+            { id: 77, app_slug: "research-network-app", account: { id: 11, login: "octo-org", type: "Organization" } },
+            { id: 99, app_slug: "other-app", account: { id: 12, login: "ignored-org", type: "Organization" } }
+          ]
+        });
+      }
+      if (url === "https://api.github.test/user/orgs?per_page=100") {
+        return ok([
+          { id: 11, login: "octo-org", html_url: "https://github.com/octo-org" },
+          { id: 12, login: "uninstalled-org", html_url: "https://github.com/uninstalled-org" }
+        ]);
+      }
+      if (url === "https://api.github.test/user/installations/42/repositories?per_page=100") {
+        return ok({ repositories: [{ id: 1, full_name: "octo/research", private: false, html_url: "https://github.com/octo/research", owner: { login: "octo", type: "User" } }] });
+      }
+      if (url === "https://api.github.test/user/installations/77/repositories?per_page=100") {
+        return ok({ repositories: [{ id: 2, full_name: "octo-org/lab", private: true, html_url: "https://github.com/octo-org/lab", owner: { login: "octo-org", type: "Organization" } }] });
+      }
+      if (url.includes("/user/repos?")) {
+        return ok([
+          { id: 1, full_name: "octo/research", private: false, html_url: "https://github.com/octo/research", owner: { login: "octo", type: "User" } },
+          { id: 2, full_name: "octo-org/lab", private: true, html_url: "https://github.com/octo-org/lab", owner: { login: "octo-org", type: "Organization" } },
+          { id: 3, full_name: "uninstalled-org/visible", private: false, html_url: "https://github.com/uninstalled-org/visible", owner: { login: "uninstalled-org", type: "Organization" } }
+        ]);
+      }
+      throw new Error(`unexpected url ${url}`);
+    };
+
+    const snapshot = await collectGithubUserAccess("gho_user", {
+      apiBaseUrl: "https://api.github.test",
+      appSlug: "research-network-app",
+      fetchImpl
+    });
+
+    expect(snapshot.installations.map((installation) => installation.account.login)).toEqual(["octo", "octo-org"]);
+    expect(snapshot.organization_scopes).toEqual([
+      { id: "42", account: "octo", accountType: "User", installed: true, installation_id: 42, repos: ["octo/research"] },
+      { id: "77", account: "octo-org", accountType: "Organization", installed: true, installation_id: 77, repos: ["octo-org/lab"] },
+      { id: "uninstalled:uninstalled-org", account: "uninstalled-org", accountType: "Organization", installed: false, installation_id: null, repos: [] }
+    ]);
+    expect(snapshot.available_repositories.map((repo) => [repo.full_name, repo.granted, repo.installation_id])).toEqual([
+      ["octo/research", true, 42],
+      ["octo-org/lab", true, 77],
+      ["uninstalled-org/visible", false, null]
+    ]);
+  });
+
   it("surfaces GitHub API errors", async () => {
     const fetchImpl: FetchLike = async () => ({ ok: false, status: 401, json: async () => ({}), text: async () => "Bad credentials" });
     const client = new GithubAppClient({ appId: "1", privateKeyPem: privateKey, fetchImpl });
@@ -393,6 +477,12 @@ describe("GitHub App client", () => {
           ]
         });
       }
+      if (href === "https://api.github.com/user/orgs?per_page=100") {
+        return ok([
+          { id: 7, login: "octo-org", html_url: "https://github.com/octo-org" },
+          { id: 8, login: "uninstalled-org", html_url: "https://github.com/uninstalled-org" }
+        ]);
+      }
       if (href === "https://api.github.com/user/installations/42/repositories?per_page=100") {
         return ok({ repositories: [{ full_name: "octo/research" }] });
       }
@@ -431,6 +521,15 @@ describe("GitHub App client", () => {
         { id: 1, full_name: "octo/research", private: false, html_url: "https://github.com/octo/research", granted: true, installation_id: 42, installation_account: "octo", installation_account_type: "User" },
         { id: 3, full_name: "octo-org/lab", private: true, html_url: "https://github.com/octo-org/lab", granted: true, installation_id: 77, installation_account: "octo-org", installation_account_type: "Organization" },
         { id: 2, full_name: "octo/private-notes", private: true, html_url: "https://github.com/octo/private-notes", granted: false, installation_id: null, installation_account: null, installation_account_type: null }
+      ]);
+      expect(body.organizations).toEqual([
+        { id: 7, login: "octo-org", description: null, html_url: "https://github.com/octo-org", avatar_url: null, installed: true, installation_id: 77 },
+        { id: 8, login: "uninstalled-org", description: null, html_url: "https://github.com/uninstalled-org", avatar_url: null, installed: false, installation_id: null }
+      ]);
+      expect(body.organization_scopes).toEqual([
+        { id: "42", account: "octo", accountType: "User", installed: true, installation_id: 42, repos: ["octo/research"] },
+        { id: "77", account: "octo-org", accountType: "Organization", installed: true, installation_id: 77, repos: ["octo-org/lab"] },
+        { id: "uninstalled:uninstalled-org", account: "uninstalled-org", accountType: "Organization", installed: false, installation_id: null, repos: [] }
       ]);
       expect(body.binding_attestation_payload).toMatchObject({
         sub: body.sui_address,
