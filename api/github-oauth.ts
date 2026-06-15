@@ -1,6 +1,7 @@
 import { createGithubBindingAttestation } from "../src/core/github-binding.js";
 import { collectGithubUserAccess } from "../src/core/github.js";
 import { upsertGithubRepositoryBinding } from "../src/core/local-store.js";
+import { verifyZkLoginSessionAttestation } from "../src/core/zklogin-session.js";
 import { deriveUserSalt, deriveZkLoginAddress, JwtVerificationError, verifyJwt } from "../src/core/zklogin.js";
 
 interface InstallationSummary {
@@ -33,10 +34,9 @@ interface GithubScopeSummary {
 
 /** GitHub user-authorization callback exchange (Cursor-style flow, HANDOFF §2.3).
  *  POST { code } → exchanges it with the App's client secret for a user access token, then checks
- *  the user's installations of THIS app and the repos they granted. It also verifies the current
- *  zkLogin id_token and returns the server-derived Sui address, so the browser can only persist a
- *  GitHub binding that matches the signed-in Google account. Requires GitHub OAuth env vars plus
- *  GOOGLE_CLIENT_ID and ZKLOGIN_SALT_SECRET. */
+ *  the user's installations of THIS app and the repos they granted. It verifies either the current
+ *  zkLogin id_token or the short-lived server-signed zkLogin session attestation returned by
+ *  api/zklogin-salt.ts, so browser tab/sessionStorage churn does not break GitHub binding. */
 export default async function handler(req: any, res: any) {
   res.setHeader("cache-control", "no-store");
   res.setHeader("content-type", "application/json; charset=utf-8");
@@ -53,10 +53,10 @@ export default async function handler(req: any, res: any) {
     }));
     return;
   }
-  if (!process.env.ZKLOGIN_SALT_SECRET || !process.env.GOOGLE_CLIENT_ID) {
+  if (!process.env.ZKLOGIN_SESSION_SECRET && !process.env.ZKLOGIN_SALT_SECRET) {
     res.status(503).send(JSON.stringify({
       error: "zklogin_binding_not_configured",
-      message: "ZKLOGIN_SALT_SECRET / GOOGLE_CLIENT_ID env vars are missing"
+      message: "ZKLOGIN_SESSION_SECRET or ZKLOGIN_SALT_SECRET env var is missing"
     }));
     return;
   }
@@ -68,13 +68,31 @@ export default async function handler(req: any, res: any) {
       return;
     }
     const idToken = typeof body.id_token === "string" ? body.id_token : undefined;
-    if (!idToken) {
-      res.status(400).send(JSON.stringify({ error: "missing_id_token" }));
+    const zkSessionAttestation = typeof body.zk_session_attestation === "string" ? body.zk_session_attestation : undefined;
+    if (!idToken && !zkSessionAttestation) {
+      res.status(400).send(JSON.stringify({ error: "missing_zklogin_proof" }));
       return;
     }
-    const claims = await verifyJwt(idToken, { audience: process.env.GOOGLE_CLIENT_ID });
-    const salt = deriveUserSalt({ issuer: claims.iss, subject: claims.sub, audience: claims.aud });
-    const suiAddress = deriveZkLoginAddress(idToken, salt);
+    let suiAddress: string;
+    if (idToken) {
+      if (!process.env.ZKLOGIN_SALT_SECRET || !process.env.GOOGLE_CLIENT_ID) {
+        res.status(503).send(JSON.stringify({
+          error: "zklogin_binding_not_configured",
+          message: "ZKLOGIN_SALT_SECRET / GOOGLE_CLIENT_ID env vars are missing for id_token verification"
+        }));
+        return;
+      }
+      const claims = await verifyJwt(idToken, { audience: process.env.GOOGLE_CLIENT_ID });
+      const salt = deriveUserSalt({ issuer: claims.iss, subject: claims.sub, audience: claims.aud });
+      suiAddress = deriveZkLoginAddress(idToken, salt);
+    } else {
+      try {
+        suiAddress = verifyZkLoginSessionAttestation(zkSessionAttestation).sub;
+      } catch {
+        res.status(401).send(JSON.stringify({ error: "invalid_zklogin_session" }));
+        return;
+      }
+    }
 
     const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",

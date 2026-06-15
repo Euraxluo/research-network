@@ -4,6 +4,7 @@ export * from "./core/auth.js";
 export * from "./core/cli-login.js";
 export * from "./core/github.js";
 export * from "./core/github-binding.js";
+export * from "./core/zklogin-session.js";
 export * from "./core/zklogin.js";
 export * from "./core/indexer.js";
 export * from "./core/sui-events.js";

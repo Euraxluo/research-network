@@ -653,9 +653,25 @@ const CALLBACK_JS = `(function(){
     }
     var salt = String(res.body.salt);
     var address = RN_ZK.jwtToAddress(idToken, salt);
+    var zkAttestation = res.body.session_attestation || null;
+    var zkAttestationPayload = res.body.session_attestation_payload || null;
+    if (zkAttestationPayload && zkAttestationPayload.sub && zkAttestationPayload.sub !== address) {
+      throw new Error("Salt service session proof did not match the derived zkLogin address.");
+    }
     localStorage.removeItem("rn_zk_salts"); // legacy random per-browser salts
     // Non-sensitive session only; the token + salt live in sessionStorage for this tab's lifetime.
     localStorage.setItem("rn_session", JSON.stringify({ provider: "google", address: address, sub: claims.sub, email: claims.email || null, iss: claims.iss, ts: Date.now() }));
+    if (zkAttestation) {
+      localStorage.setItem("rn_zk_attestation", JSON.stringify({
+        address: address,
+        session_attestation: zkAttestation,
+        session_attestation_payload: zkAttestationPayload,
+        exp: zkAttestationPayload && zkAttestationPayload.exp || null,
+        ts: Date.now()
+      }));
+    } else {
+      localStorage.removeItem("rn_zk_attestation");
+    }
     sessionStorage.setItem("rn_zk_session", JSON.stringify({ id_token: idToken, salt: salt, maxEpoch: eph.maxEpoch, randomness: eph.randomness }));
     out('<h2>Signed in &#10003;</h2><p>Your Sui zkLogin address:</p><p><code class="addr">' + esc(address) + '</code></p><p class="muted">' + esc(claims.email || claims.sub) + ' · ' + esc(claims.iss) + '</p><p class="muted">Same Google account &rArr; same address on every device (server-side deterministic salt).</p><p><a href="/account.html">Account &rarr;</a> &nbsp; <a href="/login.html">Connect GitHub</a> &nbsp; <a href="/">&larr; Back to site</a></p>');
   }).catch(function(e){
@@ -942,6 +958,24 @@ const GITHUB_CALLBACK_JS = `(function(){
   function clearGithubRecovery(){
     try { sessionStorage.removeItem("rn_gh_recovery"); } catch (e) {}
   }
+  function readZkLoginProof(sessionAddress){
+    var zkSession = null;
+    try { zkSession = JSON.parse(sessionStorage.getItem("rn_zk_session") || "null"); } catch (e) {}
+    if (zkSession && zkSession.id_token) {
+      return { id_token: zkSession.id_token };
+    }
+    var stored = null;
+    try { stored = JSON.parse(localStorage.getItem("rn_zk_attestation") || "null"); } catch (e) {}
+    if (
+      stored &&
+      stored.address === sessionAddress &&
+      stored.session_attestation &&
+      (!stored.exp || Number(stored.exp) * 1000 >= Date.now())
+    ) {
+      return { zk_session_attestation: stored.session_attestation };
+    }
+    return null;
+  }
   var CFG = window.RN_AUTH_CONFIG || {};
   var p = new URLSearchParams(location.search);
   var code = p.get("code");
@@ -997,15 +1031,20 @@ const GITHUB_CALLBACK_JS = `(function(){
   clearGithubRecovery();
   clearGithubState();
 
-  var zkSession = null;
-  try { zkSession = JSON.parse(sessionStorage.getItem("rn_zk_session") || "null"); } catch (e) {}
-  if (!zkSession || !zkSession.id_token) { fail("Your zkLogin proof tab session expired — sign in with Google again before connecting GitHub."); return; }
+  var zkProof = readZkLoginProof(session.address);
+  if (!zkProof) { fail("Your zkLogin session proof expired — sign in with Google again before connecting GitHub."); return; }
 
   out('<p class="muted"><span class="spinner"></span>Connecting to GitHub… checking installations</p>');
+  var oauthBody = { code: code };
+  if (zkProof.id_token) {
+    oauthBody.id_token = zkProof.id_token;
+  } else {
+    oauthBody.zk_session_attestation = zkProof.zk_session_attestation;
+  }
   fetch(CFG.githubOauthPath || "/api/github-oauth", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code: code, id_token: zkSession.id_token })
+    body: JSON.stringify(oauthBody)
   }).then(function(r){
     return r.json().then(function(body){ return { status: r.status, body: body }; });
   }).then(function(res){

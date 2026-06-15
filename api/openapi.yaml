@@ -140,6 +140,13 @@ paths:
       responses:
         '200': { description: 'commit, tree, manifest' }
         '500': { description: GitHub App not configured or API error }
+  /api/github-oauth:
+    post:
+      summary: Exchange a GitHub OAuth code after verifying zkLogin with either id_token or zk_session_attestation.
+      responses:
+        '200': { description: GitHub user, organization_scopes, available_repositories, and server-signed binding attestations }
+        '400': { description: Missing code or zkLogin proof }
+        '401': { description: Invalid GitHub code, id_token, or zkLogin session attestation }
   /api/github/installations:
     get:
       summary: List the current GitHub user's authorized app installations, org scopes, and selectable repositories. Requires Authorization Bearer GitHub user token.
@@ -165,6 +172,13 @@ paths:
       responses:
         '200': { description: 'address, issuer, subject, audience' }
         '400': { description: jwt required }
+  /api/zklogin-salt:
+    post:
+      summary: Verify a Google id_token, derive deterministic zkLogin salt, and issue a short-lived zkLogin session attestation.
+      responses:
+        '200': { description: 'salt, session_attestation, session_attestation_payload' }
+        '400': { description: id_token required }
+        '401': { description: invalid id_token }
   /api/zklogin/prove:
     post:
       summary: Obtain a zkLogin ZK proof from the configured prover (ZKLOGIN_PROVER_URL)

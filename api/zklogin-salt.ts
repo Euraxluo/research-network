@@ -1,4 +1,5 @@
-import { deriveUserSalt, JwtVerificationError, verifyJwt } from "../src/core/zklogin.js";
+import { createZkLoginSessionAttestation } from "../src/core/zklogin-session.js";
+import { deriveUserSalt, deriveZkLoginAddress, JwtVerificationError, verifyJwt } from "../src/core/zklogin.js";
 
 /** Salt service: returns the deterministic per-user zkLogin salt for a VERIFIED Google id_token.
  *  The browser callback page calls this instead of minting a random per-browser salt, so the same
@@ -28,8 +29,20 @@ export default async function handler(req: any, res: any) {
       audience: process.env.GOOGLE_CLIENT_ID || undefined
     });
     const salt = deriveUserSalt({ issuer: claims.iss, subject: claims.sub, audience: claims.aud });
+    const suiAddress = deriveZkLoginAddress(idToken, salt);
+    const sessionAttestation = createZkLoginSessionAttestation({
+      suiAddress,
+      issuer: claims.iss,
+      subject: claims.sub,
+      audience: claims.aud,
+      email: typeof claims.email === "string" ? claims.email : null
+    });
     res.status(200).setHeader("content-type", "application/json; charset=utf-8");
-    res.send(JSON.stringify({ salt }));
+    res.send(JSON.stringify({
+      salt,
+      session_attestation: sessionAttestation.token,
+      session_attestation_payload: sessionAttestation.payload
+    }));
   } catch (error) {
     // Verification failures are client errors; never echo internals beyond a stable code.
     const verificationFailure = error instanceof JwtVerificationError;

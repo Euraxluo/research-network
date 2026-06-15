@@ -13,9 +13,11 @@ import {
   GithubAppClient,
   collectGithubUserAccess,
   connectGithubRepo,
+  createZkLoginSessionAttestation,
   githubAppFromEnv,
   listUserOrgs,
   verifyGithubBindingAttestation,
+  verifyZkLoginSessionAttestation,
   type FetchLike,
   type FetchResponseLike
 } from "../src/index.js";
@@ -56,6 +58,7 @@ const originalGithubClientId = process.env.GITHUB_APP_CLIENT_ID;
 const originalGithubClientSecret = process.env.GITHUB_APP_CLIENT_SECRET;
 const originalGoogleClientId = process.env.GOOGLE_CLIENT_ID;
 const originalZkloginSaltSecret = process.env.ZKLOGIN_SALT_SECRET;
+const originalZkloginSessionSecret = process.env.ZKLOGIN_SESSION_SECRET;
 const originalBindingAttestationSecret = process.env.GITHUB_BINDING_ATTESTATION_SECRET;
 
 afterEach(() => {
@@ -69,6 +72,7 @@ afterEach(() => {
     GITHUB_APP_CLIENT_SECRET: originalGithubClientSecret,
     GITHUB_BINDING_ATTESTATION_SECRET: originalBindingAttestationSecret,
     GOOGLE_CLIENT_ID: originalGoogleClientId,
+    ZKLOGIN_SESSION_SECRET: originalZkloginSessionSecret,
     ZKLOGIN_SALT_SECRET: originalZkloginSaltSecret
   })) {
     if (value === undefined) {
@@ -387,6 +391,36 @@ describe("GitHub App client", () => {
     expect(payloadSegment.length).toBeGreaterThan(10);
   });
 
+  it("signs zkLogin session attestations and rejects tampering", () => {
+    const { token, payload } = createZkLoginSessionAttestation({
+      suiAddress: "0xzk",
+      issuer: "https://accounts.google.com",
+      subject: "user-abc",
+      audience: "google-client",
+      email: "octo@example.com",
+      nowMs: 1_700_000_000_000,
+      ttlSeconds: 120,
+      secret: "zk-session-secret"
+    });
+
+    expect(payload).toMatchObject({
+      sub: "0xzk",
+      oidc_sub: "user-abc",
+      aud: "google-client",
+      email: "octo@example.com"
+    });
+    expect(verifyZkLoginSessionAttestation(token, {
+      suiAddress: "0xzk",
+      nowMs: 1_700_000_001_000,
+      secret: "zk-session-secret"
+    })).toMatchObject({ sub: "0xzk", oidc_iss: "https://accounts.google.com" });
+
+    const [, signature] = token.split(".");
+    const tampered = `${Buffer.from(JSON.stringify({ ...payload, sub: "0xattacker" })).toString("base64url")}.${signature}`;
+    expect(() => verifyZkLoginSessionAttestation(tampered, { secret: "zk-session-secret" })).toThrow(/signature/);
+    expect(() => verifyZkLoginSessionAttestation(token, { nowMs: 1_700_000_300_000, secret: "zk-session-secret" })).toThrow(/expired/);
+  });
+
   it("verifies GitHub binding attestations through the server endpoint", async () => {
     process.env.GITHUB_BINDING_ATTESTATION_SECRET = "binding-secret";
     const { token } = createGithubBindingAttestation({
@@ -425,7 +459,7 @@ describe("GitHub App client", () => {
     expect(JSON.parse(invalid.body)).toEqual({ error: "invalid_binding_attestation" });
   });
 
-  it("requires a verified zkLogin id_token before exchanging GitHub OAuth code", async () => {
+  it("requires a verified zkLogin proof before exchanging GitHub OAuth code", async () => {
     process.env.GITHUB_APP_CLIENT_ID = "Iv23test";
     process.env.GITHUB_APP_CLIENT_SECRET = "secret";
     process.env.GOOGLE_CLIENT_ID = "google-client";
@@ -438,7 +472,77 @@ describe("GitHub App client", () => {
     }, res);
 
     expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.body)).toEqual({ error: "missing_id_token" });
+    expect(JSON.parse(res.body)).toEqual({ error: "missing_zklogin_proof" });
+  });
+
+  it("accepts a server-signed zkLogin session attestation when the callback tab has no id_token", async () => {
+    const localnetRoot = await fs.mkdtemp(path.join(os.tmpdir(), "rn-gh-zk-session-"));
+    process.env.GITHUB_APP_CLIENT_ID = "Iv23test";
+    process.env.GITHUB_APP_CLIENT_SECRET = "github-secret";
+    process.env.GITHUB_APP_SLUG = "research-network-app";
+    process.env.ZKLOGIN_SESSION_SECRET = "zk-session-secret";
+    delete process.env.GOOGLE_CLIENT_ID;
+    delete process.env.ZKLOGIN_SALT_SECRET;
+    const { token } = createZkLoginSessionAttestation({
+      suiAddress: "0xzkaddress",
+      issuer: "https://accounts.google.com",
+      subject: "user-abc",
+      audience: "google-client",
+      secret: "zk-session-secret"
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: unknown, init?: { method?: string }) => {
+      const href = String(url);
+      if (href === "https://github.com/login/oauth/access_token") {
+        expect(init?.method).toBe("POST");
+        return ok({ access_token: "gho_user_token" });
+      }
+      if (href === "https://api.github.com/user") {
+        return ok({ login: "octo" });
+      }
+      if (href === "https://api.github.com/user/installations?per_page=100") {
+        return ok({
+          installations: [
+            { id: 42, app_slug: "research-network-app", account: { login: "octo", type: "User" } }
+          ]
+        });
+      }
+      if (href === "https://api.github.com/user/orgs?per_page=100") {
+        return ok([]);
+      }
+      if (href === "https://api.github.com/user/installations/42/repositories?per_page=100") {
+        return ok({ repositories: [{ id: 1, full_name: "octo/research", private: false, html_url: "https://github.com/octo/research" }] });
+      }
+      if (href.includes("/user/repos?")) {
+        return ok([{ id: 1, full_name: "octo/research", private: false, html_url: "https://github.com/octo/research" }]);
+      }
+      throw new Error(`unexpected url ${href}`);
+    }) as unknown as typeof fetch;
+
+    try {
+      const res = mockJsonResponse();
+      await githubOauthHandler({
+        method: "POST",
+        body: { code: "dummy-code", zk_session_attestation: token },
+        localnetRoot
+      }, res);
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.sui_address).toBe("0xzkaddress");
+      expect(body.login).toBe("octo");
+      expect(body.installations).toEqual([
+        { id: 42, account: "octo", accountType: "User", appSlug: "research-network-app", repos: ["octo/research"] }
+      ]);
+      expect(body.binding_attestation_payload).toMatchObject({
+        sub: "0xzkaddress",
+        github_login: "octo",
+        installation_id: 42
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+      await fs.rm(localnetRoot, { recursive: true, force: true });
+    }
   });
 
   it("returns a server-signed GitHub binding attestation after verified OAuth", async () => {

@@ -255,6 +255,12 @@ describe("static web E2E", () => {
       expect(configJs).toContain("test-client.apps.googleusercontent.com");
       expect(configJs).toContain("research-network-app/installations/new");
 
+      const callbackJsResponse = await fetch(sitePath(server.url, "/auth/callback.js"));
+      expect(callbackJsResponse.status).toBe(200);
+      const loginCallbackJs = await callbackJsResponse.text();
+      expect(loginCallbackJs).toContain("session_attestation");
+      expect(loginCallbackJs).toContain("rn_zk_attestation");
+
       const githubCallback = await fetch(sitePath(server.url, "/auth/github-callback.html"));
       expect(githubCallback.status).toBe(200);
       const githubCallbackHtml = await githubCallback.text();
@@ -280,6 +286,9 @@ describe("static web E2E", () => {
       expect(callbackJs).toContain("server_persisted");
       expect(callbackJs).toContain("account_id");
       expect(callbackJs).toContain("rn-repo-select");
+      expect(callbackJs).toContain("readZkLoginProof");
+      expect(callbackJs).toContain("rn_zk_attestation");
+      expect(callbackJs).toContain("zk_session_attestation");
       expect(callbackJs).toContain("Add GitHub account/org access");
       expect(callbackJs).not.toContain("repo-list");
       expect(callbackJs).toContain("readGithubState");

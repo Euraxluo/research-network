@@ -913,7 +913,7 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
       if (status) status.textContent = valid ? " · server-attested" : " · local binding";
     });
     document.getElementById("signout").addEventListener("click", function () {
-      ["rn_session", "rn_github"].forEach(function (k) { localStorage.removeItem(k); });
+      ["rn_session", "rn_github", "rn_zk_attestation", "rn_gh_state"].forEach(function (k) { localStorage.removeItem(k); });
       ["rn_zk_session", "rn_zk_eph", "rn_oauth_state", "rn_gh_state"].forEach(function (k) { sessionStorage.removeItem(k); });
       location.href = "/login.html";
     });
