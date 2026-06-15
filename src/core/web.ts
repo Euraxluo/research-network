@@ -3,6 +3,7 @@ import path from "node:path";
 import { getGraph } from "./indexer.js";
 import { readIndex } from "./local-store.js";
 import { WEB_DIST_DIR } from "./paths.js";
+import { renderWorkbenchBody, WORKBENCH_JS } from "./web-workbench.js";
 
 const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
@@ -62,6 +63,7 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
     <a href="/">Browse</a>
     <a href="/search.html">Search</a>
     <a href="/dashboard.html">Dashboard</a>
+    <a href="/workbench.html">Workbench</a>
     <a href="/membership.html">Membership</a>
     <a href="/delegations.html">Delegations</a>
     <a href="/account.html">Account</a>
@@ -588,6 +590,13 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
   var session = null, binding = null;
   try { session = JSON.parse(localStorage.getItem("rn_session") || "null"); } catch (e) {}
   try { binding = JSON.parse(localStorage.getItem("rn_github") || "null"); } catch (e) {}
+  function repoOwner(name) {
+    var parts = String(name || "").split("/");
+    return parts.length > 1 ? parts[0] : "";
+  }
+  function syntheticScopeId(account) {
+    return "owner:" + String(account || "GitHub");
+  }
   function repoItems(gh) {
     var seen = {};
     var out = [];
@@ -598,13 +607,16 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
       var name = typeof repo === "string" ? repo : repo.full_name;
       var installationId = typeof repo === "string" ? gh.installation_id : repo.installation_id || null;
       var granted = typeof repo === "string" ? true : repo.granted !== false;
-      if (!name || seen[name] || !granted || !installationId || !selectedMap[String(installationId)]) return;
+      var account = typeof repo === "string" ? repoOwner(name) || gh.account || null : repo.installation_account || repoOwner(name) || null;
+      var accountType = typeof repo === "string" ? gh.account_type || null : repo.installation_account_type || null;
+      var scopeId = installationId ? String(installationId) : syntheticScopeId(account);
+      if (!name || seen[name] || !granted || !selectedMap[scopeId]) return;
       seen[name] = true;
       out.push({
         full_name: name,
-        installation_id: installationId,
-        installation_account: typeof repo === "string" ? gh.account || null : repo.installation_account || null,
-        installation_account_type: typeof repo === "string" ? gh.account_type || null : repo.installation_account_type || null
+        installation_id: installationId || scopeId,
+        installation_account: account,
+        installation_account_type: accountType
       });
     });
     (gh && gh.installations || []).forEach(function (installation) {
@@ -621,33 +633,92 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
         });
       });
     });
+    var fallbackInstallationId = gh && gh.installation_id ? String(gh.installation_id) : "";
+    var hasInstallations = Boolean(gh && gh.installations && gh.installations.length);
     (gh && gh.repos || []).forEach(function (name) {
       if (!name || seen[name]) return;
+      var account = repoOwner(name) || gh.account || null;
+      var scopeId = fallbackInstallationId || syntheticScopeId(account);
+      if (hasInstallations && (!fallbackInstallationId || !selectedMap[fallbackInstallationId])) return;
+      if (!selectedMap[scopeId]) return;
       seen[name] = true;
       out.push({
         full_name: name,
-        installation_id: gh.installation_id || null,
-        installation_account: gh.account || null,
-        installation_account_type: gh.account_type || null
+        installation_id: gh.installation_id || scopeId,
+        installation_account: account,
+        installation_account_type: gh.account && account === gh.account ? gh.account_type || null : null
       });
     });
     out.sort(function (a, b) { return a.full_name.localeCompare(b.full_name); });
     return out;
   }
   function accountItems(gh) {
-    return (gh && gh.installations || []).map(function (installation) {
-      return {
-        id: String(installation.id),
-        account: installation.account || "GitHub",
-        accountType: installation.accountType || installation.account_type || "Account",
-        repos: installation.repos || []
-      };
+    var installations = gh && Array.isArray(gh.installations) ? gh.installations : [];
+    if (installations.length) {
+      var byAccount = {};
+      installations.forEach(function (installation) {
+        var account = installation.account || "GitHub";
+        var accountType = installation.accountType || installation.account_type || "Account";
+        var key = account + "\u0000" + accountType;
+        if (!byAccount[key]) {
+          byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, repos: [] };
+        }
+        (installation.repos || []).forEach(function (repo) {
+          if (byAccount[key].repos.indexOf(repo) === -1) byAccount[key].repos.push(repo);
+        });
+      });
+      return Object.keys(byAccount).map(function (key) { return byAccount[key]; });
+    }
+    var accounts = {};
+    var scopeByOwner = {};
+    function addRepo(name, installationId, account, accountType) {
+      if (!name) return;
+      var owner = repoOwner(name) || account || (gh && gh.login) || "GitHub";
+      var resolvedType = (account && owner === account ? accountType : null) || (gh && gh.login && owner === gh.login ? "User" : "Account");
+      var existingId = scopeByOwner[owner];
+      var id = installationId ? String(installationId) : (existingId || syntheticScopeId(owner));
+      if (installationId && existingId && existingId !== id && accounts[existingId]) {
+        accounts[id] = accounts[existingId];
+        accounts[id].id = id;
+        delete accounts[existingId];
+      }
+      scopeByOwner[owner] = id;
+      if (!accounts[id]) {
+        accounts[id] = {
+          id: id,
+          account: owner,
+          accountType: resolvedType,
+          repos: []
+        };
+      }
+      if (accounts[id].repos.indexOf(name) === -1) accounts[id].repos.push(name);
+    }
+    (gh && gh.available_repos || []).forEach(function (repo) {
+      var name = typeof repo === "string" ? repo : repo.full_name;
+      var granted = typeof repo === "string" ? true : repo.granted !== false;
+      if (!granted) return;
+      addRepo(
+        name,
+        typeof repo === "string" ? gh.installation_id : repo.installation_id || null,
+        typeof repo === "string" ? gh.account || null : repo.installation_account || null,
+        typeof repo === "string" ? gh.account_type || null : repo.installation_account_type || null
+      );
     });
+    (gh && gh.repos || []).forEach(function (name) {
+      addRepo(name, gh && gh.installation_id || null, gh && gh.account || null, gh && gh.account_type || null);
+    });
+    return Object.keys(accounts).map(function (id) { return accounts[id]; }).sort(function (a, b) { return a.account.localeCompare(b.account); });
   }
   function selectedInstallationIds(gh) {
     var accounts = accountItems(gh);
     var ids = gh && gh.selected_installation_ids;
-    if (Array.isArray(ids)) return ids.map(function (id) { return String(id); });
+    if (Array.isArray(ids)) {
+      var valid = {};
+      accounts.forEach(function (account) { valid[String(account.id)] = true; });
+      var normalized = ids.map(function (id) { return String(id); }).filter(function (id) { return valid[id]; });
+      if (ids.length > 0 && !normalized.length) return accounts.map(function (account) { return account.id; });
+      return normalized;
+    }
     return accounts.map(function (account) { return account.id; });
   }
   function selectedRepoItem(gh, repos) {
@@ -669,7 +740,7 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
   function applySelectedRepo(gh, repo) {
     if (!gh || !repo || !repo.full_name) return gh;
     gh.selected_repo = repo.full_name;
-    if (repo.installation_id) {
+    if (repo.installation_id && !String(repo.installation_id).startsWith("owner:")) {
       var installation = installationForRepo(gh, repo);
       gh.installation_id = Number(repo.installation_id);
       gh.account = repo.installation_account || (installation && installation.account) || gh.account || null;
@@ -680,6 +751,9 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
         gh.binding_attestation = attestation.binding_attestation || gh.binding_attestation;
         gh.binding_attestation_payload = attestation.binding_attestation_payload || gh.binding_attestation_payload;
       }
+    } else {
+      gh.account = repo.installation_account || gh.account || null;
+      gh.account_type = repo.installation_account_type || gh.account_type || null;
     }
     return gh;
   }
@@ -841,7 +915,7 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
   return shell("Account", accountBody, { subject: "Account" });
 }
 
-const STYLES_CSS = `
+export const STYLES_CSS = `
 :root {
   color-scheme: light;
   --arxiv-red: #b31b1b;
@@ -952,6 +1026,43 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .repo-account input { margin-top: 3px; }
 .repo-actions { margin: 12px 0 14px; }
 
+/* protocol workbench */
+.workbench-root { max-width: 920px; }
+.workbench-panel { border-top: 1px solid var(--line); padding: 16px 0 18px; }
+.workbench-panel:first-child { border-top: 0; }
+.workbench-panel h2 { margin-top: 0; }
+.workbench-form { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 12px 16px; max-width: 820px; }
+.field-label { display: block; color: var(--muted); font-size: 12.5px; }
+.field-label input, .field-label select, .field-label textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 9px;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  background: #fff;
+  color: var(--ink);
+  font: 14px/1.4 var(--sans);
+}
+.field-label textarea { min-height: 82px; resize: vertical; }
+.workbench-form .field-label:nth-of-type(4), .workbench-form .field-label:nth-of-type(5) { grid-column: 1 / -1; }
+.workbench-form button { justify-self: start; }
+.notice { margin: 0 0 14px; min-height: 22px; font-size: 13.5px; }
+.notice.success { color: #1a7f37; }
+.notice.error { color: #b31b1b; }
+.workbench-actions { margin: 12px 0; }
+.workbench-report-list { display: grid; gap: 12px; margin-top: 14px; }
+.workbench-report { border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; background: #fff; }
+.workbench-report.access-locked { background: #fafafa; }
+.report-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.pill { display: inline-block; border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; color: var(--muted); font: 11px/1.45 var(--mono); text-transform: uppercase; white-space: nowrap; }
+.mini-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px 12px; margin: 8px 0; }
+.mini-meta div { min-width: 0; }
+.mini-meta dt { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; }
+.mini-meta dd { margin: 0; font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+.decrypted { border-left: 3px solid #1a7f37; background: #f6fbf7; padding: 8px 10px; margin: 8px 0 10px; }
+.access-state { margin: 8px 0 10px; }
+
 /* rendered paper (ar5iv style) */
 .paper-viewer { margin: 24px 0 28px; }
 .format-nav { display: block; margin: 0 0 14px; font-size: 15px; line-height: 1.6; }
@@ -1046,6 +1157,9 @@ a.card h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--link); }
   .banner-search input { width: 100%; max-width: none; flex: 1; }
   .ltx-page { padding: 26px 20px; }
   h1.abs-title { font-size: 21px; }
+  .workbench-form { grid-template-columns: 1fr; }
+  .report-head { display: block; }
+  .pill { margin-top: 5px; }
 }
 `;
 
@@ -1305,6 +1419,7 @@ export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: st
 
   await fs.writeFile(path.join(outputDir, "styles.css"), STYLES_CSS, "utf8");
   await fs.writeFile(path.join(outputDir, "site.js"), SITE_JS, "utf8");
+  await fs.writeFile(path.join(outputDir, "workbench.js"), WORKBENCH_JS, "utf8");
 
   const assets = Object.values(index.assets);
   const skills = Object.values(index.skills);
@@ -1418,6 +1533,7 @@ ${receiptRows ? `<table class="data-table"><thead><tr><th>Receipt</th><th>Period
 <p class="muted">Private Delegation results are encrypted on Walrus and decryptable only by the buyer and agent, with temporary arbitration access during disputes.</p>
 ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status</th><th>Buyer</th><th>Agent</th><th>Budget</th></tr></thead><tbody>${delegationRows}</tbody></table>` : `<p class="muted">No private delegation jobs indexed yet.</p>`}`;
   await fs.writeFile(path.join(outputDir, "delegations.html"), shell("Delegations", delegationsBody, { subject: "Delegations" }), "utf8");
+  await fs.writeFile(path.join(outputDir, "workbench.html"), shell("Protocol Workbench", renderWorkbenchBody(index), { subject: "Protocol Workbench" }), "utf8");
 
   for (const asset of assets) {
     const seg = routeSegment(asset.id);

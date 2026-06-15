@@ -2,7 +2,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
-import { renderAccountPage } from "./web.js";
+import { emptyIndexState } from "./local-store.js";
+import { STYLES_CSS, renderAccountPage } from "./web.js";
+import { renderWorkbenchBody, WORKBENCH_JS } from "./web-workbench.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ZKLOGIN_ENTRY = path.resolve(HERE, "..", "web-auth", "zklogin-entry.ts");
@@ -128,8 +130,42 @@ export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteC
   await fs.mkdir(outputDir, { recursive: true });
   await fs.writeFile(path.join(outputDir, "health.txt"), "ok\n", "utf8");
   await buildAuthAssets(outputDir, authConfig);
+  await fs.writeFile(path.join(outputDir, "styles.css"), STYLES_CSS, "utf8");
+  await fs.writeFile(path.join(outputDir, "workbench.js"), WORKBENCH_JS, "utf8");
   await fs.writeFile(path.join(outputDir, "account.html"), renderAccountPage([]), "utf8");
+  await fs.writeFile(path.join(outputDir, "workbench.html"), workbenchHtml(workbenchCspMetaTag()), "utf8");
   return outputDir;
+}
+
+function workbenchCspMetaTag(): string {
+  return `<meta http-equiv="Content-Security-Policy" content="${[
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "connect-src 'self'",
+    "img-src 'self' data:",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'"
+  ].join("; ")}">`;
+}
+
+function workbenchHtml(csp: string): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+${csp}
+<title>Protocol Workbench · Research Network</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/styles.css"></head>
+<body>
+  <div class="slim-strip"><div class="wrap">Git is the workspace · Walrus is the snapshot · Sui is the registry · Agents are first-class users</div></div>
+  <header class="banner"><div class="wrap banner-inner"><a class="logo" href="/">research<span class="logo-chi">&chi;</span>iv</a></div></header>
+  <div class="subnav"><div class="wrap subnav-inner">
+    <a href="/">Browse</a><a href="/dashboard.html">Dashboard</a><a href="/workbench.html">Workbench</a><a href="/membership.html">Membership</a><a href="/delegations.html">Delegations</a><a href="/account.html">Account</a><a href="/login.html">Sign in</a>
+  </div></div>
+  <div class="subject-strip"><div class="wrap"><h1>Protocol Workbench</h1></div></div>
+  <main class="wrap">${renderWorkbenchBody(emptyIndexState())}</main>
+  <footer class="footer"><div class="wrap"><p>Vercel auth shell · content is still proxied from the current Walrus Site.</p></div></footer>
+</body></html>`;
 }
 
 const AUTH_STYLE = `<style>
@@ -214,6 +250,8 @@ ${csp}
 const LOGIN_JS = `(function(){
   function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){ return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]; }); }
   function randomHex(n){ var b = crypto.getRandomValues(new Uint8Array(n)); var h = ""; for (var i = 0; i < b.length; i++) h += ("0" + b[i].toString(16)).slice(-2); return h; }
+  function repoOwner(name){ var parts = String(name || "").split("/"); return parts.length > 1 ? parts[0] : ""; }
+  function syntheticScopeId(account){ return "owner:" + String(account || "GitHub"); }
   function repoItems(binding){
     var seen = {};
     var out = [];
@@ -224,14 +262,17 @@ const LOGIN_JS = `(function(){
       var name = typeof repo === "string" ? repo : repo.full_name;
       var installationId = typeof repo === "string" ? binding.installation_id : repo.installation_id || null;
       var granted = typeof repo === "string" ? true : repo.granted !== false;
-      if (!name || seen[name] || !granted || !installationId || !selectedMap[String(installationId)]) return;
+      var account = typeof repo === "string" ? repoOwner(name) || binding.account || null : repo.installation_account || repoOwner(name) || null;
+      var accountType = typeof repo === "string" ? binding.account_type || null : repo.installation_account_type || null;
+      var scopeId = installationId ? String(installationId) : syntheticScopeId(account);
+      if (!name || seen[name] || !granted || !selectedMap[scopeId]) return;
       seen[name] = true;
       out.push({
         full_name: name,
         granted: true,
-        installation_id: installationId,
-        installation_account: typeof repo === "string" ? binding.account || null : repo.installation_account || null,
-        installation_account_type: typeof repo === "string" ? binding.account_type || null : repo.installation_account_type || null
+        installation_id: installationId || scopeId,
+        installation_account: account,
+        installation_account_type: accountType
       });
     });
     (binding && binding.installations || []).forEach(function(installation){
@@ -249,34 +290,77 @@ const LOGIN_JS = `(function(){
         });
       });
     });
+    var fallbackInstallationId = binding && binding.installation_id ? String(binding.installation_id) : "";
+    var hasInstallations = Boolean(binding && binding.installations && binding.installations.length);
     (binding && binding.repos || []).forEach(function(name){
       if (!name || seen[name]) return;
+      var account = repoOwner(name) || binding.account || null;
+      var scopeId = fallbackInstallationId || syntheticScopeId(account);
+      if (hasInstallations && (!fallbackInstallationId || !selectedMap[fallbackInstallationId])) return;
+      if (!selectedMap[scopeId]) return;
       seen[name] = true;
       out.push({
         full_name: name,
         granted: true,
-        installation_id: binding.installation_id || null,
-        installation_account: binding.account || null,
-        installation_account_type: binding.account_type || null
+        installation_id: binding.installation_id || scopeId,
+        installation_account: account,
+        installation_account_type: binding.account && account === binding.account ? binding.account_type || null : null
       });
     });
     out.sort(function(a,b){ return a.full_name.localeCompare(b.full_name); });
     return out;
   }
   function accountItems(binding){
-    return (binding && binding.installations || []).map(function(installation){
-      return {
-        id: String(installation.id),
-        account: installation.account || "GitHub",
-        accountType: installation.accountType || installation.account_type || "Account",
-        repos: installation.repos || []
-      };
+    var installations = binding && Array.isArray(binding.installations) ? binding.installations : [];
+    if (installations.length) {
+      var byAccount = {};
+      installations.forEach(function(installation){
+        var account = installation.account || "GitHub";
+        var accountType = installation.accountType || installation.account_type || "Account";
+        var key = account + "\u0000" + accountType;
+        if (!byAccount[key]) byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, repos: [] };
+        (installation.repos || []).forEach(function(repo){ if (byAccount[key].repos.indexOf(repo) === -1) byAccount[key].repos.push(repo); });
+      });
+      return Object.keys(byAccount).map(function(key){ return byAccount[key]; });
+    }
+    var accounts = {};
+    var scopeByOwner = {};
+    function addRepo(name, installationId, account, accountType){
+      if (!name) return;
+      var owner = repoOwner(name) || account || (binding && binding.login) || "GitHub";
+      var resolvedType = (account && owner === account ? accountType : null) || (binding && binding.login && owner === binding.login ? "User" : "Account");
+      var existingId = scopeByOwner[owner];
+      var id = installationId ? String(installationId) : (existingId || syntheticScopeId(owner));
+      if (installationId && existingId && existingId !== id && accounts[existingId]) {
+        accounts[id] = accounts[existingId];
+        accounts[id].id = id;
+        delete accounts[existingId];
+      }
+      scopeByOwner[owner] = id;
+      if (!accounts[id]) accounts[id] = { id: id, account: owner, accountType: resolvedType, repos: [] };
+      if (accounts[id].repos.indexOf(name) === -1) accounts[id].repos.push(name);
+    }
+    (binding && binding.available_repos || []).forEach(function(repo){
+      var name = typeof repo === "string" ? repo : repo.full_name;
+      var granted = typeof repo === "string" ? true : repo.granted !== false;
+      if (!granted) return;
+      addRepo(name, typeof repo === "string" ? binding.installation_id : repo.installation_id || null, typeof repo === "string" ? binding.account || null : repo.installation_account || null, typeof repo === "string" ? binding.account_type || null : repo.installation_account_type || null);
     });
+    (binding && binding.repos || []).forEach(function(name){
+      addRepo(name, binding && binding.installation_id || null, binding && binding.account || null, binding && binding.account_type || null);
+    });
+    return Object.keys(accounts).map(function(id){ return accounts[id]; }).sort(function(a,b){ return a.account.localeCompare(b.account); });
   }
   function selectedInstallationIds(binding){
     var accounts = accountItems(binding);
     var ids = binding && binding.selected_installation_ids;
-    if (Array.isArray(ids)) return ids.map(function(id){ return String(id); });
+    if (Array.isArray(ids)) {
+      var valid = {};
+      accounts.forEach(function(account){ valid[String(account.id)] = true; });
+      var normalized = ids.map(function(id){ return String(id); }).filter(function(id){ return valid[id]; });
+      if (ids.length > 0 && !normalized.length) return accounts.map(function(account){ return account.id; });
+      return normalized;
+    }
     return accounts.map(function(account){ return account.id; });
   }
   function selectedRepoItem(binding, repos){
@@ -301,7 +385,7 @@ const LOGIN_JS = `(function(){
   function applySelectedRepo(binding, repo){
     if (!binding || !repo || !repo.full_name) return binding;
     binding.selected_repo = repo.full_name;
-    if (repo.granted && repo.installation_id) {
+    if (repo.granted && repo.installation_id && !String(repo.installation_id).startsWith("owner:")) {
       var installation = installationForRepo(binding, repo);
       binding.installation_id = Number(repo.installation_id);
       binding.account = repo.installation_account || (installation && installation.account) || binding.account || null;
@@ -312,6 +396,9 @@ const LOGIN_JS = `(function(){
         binding.binding_attestation = attestation.binding_attestation || binding.binding_attestation;
         binding.binding_attestation_payload = attestation.binding_attestation_payload || binding.binding_attestation_payload;
       }
+    } else {
+      binding.account = repo.installation_account || binding.account || null;
+      binding.account_type = repo.installation_account_type || binding.account_type || null;
     }
     return binding;
   }
@@ -563,6 +650,8 @@ const GITHUB_CALLBACK_JS = `(function(){
   function out(h){ document.getElementById("out").innerHTML = h; }
   function fail(msg){ out('<h2>GitHub connection failed</h2><p class="error">' + esc(msg) + '</p><p><a href="/login.html">Back to sign in</a></p>'); }
   function randomHex(n){ var b = crypto.getRandomValues(new Uint8Array(n)); var h = ""; for (var i = 0; i < b.length; i++) h += ("0" + b[i].toString(16)).slice(-2); return h; }
+  function repoOwner(name){ var parts = String(name || "").split("/"); return parts.length > 1 ? parts[0] : ""; }
+  function syntheticScopeId(account){ return "owner:" + String(account || "GitHub"); }
   function repoItems(binding){
     var seen = {};
     var out = [];
@@ -573,14 +662,17 @@ const GITHUB_CALLBACK_JS = `(function(){
       var name = typeof repo === "string" ? repo : repo.full_name;
       var installationId = typeof repo === "string" ? binding.installation_id : repo.installation_id || null;
       var granted = typeof repo === "string" ? true : repo.granted !== false;
-      if (!name || seen[name] || !granted || !installationId || !selectedMap[String(installationId)]) return;
+      var account = typeof repo === "string" ? repoOwner(name) || binding.account || null : repo.installation_account || repoOwner(name) || null;
+      var accountType = typeof repo === "string" ? binding.account_type || null : repo.installation_account_type || null;
+      var scopeId = installationId ? String(installationId) : syntheticScopeId(account);
+      if (!name || seen[name] || !granted || !selectedMap[scopeId]) return;
       seen[name] = true;
       out.push({
         full_name: name,
         granted: true,
-        installation_id: installationId,
-        installation_account: typeof repo === "string" ? binding.account || null : repo.installation_account || null,
-        installation_account_type: typeof repo === "string" ? binding.account_type || null : repo.installation_account_type || null
+        installation_id: installationId || scopeId,
+        installation_account: account,
+        installation_account_type: accountType
       });
     });
     (binding && binding.installations || []).forEach(function(installation){
@@ -598,34 +690,77 @@ const GITHUB_CALLBACK_JS = `(function(){
         });
       });
     });
+    var fallbackInstallationId = binding && binding.installation_id ? String(binding.installation_id) : "";
+    var hasInstallations = Boolean(binding && binding.installations && binding.installations.length);
     (binding && binding.repos || []).forEach(function(name){
       if (!name || seen[name]) return;
+      var account = repoOwner(name) || binding.account || null;
+      var scopeId = fallbackInstallationId || syntheticScopeId(account);
+      if (hasInstallations && (!fallbackInstallationId || !selectedMap[fallbackInstallationId])) return;
+      if (!selectedMap[scopeId]) return;
       seen[name] = true;
       out.push({
         full_name: name,
         granted: true,
-        installation_id: binding.installation_id || null,
-        installation_account: binding.account || null,
-        installation_account_type: binding.account_type || null
+        installation_id: binding.installation_id || scopeId,
+        installation_account: account,
+        installation_account_type: binding.account && account === binding.account ? binding.account_type || null : null
       });
     });
     out.sort(function(a,b){ return a.full_name.localeCompare(b.full_name); });
     return out;
   }
   function accountItems(binding){
-    return (binding && binding.installations || []).map(function(installation){
-      return {
-        id: String(installation.id),
-        account: installation.account || "GitHub",
-        accountType: installation.accountType || installation.account_type || "Account",
-        repos: installation.repos || []
-      };
+    var installations = binding && Array.isArray(binding.installations) ? binding.installations : [];
+    if (installations.length) {
+      var byAccount = {};
+      installations.forEach(function(installation){
+        var account = installation.account || "GitHub";
+        var accountType = installation.accountType || installation.account_type || "Account";
+        var key = account + "\u0000" + accountType;
+        if (!byAccount[key]) byAccount[key] = { id: String(installation.id), account: account, accountType: accountType, repos: [] };
+        (installation.repos || []).forEach(function(repo){ if (byAccount[key].repos.indexOf(repo) === -1) byAccount[key].repos.push(repo); });
+      });
+      return Object.keys(byAccount).map(function(key){ return byAccount[key]; });
+    }
+    var accounts = {};
+    var scopeByOwner = {};
+    function addRepo(name, installationId, account, accountType){
+      if (!name) return;
+      var owner = repoOwner(name) || account || (binding && binding.login) || "GitHub";
+      var resolvedType = (account && owner === account ? accountType : null) || (binding && binding.login && owner === binding.login ? "User" : "Account");
+      var existingId = scopeByOwner[owner];
+      var id = installationId ? String(installationId) : (existingId || syntheticScopeId(owner));
+      if (installationId && existingId && existingId !== id && accounts[existingId]) {
+        accounts[id] = accounts[existingId];
+        accounts[id].id = id;
+        delete accounts[existingId];
+      }
+      scopeByOwner[owner] = id;
+      if (!accounts[id]) accounts[id] = { id: id, account: owner, accountType: resolvedType, repos: [] };
+      if (accounts[id].repos.indexOf(name) === -1) accounts[id].repos.push(name);
+    }
+    (binding && binding.available_repos || []).forEach(function(repo){
+      var name = typeof repo === "string" ? repo : repo.full_name;
+      var granted = typeof repo === "string" ? true : repo.granted !== false;
+      if (!granted) return;
+      addRepo(name, typeof repo === "string" ? binding.installation_id : repo.installation_id || null, typeof repo === "string" ? binding.account || null : repo.installation_account || null, typeof repo === "string" ? binding.account_type || null : repo.installation_account_type || null);
     });
+    (binding && binding.repos || []).forEach(function(name){
+      addRepo(name, binding && binding.installation_id || null, binding && binding.account || null, binding && binding.account_type || null);
+    });
+    return Object.keys(accounts).map(function(id){ return accounts[id]; }).sort(function(a,b){ return a.account.localeCompare(b.account); });
   }
   function selectedInstallationIds(binding){
     var accounts = accountItems(binding);
     var ids = binding && binding.selected_installation_ids;
-    if (Array.isArray(ids)) return ids.map(function(id){ return String(id); });
+    if (Array.isArray(ids)) {
+      var valid = {};
+      accounts.forEach(function(account){ valid[String(account.id)] = true; });
+      var normalized = ids.map(function(id){ return String(id); }).filter(function(id){ return valid[id]; });
+      if (ids.length > 0 && !normalized.length) return accounts.map(function(account){ return account.id; });
+      return normalized;
+    }
     return accounts.map(function(account){ return account.id; });
   }
   function selectedRepoItem(binding, repos){
@@ -650,7 +785,7 @@ const GITHUB_CALLBACK_JS = `(function(){
   function applySelectedRepo(binding, repo){
     if (!binding || !repo || !repo.full_name) return binding;
     binding.selected_repo = repo.full_name;
-    if (repo.granted && repo.installation_id) {
+    if (repo.granted && repo.installation_id && !String(repo.installation_id).startsWith("owner:")) {
       var installation = installationForRepo(binding, repo);
       binding.installation_id = Number(repo.installation_id);
       binding.account = repo.installation_account || (installation && installation.account) || binding.account || null;
@@ -661,6 +796,9 @@ const GITHUB_CALLBACK_JS = `(function(){
         binding.binding_attestation = attestation.binding_attestation || binding.binding_attestation;
         binding.binding_attestation_payload = attestation.binding_attestation_payload || binding.binding_attestation_payload;
       }
+    } else {
+      binding.account = repo.installation_account || binding.account || null;
+      binding.account_type = repo.installation_account_type || binding.account_type || null;
     }
     return binding;
   }

@@ -7,6 +7,7 @@ import {
   createAccessIntent,
   createDelegationJob,
   openDispute,
+  publishResearchReport,
   packageWorkspace,
   publishWorkspace,
   recordAccessReceipt,
@@ -113,6 +114,7 @@ Commands:
   research search <query> [--type asset|skill|workflow|paper]
   research graph <asset-id>
   research reports [report-id]
+  research report:publish --agent 0x... --title "Report" [--visibility public|encrypted] [--seal-id seal:...] [--walrus-blob-id walrus:...] [--ciphertext-hash sha256:...] [--plaintext-commitment sha256:...]
   research channels
   research delegations [job-id]
   research revenue [pool-id]
@@ -242,6 +244,31 @@ async function run() {
   if (command === "reports") {
     const index = await readIndex();
     printJson(positional[0] ? index.reports[positional[0]] : Object.values(index.reports));
+    return;
+  }
+
+  if (command === "report:publish") {
+    const agent = flagString(flags, "agent");
+    const title = flagString(flags, "title") ?? positional.join(" ");
+    const visibility = flagString(flags, "visibility", "public") as "public" | "encrypted" | "private_delegation";
+    if (!agent || !title || !["public", "encrypted", "private_delegation"].includes(visibility)) {
+      throw new Error("Usage: research report:publish --agent 0x... --title \"Report\" [--visibility public|encrypted|private_delegation]");
+    }
+    printJson(await publishResearchReport({
+      agent,
+      title,
+      visibility,
+      requiredTier: Number(flagString(flags, "requiredTier", "1")),
+      assetId: flagString(flags, "assetId"),
+      reportId: flagString(flags, "reportId"),
+      walrusBlobId: flagString(flags, "walrusBlobId"),
+      sealId: flagString(flags, "sealId"),
+      ciphertextHash: flagString(flags, "ciphertextHash"),
+      plaintextCommitment: flagString(flags, "plaintextCommitment"),
+      freePreview: flagString(flags, "freePreview"),
+      freePreviewHash: flagString(flags, "freePreviewHash"),
+      localnetRoot: flagString(flags, "localnetRoot")
+    }));
     return;
   }
 

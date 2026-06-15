@@ -221,6 +221,56 @@ export async function publishWorkspace(rootInput = ".", localnetRoot?: string): 
   };
 }
 
+export async function publishResearchReport(input: {
+  agent: string;
+  title: string;
+  visibility?: ResearchAccessVisibility;
+  requiredTier?: number;
+  assetId?: string;
+  reportId?: string;
+  walrusBlobId?: string;
+  sealId?: string;
+  ciphertextHash?: string;
+  plaintextCommitment?: string;
+  freePreview?: string;
+  freePreviewHash?: string;
+  localnetRoot?: string;
+}): Promise<LocalProtocolActionResult & { reportId: string }> {
+  const visibility = normalizeVisibility(input.visibility);
+  if (visibility !== "public") {
+    const missing = [
+      ["walrusBlobId", input.walrusBlobId],
+      ["sealId", input.sealId],
+      ["ciphertextHash", input.ciphertextHash],
+      ["plaintextCommitment", input.plaintextCommitment]
+    ].filter(([, value]) => !value).map(([key]) => key);
+    if (missing.length > 0) {
+      throw new Error(`Encrypted/private reports require ${missing.join(", ")}`);
+    }
+  }
+  const reportId = input.reportId ?? `report:${shortHash(`${input.agent}:${input.title}:${visibility}:${Date.now()}`, 20)}`;
+  const preview = input.freePreview ?? "";
+  const result = await appendLocalProtocolEvents("report-publish", [{
+    event_type: "ResearchReportPublished",
+    payload: {
+      report_id: reportId,
+      sui_object_id: objectId("0x", reportId),
+      agent: input.agent,
+      asset_id: input.assetId,
+      title: input.title,
+      visibility,
+      required_tier: visibility === "public" ? 0 : input.requiredTier ?? 1,
+      walrus_blob_id: input.walrusBlobId ?? `walrus:public:${shortHash(`${reportId}:${input.title}`, 18)}`,
+      seal_id: visibility === "public" ? "" : input.sealId,
+      ciphertext_hash: visibility === "public" ? "" : input.ciphertextHash,
+      plaintext_commitment: input.plaintextCommitment ?? `sha256:plain:${shortHash(preview || input.title, 32)}`,
+      free_preview_hash: input.freePreviewHash ?? shortHash(preview || input.title, 32),
+      free_preview: preview
+    }
+  }], input.localnetRoot);
+  return { ...result, reportId };
+}
+
 export function createAccessIntent(kind: "platform_membership" | "agent_subscription" | "private_delegation", buyer: string, target?: string) {
   const orderId = `order_${shortHash(`${kind}:${buyer}:${target ?? ""}:${Date.now()}:${Math.random()}`, 18)}`;
   return {

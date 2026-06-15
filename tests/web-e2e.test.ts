@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { JSDOM } from "jsdom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   appendEvents,
@@ -34,6 +35,39 @@ async function exists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function loadWorkbenchDom(siteDir: string, beforeParse?: (window: any) => void): Promise<JSDOM> {
+  const html = await fs.readFile(path.join(siteDir, "workbench.html"), "utf8");
+  const js = await fs.readFile(path.join(siteDir, "workbench.js"), "utf8");
+  const inlined = html.replace(/<script src="\/workbench\.js[^"]*" defer><\/script>/, `<script>${js}</script>`);
+  const dom = new JSDOM(inlined, {
+    url: "http://127.0.0.1/workbench.html?rn_demo=1",
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    beforeParse
+  });
+  await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+  return dom;
+}
+
+function testId(dom: JSDOM, id: string) {
+  const el = dom.window.document.querySelector(`[data-testid="${id}"]`);
+  expect(el, `missing [data-testid="${id}"]`).toBeTruthy();
+  return el as unknown as { value: string; checked: boolean; click(): void; dispatchEvent(event: Event): boolean; textContent: string | null };
+}
+
+function selectValue(dom: JSDOM, selector: string, value: string): void {
+  const el = dom.window.document.querySelector(selector) as unknown as { value: string; dispatchEvent(event: Event): boolean } | null;
+  expect(el, `missing selector ${selector}`).toBeTruthy();
+  el!.value = value;
+  el!.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+}
+
+function submit(dom: JSDOM, selector: string): void {
+  const el = dom.window.document.querySelector(selector);
+  expect(el, `missing form ${selector}`).toBeTruthy();
+  el!.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
 }
 
 describe("static web E2E", () => {
@@ -73,11 +107,13 @@ describe("static web E2E", () => {
         { path: "/index.html", expect: /logo-chi/ },
         { path: "/search.html", expect: /Filter assets, skills/ },
         { path: "/dashboard.html", expect: /Events/ },
+        { path: "/workbench.html", expect: /Protocol Workbench/ },
         { path: "/membership.html", expect: /Membership/ },
         { path: "/delegations.html", expect: /Delegations/ },
         { path: "/site-data.json", expect: /"assets"/ },
         { path: "/styles.css", expect: /--arxiv-red/ },
         { path: "/site.js", expect: /setupPaperViewer/ },
+        { path: "/workbench.js", expect: /Publish Research/ },
         { path: `/abs/${assetSeg}.html`, expect: /format-nav/ },
         { path: `/abs/${assetSeg}.html`, expect: /format-nav/ },
         { path: `/abs/${assetSeg}.html`, expect: /pdfjs-viewer/ },
@@ -261,6 +297,152 @@ describe("static web E2E", () => {
     }
   });
 
+  it("supports interactive workbench publishing and multi-account Seal access checks", async () => {
+    const localnet = await makeTempDir("workbench-localnet");
+    const siteDir = path.join(tempRoot, "workbench-site");
+    await buildStaticWeb(siteDir, localnet);
+
+    const dom = await loadWorkbenchDom(siteDir);
+    const doc = dom.window.document;
+
+    testId(dom, "seed-demo").click();
+    expect(testId(dom, "selected-repo").textContent).toBe("octo-agent/research-alpha");
+
+    const personalScope = doc.querySelector('.rn-workbench-installation[value="101"]') as unknown as { checked: boolean; click(): void } | null;
+    expect(personalScope).toBeTruthy();
+    personalScope!.click();
+    expect(testId(dom, "selected-repo").textContent).toBe("research-org/encrypted-lab");
+
+    testId(dom, "publish-title").value = "Encrypted Alpha Memo";
+    testId(dom, "publish-preview").value = "Preview visible to everyone.";
+    testId(dom, "publish-plaintext").value = "Confidential encrypted memo body.";
+    submit(dom, "#publish-form");
+
+    const encryptedReport = doc.querySelector('[data-visibility="encrypted"]');
+    expect(encryptedReport?.textContent).toContain("Encrypted Alpha Memo");
+    expect(encryptedReport?.textContent).toContain("Locked: needs_membership_or_subscription");
+    expect((encryptedReport?.querySelector(".decrypt-report") as HTMLButtonElement | null)?.disabled).toBe(true);
+
+    selectValue(dom, "#actor-select", "member");
+    testId(dom, "buy-membership").click();
+    const memberDecrypt = doc.querySelector('[data-visibility="encrypted"] .decrypt-report') as HTMLButtonElement | null;
+    expect(memberDecrypt?.disabled).toBe(false);
+    memberDecrypt!.click();
+    expect(doc.body.textContent).toContain("Confidential encrypted memo body.");
+    expect(doc.body.textContent).toContain("platform_member");
+
+    selectValue(dom, "#actor-select", "subscriber");
+    testId(dom, "subscribe-agent").click();
+    const subscriberDecrypt = doc.querySelector('[data-visibility="encrypted"] .decrypt-report') as HTMLButtonElement | null;
+    expect(subscriberDecrypt?.disabled).toBe(false);
+    subscriberDecrypt!.click();
+    expect(doc.body.textContent).toContain("agent_subscription");
+
+    testId(dom, "create-delegation").click();
+    testId(dom, "submit-private-result").click();
+    const privateReport = doc.querySelector('[data-visibility="private_delegation"]');
+    expect(privateReport?.textContent).toContain("Private result");
+
+    selectValue(dom, "#actor-select", "outsider");
+    const outsiderPrivateDecrypt = doc.querySelector('[data-visibility="private_delegation"] .decrypt-report') as HTMLButtonElement | null;
+    expect(outsiderPrivateDecrypt?.disabled).toBe(true);
+
+    selectValue(dom, "#actor-select", "buyer");
+    const buyerPrivateDecrypt = doc.querySelector('[data-visibility="private_delegation"] .decrypt-report') as HTMLButtonElement | null;
+    expect(buyerPrivateDecrypt?.disabled).toBe(false);
+    buyerPrivateDecrypt!.click();
+    expect(doc.body.textContent).toContain("Private delegation research result.");
+
+    selectValue(dom, "#actor-select", "arbitrator");
+    const arbitratorBeforeDispute = doc.querySelector('[data-visibility="private_delegation"] .decrypt-report') as HTMLButtonElement | null;
+    expect(arbitratorBeforeDispute?.disabled).toBe(true);
+    testId(dom, "open-dispute").click();
+    selectValue(dom, "#actor-select", "arbitrator");
+    const arbitratorAfterDispute = doc.querySelector('[data-visibility="private_delegation"] .decrypt-report') as HTMLButtonElement | null;
+    expect(arbitratorAfterDispute?.disabled).toBe(false);
+    arbitratorAfterDispute!.click();
+    expect(doc.body.textContent).toContain("dispute_arbitrator");
+
+    dom.window.close();
+  });
+
+  it("derives workbench account scopes from real repo bindings without installations", async () => {
+    const localnet = await makeTempDir("workbench-fallback-localnet");
+    const siteDir = path.join(tempRoot, "workbench-fallback-site");
+    await buildStaticWeb(siteDir, localnet);
+
+    const dom = await loadWorkbenchDom(siteDir, (window) => {
+      window.localStorage.setItem("rn_session", JSON.stringify({
+        provider: "google",
+        address: "0xREAL",
+        email: "real@example.com"
+      }));
+      window.localStorage.setItem("rn_github", JSON.stringify({
+        sui_address: "0xREAL",
+        login: "Euraxluo",
+        account: "Euraxluo",
+        account_type: "User",
+        selected_repo: "Euraxluo/seal-101",
+        repos: ["Euraxluo/seal-101", "Euraxluo/demo", "nutsdb/nutsdb"]
+      }));
+    });
+    const doc = dom.window.document;
+
+    const workbenchText = doc.getElementById("workbench-root")?.textContent ?? "";
+    expect(workbenchText).not.toContain("No GitHub accounts or organizations are connected");
+    expect(workbenchText).toContain("Euraxluo · User");
+    expect(workbenchText).toContain("nutsdb · Account");
+    expect(testId(dom, "selected-repo").textContent).toBe("Euraxluo/seal-101");
+
+    const personalScope = doc.querySelector('.rn-workbench-installation[value="owner:Euraxluo"]') as unknown as { click(): void } | null;
+    expect(personalScope).toBeTruthy();
+    personalScope!.click();
+
+    expect(testId(dom, "selected-repo").textContent).toBe("nutsdb/nutsdb");
+    const repoOptions = Array.from(doc.querySelectorAll("#workbench-repo option")).map((option) => option.textContent ?? "");
+    expect(repoOptions).toEqual(["nutsdb/nutsdb · nutsdb"]);
+
+    dom.window.close();
+  });
+
+  it("deduplicates stale owner scopes once a real GitHub installation exists", async () => {
+    const localnet = await makeTempDir("workbench-stale-scope-localnet");
+    const siteDir = path.join(tempRoot, "workbench-stale-scope-site");
+    await buildStaticWeb(siteDir, localnet);
+
+    const dom = await loadWorkbenchDom(siteDir, (window) => {
+      window.localStorage.setItem("rn_session", JSON.stringify({
+        provider: "google",
+        address: "0xREAL",
+        email: "real@example.com"
+      }));
+      window.localStorage.setItem("rn_github", JSON.stringify({
+        sui_address: "0xREAL",
+        login: "Euraxluo",
+        account: "Euraxluo",
+        account_type: "User",
+        installation_id: 139753991,
+        selected_installation_ids: ["139753991", "owner:Euraxluo"],
+        selected_repo: "Euraxluo/seal-101",
+        repos: ["Euraxluo/seal-101", "Euraxluo/demo"],
+        installations: [],
+        available_repos: [
+          { full_name: "Euraxluo/seal-101", installation_id: 139753991, installation_account: "Euraxluo", installation_account_type: "User" },
+          { full_name: "Euraxluo/demo", installation_id: 139753991, installation_account: "Euraxluo", installation_account_type: "User" }
+        ]
+      }));
+    });
+    const doc = dom.window.document;
+    const scopes = Array.from(doc.querySelectorAll(".rn-workbench-installation")).map((input) => (input as HTMLInputElement).value);
+    const repoOptions = Array.from(doc.querySelectorAll("#workbench-repo option")).map((option) => option.textContent ?? "");
+
+    expect(scopes).toEqual(["139753991"]);
+    expect(repoOptions).toEqual(["Euraxluo/demo · Euraxluo", "Euraxluo/seal-101 · Euraxluo"]);
+    expect(testId(dom, "selected-repo").textContent).toBe("Euraxluo/seal-101");
+
+    dom.window.close();
+  });
+
   it("builds a Vercel auth shell without shadowing Walrus content pages", async () => {
     const shellDir = path.join(tempRoot, "vercel-shell");
     await buildVercelAuthShell(shellDir, {
@@ -278,6 +460,9 @@ describe("static web E2E", () => {
     expect(await exists(path.join(shellDir, "health.txt"))).toBe(true);
     expect(await exists(path.join(shellDir, "login.html"))).toBe(true);
     expect(await exists(path.join(shellDir, "account.html"))).toBe(true);
+    expect(await exists(path.join(shellDir, "workbench.html"))).toBe(true);
+    expect(await exists(path.join(shellDir, "workbench.js"))).toBe(true);
+    expect(await exists(path.join(shellDir, "styles.css"))).toBe(true);
     expect(await exists(path.join(shellDir, "auth", "callback.js"))).toBe(true);
     expect(await exists(path.join(shellDir, "zklogin-browser.js"))).toBe(true);
     expect(await exists(path.join(shellDir, "index.html"))).toBe(false);
@@ -295,6 +480,11 @@ describe("static web E2E", () => {
     expect(accountHtml).toContain("server-attested");
     expect(accountHtml).toContain("Refresh GitHub repos");
     expect(accountHtml).not.toContain("Grant more repo access on GitHub");
+
+    const workbenchHtml = await fs.readFile(path.join(shellDir, "workbench.html"), "utf8");
+    expect(workbenchHtml).toContain("Protocol Workbench");
+    expect(workbenchHtml).toContain("/workbench.js?v=");
+    expect(workbenchHtml).toContain("window.__WORKBENCH_INDEX__");
   });
 
   it("serves a PDF-only asset with embedded PDF and no TeX source", async () => {

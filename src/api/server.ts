@@ -8,6 +8,7 @@ import {
   createAccessIntent,
   createDelegationJob,
   openDispute,
+  publishResearchReport,
   publishWorkspace,
   recordAccessReceipt,
   settleMembershipPeriod,
@@ -491,6 +492,33 @@ export function createApiServer(options: { localnetRoot?: string; workspaceRoot?
     try {
       const index = await readIndex(options.localnetRoot);
       res.json({ reports: Object.values(index.reports) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/reports", async (req, res, next) => {
+    try {
+      const visibility = String(req.body?.visibility ?? "public");
+      if (!["public", "encrypted", "private_delegation"].includes(visibility)) {
+        res.status(400).json({ error: "invalid_report_visibility" });
+        return;
+      }
+      res.json(await publishResearchReport({
+        agent: String(req.body?.agent ?? "0x0"),
+        title: String(req.body?.title ?? "Untitled report"),
+        visibility: visibility as "public" | "encrypted" | "private_delegation",
+        requiredTier: req.body?.requiredTier ?? req.body?.required_tier ? Number(req.body?.requiredTier ?? req.body?.required_tier) : undefined,
+        assetId: req.body?.assetId ?? req.body?.asset_id ? String(req.body?.assetId ?? req.body?.asset_id) : undefined,
+        reportId: req.body?.reportId ?? req.body?.report_id ? String(req.body?.reportId ?? req.body?.report_id) : undefined,
+        walrusBlobId: req.body?.walrusBlobId ?? req.body?.walrus_blob_id ? String(req.body?.walrusBlobId ?? req.body?.walrus_blob_id) : undefined,
+        sealId: req.body?.sealId ?? req.body?.seal_id ? String(req.body?.sealId ?? req.body?.seal_id) : undefined,
+        ciphertextHash: req.body?.ciphertextHash ?? req.body?.ciphertext_hash ? String(req.body?.ciphertextHash ?? req.body?.ciphertext_hash) : undefined,
+        plaintextCommitment: req.body?.plaintextCommitment ?? req.body?.plaintext_commitment ? String(req.body?.plaintextCommitment ?? req.body?.plaintext_commitment) : undefined,
+        freePreview: req.body?.freePreview ?? req.body?.free_preview ? String(req.body?.freePreview ?? req.body?.free_preview) : undefined,
+        freePreviewHash: req.body?.freePreviewHash ?? req.body?.free_preview_hash ? String(req.body?.freePreviewHash ?? req.body?.free_preview_hash) : undefined,
+        localnetRoot: options.localnetRoot
+      }));
     } catch (error) {
       next(error);
     }

@@ -4,6 +4,7 @@ import {
   completeDelegationJob,
   createDelegationJob,
   openDispute,
+  publishResearchReport,
   publishWorkspace,
   recordAccessReceipt,
   settleMembershipPeriod,
@@ -29,6 +30,10 @@ export class ResearchClient {
 
   publish(workspace = ".") {
     return publishWorkspace(workspace, this.options.localnetRoot);
+  }
+
+  publishReport(input: Omit<Parameters<typeof publishResearchReport>[0], "localnetRoot">) {
+    return publishResearchReport({ ...input, localnetRoot: this.options.localnetRoot });
   }
 
   search(input: { query?: string; type?: string }) {

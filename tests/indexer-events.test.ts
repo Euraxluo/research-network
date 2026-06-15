@@ -124,6 +124,34 @@ describe("indexer v2 event catalog", () => {
     expect(index.events).toHaveLength(1);
   });
 
+  it("publishes standalone reports through the SDK with Seal field validation", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "rn-report-sdk-"));
+    const client = new ResearchClient({ localnetRoot: root });
+    await expect(client.publishReport({
+      agent: "0xA",
+      title: "Missing Seal",
+      visibility: "encrypted"
+    })).rejects.toThrow(/walrusBlobId/);
+
+    const result = await client.publishReport({
+      agent: "0xA",
+      title: "Encrypted Standalone Report",
+      visibility: "encrypted",
+      walrusBlobId: "walrus:report:1",
+      sealId: "seal:report:1",
+      ciphertextHash: "sha256:cipher",
+      plaintextCommitment: "sha256:plain",
+      freePreview: "Only the preview is public."
+    });
+    const index = await readIndex(root);
+    expect(index.reports[result.reportId]).toMatchObject({
+      title: "Encrypted Standalone Report",
+      visibility: "encrypted",
+      seal_id: "seal:report:1"
+    });
+    expect(index.search_documents[result.reportId]?.body).toContain("Only the preview is public.");
+  });
+
   it("getGraph returns cite and fork edges around an asset", async () => {
     const index = emptyIndexState();
     await applyEvents(index, fullCatalog());
