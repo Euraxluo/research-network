@@ -292,6 +292,8 @@ export const WORKBENCH_JS = `
     if (!installations.length) return '<p class="muted">No GitHub accounts or organizations are connected.</p>';
     var selected = {};
     selectedInstallationIds(gh).forEach(function (id) { selected[String(id)] = true; });
+    var hasOrgScope = installations.some(function (installation) { return String(installation.accountType || installation.account_type || "").toLowerCase() === "organization"; });
+    var orgHint = hasOrgScope ? "" : '<p class="muted repo-account-hint">Organization repositories appear after installing or approving the GitHub App in that organization.</p>';
     return '<fieldset class="repo-account-scope"><legend>GitHub account / organization</legend>' +
       installations.map(function (installation) {
         var id = String(installation.id);
@@ -300,6 +302,7 @@ export const WORKBENCH_JS = `
         var detail = installed ? ((installation.repos || []).length + " authorized repo option(s)") : "Not authorized yet";
         return '<label class="repo-account' + (installed ? "" : " unavailable") + '"><input class="rn-workbench-installation" type="checkbox" value="' + esc(id) + '"' + (selected[id] && installed ? " checked" : "") + (installed ? "" : " disabled") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
       }).join("") +
+      orgHint +
       '</fieldset>';
   }
   function repoSelectHtml(gh) {

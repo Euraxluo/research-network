@@ -785,6 +785,8 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
     if (!accounts.length) return "";
     var selected = {};
     selectedInstallationIds(gh).forEach(function (id) { selected[String(id)] = true; });
+    var hasOrgScope = accounts.some(function (account) { return String(account.accountType || account.account_type || "").toLowerCase() === "organization"; });
+    var orgHint = hasOrgScope ? "" : '<p class="muted repo-account-hint">Organization repositories appear after installing or approving the GitHub App in that organization.</p>';
     return '<fieldset class="repo-account-scope"><legend>GitHub account / organization</legend>'
       + accounts.map(function (account) {
         var label = account.account + (account.accountType ? " · " + account.accountType : "");
@@ -792,6 +794,7 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
         var detail = installed ? (account.repos.length + " authorized repo(s)") : "Not authorized yet";
         return '<label class="repo-account' + (installed ? "" : " unavailable") + '"><input class="rn-account-installation-scope" type="checkbox" value="' + esc(account.id) + '"' + (selected[account.id] && installed ? " checked" : "") + (installed ? "" : " disabled") + '><span><b>' + esc(label) + '</b><br><span class="muted">' + esc(detail) + '</span></span></label>';
       }).join("")
+      + orgHint
       + '</fieldset>';
   }
   function repoSelectorHtml(gh, selectId) {
