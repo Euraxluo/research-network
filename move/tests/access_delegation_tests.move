@@ -61,8 +61,11 @@ module research_protocol::access_delegation_tests {
             let agent_pass = ts::take_from_sender<AgentSubscriptionPass>(&sc);
             let ctx = ts::ctx(&mut sc);
             let clk = clock_at(ctx, T0 + 10);
-            assert!(access::seal_approve_report_with_platform_membership(&report, &platform_pass, &clk, ctx), 0);
-            assert!(access::seal_approve_report_with_agent_subscription(&report, &agent_pass, &clk, ctx), 1);
+            // seal_approve now takes the Seal identity (report object id bytes)
+            // as its first arg and aborts on denial; calling it succeeds here.
+            let id = object::id_to_bytes(&object::id(&report));
+            access::seal_approve_report_with_platform_membership(id, &report, &platform_pass, &clk, ctx);
+            access::seal_approve_report_with_agent_subscription(id, &report, &agent_pass, &clk, ctx);
             clock::destroy_for_testing(clk);
             ts::return_to_address(AGENT, report);
             ts::return_to_sender(&sc, platform_pass);
@@ -71,7 +74,7 @@ module research_protocol::access_delegation_tests {
         ts::end(sc);
     }
 
-    #[test]
+    #[test, expected_failure(abort_code = 23)]
     fun expired_platform_membership_denies_encrypted_report() {
         let mut sc = ts::begin(AGENT);
         init_settlement(&mut sc);
@@ -101,7 +104,9 @@ module research_protocol::access_delegation_tests {
             let pass = ts::take_from_sender<PlatformMembershipPass>(&sc);
             let ctx = ts::ctx(&mut sc);
             let clk = clock_at(ctx, T0 + 10);
-            assert!(!access::seal_approve_report_with_platform_membership(&report, &pass, &clk, ctx), 0);
+            // Expired membership (duration 5ms, clock is T0+10) -> abort E_NOT_AUTHORIZED (23).
+            let id = object::id_to_bytes(&object::id(&report));
+            access::seal_approve_report_with_platform_membership(id, &report, &pass, &clk, ctx);
             clock::destroy_for_testing(clk);
             ts::return_to_address(AGENT, report);
             ts::return_to_sender(&sc, pass);
@@ -155,17 +160,9 @@ module research_protocol::access_delegation_tests {
             let job = ts::take_shared<DelegationJob>(&sc);
             let report = ts::take_from_address<ResearchReport>(&sc, AGENT);
             let ctx = ts::ctx(&mut sc);
-            assert!(access::seal_approve_private_result(&report, &job, ctx), 0);
-            ts::return_shared(job);
-            ts::return_to_address(AGENT, report);
-        };
-
-        ts::next_tx(&mut sc, OUTSIDER);
-        {
-            let job = ts::take_shared<DelegationJob>(&sc);
-            let report = ts::take_from_address<ResearchReport>(&sc, AGENT);
-            let ctx = ts::ctx(&mut sc);
-            assert!(!access::seal_approve_private_result(&report, &job, ctx), 1);
+            // Buyer is a private-delegation party -> approve succeeds.
+            let id = object::id_to_bytes(&object::id(&report));
+            access::seal_approve_private_result(id, &report, &job, ctx);
             ts::return_shared(job);
             ts::return_to_address(AGENT, report);
         };
@@ -185,7 +182,65 @@ module research_protocol::access_delegation_tests {
             let job = ts::take_shared<DelegationJob>(&sc);
             let report = ts::take_from_address<ResearchReport>(&sc, AGENT);
             let ctx = ts::ctx(&mut sc);
-            assert!(access::seal_approve_private_result(&report, &job, ctx), 2);
+            // After open_dispute the arbitrator can decrypt -> approve succeeds.
+            let id = object::id_to_bytes(&object::id(&report));
+            access::seal_approve_private_result(id, &report, &job, ctx);
+            ts::return_shared(job);
+            ts::return_to_address(AGENT, report);
+        };
+        ts::end(sc);
+    }
+
+    /// Separated deny case: an outsider calling seal_approve_private_result must
+    /// abort (E_NOT_AUTHORIZED = 23), since seal_approve now denies via abort.
+    #[test, expected_failure(abort_code = 23)]
+    fun private_delegation_denies_outsider() {
+        let mut sc = ts::begin(BUYER);
+        {
+            let ctx = ts::ctx(&mut sc);
+            let clk = clock_at(ctx, T0);
+            delegation::create_delegation_job(AGENT, b"question", b"source", 1000, T0 + 10_000, &clk, ctx);
+            clock::destroy_for_testing(clk);
+        };
+
+        ts::next_tx(&mut sc, AGENT);
+        {
+            let mut job = ts::take_shared<DelegationJob>(&sc);
+            let ctx = ts::ctx(&mut sc);
+            let clk = clock_at(ctx, T0);
+            delegation::accept_delegation_job(&mut job, &clk, ctx);
+            clock::destroy_for_testing(clk);
+            ts::return_shared(job);
+        };
+
+        ts::next_tx(&mut sc, BUYER);
+        {
+            let mut job = ts::take_shared<DelegationJob>(&sc);
+            let ctx = ts::ctx(&mut sc);
+            let clk = clock_at(ctx, T0);
+            let pay = coin::mint_for_testing<SUI>(1000, ctx);
+            delegation::fund_delegation_job(&mut job, pay, 1000, &clk, ctx);
+            clock::destroy_for_testing(clk);
+            ts::return_shared(job);
+        };
+
+        ts::next_tx(&mut sc, AGENT);
+        {
+            let mut job = ts::take_shared<DelegationJob>(&sc);
+            let ctx = ts::ctx(&mut sc);
+            let clk = clock_at(ctx, T0);
+            report::publish_private_result(&mut job, b"walrus", b"seal", b"cipher", b"plain", b"preview", &clk, ctx);
+            clock::destroy_for_testing(clk);
+            ts::return_shared(job);
+        };
+
+        ts::next_tx(&mut sc, OUTSIDER);
+        {
+            let job = ts::take_shared<DelegationJob>(&sc);
+            let report = ts::take_from_address<ResearchReport>(&sc, AGENT);
+            let ctx = ts::ctx(&mut sc);
+            let id = object::id_to_bytes(&object::id(&report));
+            access::seal_approve_private_result(id, &report, &job, ctx);
             ts::return_shared(job);
             ts::return_to_address(AGENT, report);
         };

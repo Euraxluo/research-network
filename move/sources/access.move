@@ -171,45 +171,62 @@ module research_protocol::access {
         assert!(pass.tier >= report::required_tier(report), E_TIER_TOO_LOW);
     }
 
-    /// Seal policy helper for encrypted reports. It intentionally returns only a bool so
-    /// Seal key servers can dry-run access without mutating on-chain receipt state.
+    /// Seal access policy for encrypted reports gated by platform membership.
+    ///
+    /// Per SUI_Seal_SKILL.md §4.2 the Seal key-server contract requires:
+    ///   - first parameter is the identity `id: vector<u8>` (no package prefix);
+    ///   - the function is side-effect-free and deterministic;
+    ///   - access denial is expressed by `assert!`/abort, not by a return value.
+    ///
+    /// We bind the Seal identity to the report by asserting `id` equals the
+    /// report object id bytes (id = report object id, the M3-0 decision). The
+    /// caller (author or a holder of a valid PlatformMembershipPass) is then
+    /// authorized to receive decryption key shares.
     public fun seal_approve_report_with_platform_membership(
+        id: vector<u8>,
         report: &ResearchReport,
         pass: &PlatformMembershipPass,
         clock: &Clock,
         ctx: &TxContext
-    ): bool {
+    ) {
+        assert!(id == object::id_to_bytes(&report::id(report)), E_NOT_AUTHORIZED);
         let caller = tx_context::sender(ctx);
-        caller == report::agent(report) ||
-        (
-            report::visibility(report) == report::visibility_encrypted() &&
-            platform_pass_valid(pass, report, caller, clock)
-        )
+        let allowed = caller == report::agent(report) ||
+            (report::visibility(report) == report::visibility_encrypted() &&
+                platform_pass_valid(pass, report, caller, clock));
+        assert!(allowed, E_NOT_AUTHORIZED);
     }
 
+    /// Seal access policy for encrypted reports gated by an agent subscription.
     public fun seal_approve_report_with_agent_subscription(
+        id: vector<u8>,
         report: &ResearchReport,
         pass: &AgentSubscriptionPass,
         clock: &Clock,
         ctx: &TxContext
-    ): bool {
+    ) {
+        assert!(id == object::id_to_bytes(&report::id(report)), E_NOT_AUTHORIZED);
         let caller = tx_context::sender(ctx);
-        caller == report::agent(report) ||
-        (
-            report::visibility(report) == report::visibility_encrypted() &&
-            agent_pass_valid(pass, report, caller, clock)
-        )
+        let allowed = caller == report::agent(report) ||
+            (report::visibility(report) == report::visibility_encrypted() &&
+                agent_pass_valid(pass, report, caller, clock));
+        assert!(allowed, E_NOT_AUTHORIZED);
     }
 
+    /// Seal access policy for private delegation results. Only the buyer and
+    /// the executing agent of the linked DelegationJob can decrypt by default.
     public fun seal_approve_private_result(
+        id: vector<u8>,
         report: &ResearchReport,
         job: &DelegationJob,
         ctx: &TxContext
-    ): bool {
-        report::visibility(report) == report::visibility_private_delegation() &&
-        option::is_some(&report::delegation_job_id(report)) &&
-        *option::borrow(&report::delegation_job_id(report)) == delegation::id(job) &&
-        delegation::can_decrypt_private(job, tx_context::sender(ctx))
+    ) {
+        assert!(id == object::id_to_bytes(&report::id(report)), E_NOT_AUTHORIZED);
+        let linked = report::visibility(report) == report::visibility_private_delegation() &&
+            option::is_some(&report::delegation_job_id(report)) &&
+            *option::borrow(&report::delegation_job_id(report)) == delegation::id(job);
+        assert!(linked, E_NOT_AUTHORIZED);
+        assert!(delegation::can_decrypt_private(job, tx_context::sender(ctx)), E_NOT_AUTHORIZED);
     }
 
     public(package) fun record_access_receipt(
