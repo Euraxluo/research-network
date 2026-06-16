@@ -171,6 +171,19 @@ module research_protocol::access {
         assert!(pass.tier >= report::required_tier(report), E_TIER_TOO_LOW);
     }
 
+    /// Seal access policy for the report's own author/agent. The publisher can
+    /// always decrypt their own report — used for the publish→self-decrypt
+    /// bootstrap and for the author re-reading their work. Requires only the
+    /// report object + clock (no pass), so no type-mismatch abort on the PTB.
+    public fun seal_approve_report_author(
+        id: vector<u8>,
+        report: &ResearchReport,
+        ctx: &TxContext
+    ) {
+        assert!(id == report::seal_id(report), E_NOT_AUTHORIZED);
+        assert!(tx_context::sender(ctx) == report::agent(report), E_NOT_AUTHORIZED);
+    }
+
     /// Seal access policy for encrypted reports gated by platform membership.
     ///
     /// Per SUI_Seal_SKILL.md §4.2 the Seal key-server contract requires:
@@ -178,10 +191,11 @@ module research_protocol::access {
     ///   - the function is side-effect-free and deterministic;
     ///   - access denial is expressed by `assert!`/abort, not by a return value.
     ///
-    /// We bind the Seal identity to the report by asserting `id` equals the
-    /// report object id bytes (id = report object id, the M3-0 decision). The
-    /// caller (author or a holder of a valid PlatformMembershipPass) is then
-    /// authorized to receive decryption key shares.
+    /// The Seal identity is the `seal_id` field chosen by the publisher at
+    /// publish time (a deterministic 32-byte value). At encrypt time the
+    /// publisher encrypts under this same `seal_id`; the ciphertext embeds it,
+    /// and here we assert the PTB id matches the stored field. This avoids the
+    /// chicken-and-egg of using the report object id (unknown until publish).
     public fun seal_approve_report_with_platform_membership(
         id: vector<u8>,
         report: &ResearchReport,
@@ -189,7 +203,7 @@ module research_protocol::access {
         clock: &Clock,
         ctx: &TxContext
     ) {
-        assert!(id == object::id_to_bytes(&report::id(report)), E_NOT_AUTHORIZED);
+        assert!(id == report::seal_id(report), E_NOT_AUTHORIZED);
         let caller = tx_context::sender(ctx);
         let allowed = caller == report::agent(report) ||
             (report::visibility(report) == report::visibility_encrypted() &&
@@ -205,7 +219,7 @@ module research_protocol::access {
         clock: &Clock,
         ctx: &TxContext
     ) {
-        assert!(id == object::id_to_bytes(&report::id(report)), E_NOT_AUTHORIZED);
+        assert!(id == report::seal_id(report), E_NOT_AUTHORIZED);
         let caller = tx_context::sender(ctx);
         let allowed = caller == report::agent(report) ||
             (report::visibility(report) == report::visibility_encrypted() &&
@@ -221,7 +235,7 @@ module research_protocol::access {
         job: &DelegationJob,
         ctx: &TxContext
     ) {
-        assert!(id == object::id_to_bytes(&report::id(report)), E_NOT_AUTHORIZED);
+        assert!(id == report::seal_id(report), E_NOT_AUTHORIZED);
         let linked = report::visibility(report) == report::visibility_private_delegation() &&
             option::is_some(&report::delegation_job_id(report)) &&
             *option::borrow(&report::delegation_job_id(report)) == delegation::id(job);

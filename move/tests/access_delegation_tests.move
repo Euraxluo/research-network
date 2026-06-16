@@ -63,7 +63,7 @@ module research_protocol::access_delegation_tests {
             let clk = clock_at(ctx, T0 + 10);
             // seal_approve now takes the Seal identity (report object id bytes)
             // as its first arg and aborts on denial; calling it succeeds here.
-            let id = object::id_to_bytes(&object::id(&report));
+            let id = report::seal_id(&report);
             access::seal_approve_report_with_platform_membership(id, &report, &platform_pass, &clk, ctx);
             access::seal_approve_report_with_agent_subscription(id, &report, &agent_pass, &clk, ctx);
             clock::destroy_for_testing(clk);
@@ -105,7 +105,7 @@ module research_protocol::access_delegation_tests {
             let ctx = ts::ctx(&mut sc);
             let clk = clock_at(ctx, T0 + 10);
             // Expired membership (duration 5ms, clock is T0+10) -> abort E_NOT_AUTHORIZED (23).
-            let id = object::id_to_bytes(&object::id(&report));
+            let id = report::seal_id(&report);
             access::seal_approve_report_with_platform_membership(id, &report, &pass, &clk, ctx);
             clock::destroy_for_testing(clk);
             ts::return_to_address(AGENT, report);
@@ -161,7 +161,7 @@ module research_protocol::access_delegation_tests {
             let report = ts::take_from_address<ResearchReport>(&sc, AGENT);
             let ctx = ts::ctx(&mut sc);
             // Buyer is a private-delegation party -> approve succeeds.
-            let id = object::id_to_bytes(&object::id(&report));
+            let id = report::seal_id(&report);
             access::seal_approve_private_result(id, &report, &job, ctx);
             ts::return_shared(job);
             ts::return_to_address(AGENT, report);
@@ -183,7 +183,7 @@ module research_protocol::access_delegation_tests {
             let report = ts::take_from_address<ResearchReport>(&sc, AGENT);
             let ctx = ts::ctx(&mut sc);
             // After open_dispute the arbitrator can decrypt -> approve succeeds.
-            let id = object::id_to_bytes(&object::id(&report));
+            let id = report::seal_id(&report);
             access::seal_approve_private_result(id, &report, &job, ctx);
             ts::return_shared(job);
             ts::return_to_address(AGENT, report);
@@ -239,7 +239,7 @@ module research_protocol::access_delegation_tests {
             let job = ts::take_shared<DelegationJob>(&sc);
             let report = ts::take_from_address<ResearchReport>(&sc, AGENT);
             let ctx = ts::ctx(&mut sc);
-            let id = object::id_to_bytes(&object::id(&report));
+            let id = report::seal_id(&report);
             access::seal_approve_private_result(id, &report, &job, ctx);
             ts::return_shared(job);
             ts::return_to_address(AGENT, report);

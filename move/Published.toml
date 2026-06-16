@@ -2,23 +2,29 @@
 # This file contains metadata about published versions of this package in different environments
 # This file SHOULD be committed to source control
 
-# Historical packages (do not reuse — M3-0 published a fresh package below):
+# Historical packages (do not reuse):
 #   v0.1 event-notarization: 0x03d2e61b22a98c3eabb49ccb0fe4e6252fee9f5076cec3b5e513a45b0c57a245
 #   v2   economic-safety:    0x1c8ecc61ae13c03d8d0f7427e12abf39f286aac3235732f02928352be770b592
-#        upgrade-cap:        0x06eb8f841f64c85bd2fc6ec23eedf91746fcfd257910e1b3ea5490929a1143c9
+#   M3-0 id=object-id:       0x97ea53589f599affc946b747ca71e1918cfadc10ca1313d453671f033fc2c5aa
+#   M4-2 id=seal_id:         0x4b4651ec926c38c9ded5591495a2cf61a8ba6faac98c6b8f4e841872b1c72af2
+#   M4-2 + author approve:   (current) — seal_approve_report_author added, id=seal_id
 
 [published.testnet]
 chain-id = "4c78adac"
-published-at = "0x97ea53589f599affc946b747ca71e1918cfadc10ca1313d453671f033fc2c5aa"
-original-id = "0x97ea53589f599affc946b747ca71e1918cfadc10ca1313d453671f033fc2c5aa"
+published-at = "0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283"
+original-id = "0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283"
 version = 1
 toolchain-version = "1.71.1"
 build-config = { flavor = "sui", edition = "2024" }
-upgrade-capability = "0x4b2bb044bd1d55805f077c676100d285eb6808b3bd45d28676a2b50344bf63d1"
-publish-tx = "HqiH3BfB99jJGqKsxPXHi61WQTXrqdR5uuGkKASDLHbh"
+upgrade-capability = "0x14648bcba24e9a478e3450d65dd78b40fe9fe99200e54c106669d43bbe7ac3dc"
+publish-tx = "AXwVEyZGvv7S4C7P1hvYJSmAXf3MykaY1ic7Gc5NL1pa"
 
-# Shared / owned objects created by settlement::init (needed by M3 clients):
-#   SettlementConfig          = 0x91a66a2f2a88c86afc127c2c8c705d3d8eb683112eeb3eab6ac3fc3b9f905600
-#   AgentEarnings             = 0x0c990504ad6770dec3af198515ed093fc586f85469856a793282900783ce24ee
-#   MembershipReceiptRegistry = 0x7a11ede5060e509b3efce714f65f1550fae687e53c0e7e443ef469b42a3fd3fe
-#   SettlerCap (owned)        = 0xa4a4442b2a9ad063149114ca61bf5828944c9f3f9229c2f66873547374f49a9d
+# seal_approve_* assert id == report::seal_id (publisher-chosen field, NOT object id).
+# seal_approve_report_author: author-only decrypt (no pass arg). Both verified in
+# M4-2: real Seal key server 0xb0123...1e1e98 granted decryption (tx 68h3uX7c...).
+#
+# Shared / owned objects (settlement::init):
+#   SettlementConfig          = 0x544f91423d07fe8f58baf5d3b027bfb28e128f7424f197d54e06816690c5968e
+#   AgentEarnings             = 0xe1236e34459fafafd82ed3f88dcaa6c0d17addb6010a8849804d073a6f8fa9b6
+#   MembershipReceiptRegistry = 0x8683682aaaacbb6ceaf1eb45d29b04674290014cc6e2c9be9a41e5d8babca361
+#   SettlerCap (owned)        = 0xd4174fd108f0e7db3fc1c0fed671723eb3df02dd99c20a42dd5c5579736f2521
