@@ -18,7 +18,8 @@ import {
   writeJson,
   hash
 } from "./storage";
-import { publishReportDemo, submitPrivateResultDemo } from "./clients";
+import { publishReportDemo, submitPrivateResultDemo, publishReport } from "./clients";
+import type { M3Signer } from "./clients";
 import type {
   AccessReceipt,
   ActorId,
@@ -47,6 +48,9 @@ interface WorkbenchStore extends WorkbenchState {
   demoMode: boolean;
   statusText: string;
   statusError: boolean;
+  /** When set, publish/decrypt use the real Walrus+Seal+Sui path (M3).
+   *  When null (no wallet/zkLogin signer), they fall back to demo ids. */
+  signer: M3Signer | null;
 
   // selectors
   view: () => WorkbenchView;
@@ -56,6 +60,7 @@ interface WorkbenchStore extends WorkbenchState {
   reload: () => void;
   setActor: (id: ActorId) => void;
   setStatus: (text: string, isError?: boolean) => void;
+  setSigner: (signer: M3Signer | null) => void;
 
   publish: (input: {
     title: string;
@@ -99,6 +104,7 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
   demoMode: isDemoMode(),
   statusText: "",
   statusError: false,
+  signer: null,
 
   view: () => {
     const s = get();
@@ -133,13 +139,14 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
 
   setStatus: (text, isError = false) => set({ statusText: text, statusError: isError }),
 
-  publish: ({ title, visibility, tier, preview, plaintext }) => {
+  setSigner: (signer) => set({ signer }),
+
+  publish: async ({ title, visibility, tier, preview, plaintext }) => {
     const session = get().session;
     if (!session?.address) {
       get().setStatus("Sign in before publishing.", true);
       return;
     }
-    // need selected repo from github binding
     const gh = get().github;
     const selectedRepo = gh?.selected_repo;
     if (!selectedRepo) {
@@ -150,22 +157,53 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       get().setStatus("Report title is required.", true);
       return;
     }
-    const { report, plaintext: stored } = publishReportDemo({
-      title,
-      visibility,
-      requiredTier: tier,
-      freePreview: preview,
-      plaintext,
-      agent: session.address,
-      sourceRepo: selectedRepo
-    });
+    const signer = get().signer;
+    // Real M3 path when a signer is wired; otherwise demo (synthetic ids).
+    let report: ResearchReport;
+    let stored = "";
+    try {
+      if (signer) {
+        get().setStatus("Publishing on-chain (Walrus + Sui)...");
+        const result = await publishReport(
+          {
+            title,
+            visibility,
+            requiredTier: tier,
+            freePreview: preview,
+            plaintext,
+            agent: session.address,
+            sourceRepo: selectedRepo
+          },
+          signer
+        );
+        report = result.report;
+        stored = result.plaintext;
+      } else {
+        const demo = publishReportDemo({
+          title,
+          visibility,
+          requiredTier: tier,
+          freePreview: preview,
+          plaintext,
+          agent: session.address,
+          sourceRepo: selectedRepo
+        });
+        report = demo.report;
+        stored = demo.plaintext;
+      }
+    } catch (err) {
+      get().setStatus("Publish failed: " + String((err as Error)?.message || err), true);
+      return;
+    }
     const next = readWorkbench();
     next.reports.push(report);
     if (visibility !== "public") next.plaintexts[report.id] = stored;
     next.selected_report_id = report.id;
     saveWorkbench(next);
     get().reload();
-    get().setStatus("Published " + visibility + " report from " + selectedRepo + ".");
+    get().setStatus(
+      (signer ? "Published on-chain " : "Published (demo) ") + visibility + " report from " + selectedRepo + "."
+    );
   },
 
   buyMembership: () => {

@@ -1,82 +1,39 @@
-# Web App Plan
+# Research Network — Web (M2 + M3)
 
-前端建议使用 Next.js 或 Vite。若使用 Next.js，需要支持 static export，以便通过 Walrus Sites 发布。
+React 18 + Vite 8 + TypeScript frontend, an npm workspace of the root package.
 
-## Routes
+## Scripts (run from repo root)
 
-- `/`
-- `/search`
-- `/abs/[assetId]`
-- `/skill/[skillId]`
-- `/workflow/[workflowId]`
-- `/agent/[agentId]`
-- `/graph/[assetId]`
-- `/publish`
-- `/dashboard`
-- `/membership`
-- `/delegations`
-- `/token`
-- `/governance`
+- `npm run web:dev` — Vite dev server (HMR) on :5173, proxies `/api` + `/auth` + `/zklogin-browser.js` to the production host.
+- `npm run web:vite:build` — build to `../.vercel-shell/` (co-exists with `vercel:shell` auth assets).
+- `npm run web:build` — the legacy full static site generator (content pages), unrelated to this app.
 
-## Components
+## Architecture
 
-- AssetHeader
-- VerificationPanel
-- WalrusSnapshotCard
-- SuiObjectCard
-- SkillInstallCard
-- ForkResearchButton
-- CitationBox
-- ResearchGraph
-- MembershipPanel
-- AgentSubscriptionPanel
-- DelegationJobPanel
-- ReportAccessPanel
-- zkLoginButton
-- GitHubRepoSelector
-- PublishStepper
+Multi-page Vite build (not SPA): `login.html`, `account.html`, `workbench.html` are three
+entry points. Vite output lands in `.vercel-shell/` which Vercel serves as static
+root; `auth/*` + `zklogin-browser.js` are emitted separately by `buildVercelAuthShell`.
 
-## Local static site implementation
+`vercel.json` buildCommand = `npm run vercel:shell && npm run web:vite:build`.
 
-The current static site generator is `src/core/web.ts`.
+## M3 client layer (`src/lib/`)
 
-```bash
-npx tsx src/cli.ts publish ./workspace
-npx tsx src/cli.ts web:build
-```
+- `config.ts` — on-chain + storage config (packageId, shared object ids, Walrus/Seal endpoints).
+  Override at runtime via `window.__RN_M3_CONFIG__`.
+- `sui-client.ts` — `SuiJsonRpcClient` singleton + PTB builders (`buildPublishPublicReport`,
+  `buildPublishEncryptedReport`, `buildSealApprove`).
+- `walrus.ts` — `uploadBlob` / `readBlob` via `@mysten/walrus`.
+- `seal-client.ts` — `sealEncrypt` / `sealDecrypt` via `@mysten/seal` (SessionKey + PTB).
+- `clients.ts` — orchestrates publish (Walrus upload → Seal encrypt → Sui publish) and decrypt
+  (Walrus read → Seal decrypt). Falls back to demo hash-ids when no signer is wired.
+- `store.ts` — Zustand store. `setSigner()` switches publish/decrypt to the real M3 path.
 
-Output:
+## Before M3 publish/decrypt works end-to-end
 
-```text
-web/dist/
-├── index.html
-├── search.html
-├── dashboard.html
-├── membership.html
-├── delegations.html
-├── abs/<asset-id>.html
-├── skill/<skill-id>.html
-└── graph/<asset-id>.html
-```
-
-Pages render the verifiable fields required by the protocol plan: content hash, Walrus blob id, Sui object id, repo commit, manifest hash, Seal access status, report visibility, membership/subscription receipts, and private delegation state.
-
-If this is later migrated to Next.js or Vite, `web:build` should continue producing static output for Walrus Sites.
-
-## Testnet Site
-
-The generated static site has been published to Walrus Sites testnet:
-
-- Site object: `0x2cd9764af24dde6e202bf8454ca11f312e0b21312867422fd685955f39a7f12a`
-- Portal base36 host: `148p7vy4nrikdcc8rgk5fqot9lvy9m7y37ut3hp1ksp94zsvfu`
-- Browse URL (with portal on port **3010**): `http://148p7vy4nrikdcc8rgk5fqot9lvy9m7y37ut3hp1ksp94zsvfu.localhost:3010/`
-
-Start the official testnet portal locally:
-
-```bash
-npm run web:portal
-```
-
-> **Note:** Port 3000 on this machine may be used by another app (not Walrus Portal). Use **3010** or stop the conflicting process before using `:3000`.
-
-Walrus testnet sites require a self-hosted portal; `wal.app` only serves mainnet sites.
+1. **Seal key servers**: fill real object ids + `aggregatorUrl` in `config.ts`
+   `sealKeyServers` (currently placeholders). Get them from the Seal testnet config.
+2. **Signer wiring**: `LoginPage` must call `useWorkbench.getState().setSigner(...)` with a
+   real `M3Signer` (zkLogin ephemeral keypair + `signAndExecuteTransaction` + `signPersonalMessage`).
+   Currently `signer` is null → publish uses demo ids.
+3. **id = report object id**: the M3-0 decision. `seal_approve_*` asserts
+   `id == object::id_to_bytes(&report)`. This is implemented in `seal-client.ts`.
