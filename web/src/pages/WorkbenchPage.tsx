@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useWorkbench } from "../lib/store";
 import { accessDecision } from "../lib/storage";
 import {
@@ -9,7 +9,29 @@ import {
   selectedRepo
 } from "../lib/github-scope";
 import { ACTORS } from "../lib/store";
+import { buildZkLoginSigner } from "../lib/signer";
 import type { ActorId, GithubBinding, ResearchReport } from "../lib/types";
+
+/** On mount, try to build a real zkLogin signer from the tab session. If the
+ *  ephemeral key + ZK session are present (same-tab Google flow), publish uses
+ *  the real Walrus+Seal+Sui path; otherwise it falls back to demo ids. */
+function useSignerBootstrap() {
+  const setSigner = useWorkbench((s) => s.setSigner);
+  const session = useWorkbench((s) => s.session);
+  useEffect(() => {
+    let cancelled = false;
+    if (!session?.address) {
+      setSigner(null);
+      return;
+    }
+    buildZkLoginSigner().then((signer) => {
+      if (!cancelled) setSigner(signer);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.address, setSigner]);
+}
 
 function StatusBanner() {
   const text = useWorkbench((s) => s.statusText);
@@ -412,9 +434,20 @@ function ReceiptsPanel() {
 }
 
 export function WorkbenchPage() {
+  useSignerBootstrap();
+  const hasSigner = useWorkbench((s) => Boolean(s.signer));
   return (
     <>
       <StatusBanner />
+      {hasSigner ? (
+        <p className="notice success" data-testid="m3-active">
+          On-chain mode: publish/decrypt use real Walrus + Seal + Sui.
+        </p>
+      ) : (
+        <p className="notice muted" data-testid="m3-demo">
+          Demo mode: re-run Google sign-in in this tab to enable on-chain publish.
+        </p>
+      )}
       <IdentityPanel />
       <RepoScopePanel />
       <PublishPanel />

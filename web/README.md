@@ -28,12 +28,22 @@ root; `auth/*` + `zklogin-browser.js` are emitted separately by `buildVercelAuth
   (Walrus read → Seal decrypt). Falls back to demo hash-ids when no signer is wired.
 - `store.ts` — Zustand store. `setSigner()` switches publish/decrypt to the real M3 path.
 
-## Before M3 publish/decrypt works end-to-end
+## M3 e2e status
 
-1. **Seal key servers**: fill real object ids + `aggregatorUrl` in `config.ts`
-   `sealKeyServers` (currently placeholders). Get them from the Seal testnet config.
-2. **Signer wiring**: `LoginPage` must call `useWorkbench.getState().setSigner(...)` with a
-   real `M3Signer` (zkLogin ephemeral keypair + `signAndExecuteTransaction` + `signPersonalMessage`).
-   Currently `signer` is null → publish uses demo ids.
-3. **id = report object id**: the M3-0 decision. `seal_approve_*` asserts
-   `id == object::id_to_bytes(&report)`. This is implemented in `seal-client.ts`.
+All three pieces are wired:
+
+1. **Seal key server**: real testnet decentralized key-server object id
+   `0xb0123...1e1e98` (committee mode, threshold 1) in `config.ts`.
+2. **Signer**: `WorkbenchPage` calls `buildZkLoginSigner()` on mount; if the tab
+   has the ephemeral key (`sessionStorage.rn_zk_eph`) + ZK session (from the
+   same-tab Google flow), `publish()` uses the real Walrus+Seal+Sui path.
+   Otherwise it shows "demo mode" and falls back to synthetic hash ids.
+3. **id = report object id**: M3-0 decision, implemented in `seal-client.ts`.
+
+### Remaining for a true live publish/decrypt
+- The server-side prover endpoint (`/api/zklogin-prove` or `RN_AUTH_CONFIG.proverPath`)
+  must return a composite zkLogin signature. The current signer assembles it but the
+  prover response shape (`composite_signature`) is assumed — verify against the real
+  prover. If absent, publish stays in demo mode (graceful fallback).
+- A single live publish+decrypt round-trip should be exercised on testnet to confirm
+  the full chain (this is M4 e2e).

@@ -32,11 +32,15 @@ export const DEFAULT_M3_CONFIG: M3Config = {
   walrusPublisherUrl: "https://publisher.walrus-testnet.walrus.space",
   walrusAggregatorUrl: "https://aggregator.walrus-testnet.walrus.space",
   walrusEpochs: 5,
-  // Official Seal testnet key servers (object id + weight). Fill real object ids
-  // from the Seal testnet config before M3 decrypt is exercised end-to-end.
+  // Seal testnet decentralized key server (committee mode). The single object id
+  // references an on-chain KeyServer object whose URL is the aggregator for the
+  // whole committee; SealClient fetches per-member keys through it.
+  // Source: MystenLabs/seal examples/frontend/src/utils.ts (DEVNET/TESTNET).
   sealKeyServers: [
-    { objectId: "0xaeab97f96cf9877fee2883315d859c8417917c1de2ce95c83f4eb53eedcd75b0", weight: 1 },
-    { objectId: "0xb2f89646c8c9e4b7a3d5e8f1c6a9d2e7b4f8a1c3d5e7b9f2a4c6d8e1b3f5a7c9", weight: 1 }
+    {
+      objectId: "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98",
+      weight: 1
+    }
   ],
   sealThreshold: 1
 };

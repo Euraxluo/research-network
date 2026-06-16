@@ -11,8 +11,7 @@
 // object doesn't exist yet, so publish does a dry-run to reserve the object id,
 // encrypts under that id, then publishes for real.
 
-import { SealClient } from "@mysten/seal";
-import { SessionKey } from "@mysten/seal";
+import { SealClient, SessionKey, EncryptedObject } from "@mysten/seal";
 import { loadM3Config } from "./config";
 import { getSuiClient, buildSealApprove } from "./sui-client";
 
@@ -52,9 +51,12 @@ export async function sealEncrypt(plaintext: Uint8Array, idHex: string): Promise
   return { ciphertext: encryptedObject, symmetricKey: key };
 }
 
-/** Decrypt a Seal ciphertext. Creates a SessionKey (signed by the caller),
- *  builds the seal_approve PTB, and asks the committee for key shares.
- *  Returns null if access is denied (shares < threshold). */
+/** Decrypt a Seal ciphertext. Follows the official two-step pattern from
+ *  MystenLabs/seal examples/frontend/src/utils.ts:
+ *   1. fetchKeys — asks the key-server committee to run seal_approve and cache shares.
+ *   2. decrypt  — local AES-GCM decryption using the cached derived key.
+ *  Both steps use the same txBytes (the seal_approve PTB, built with
+ *  onlyTransactionKind:true so the key server doesn't need gas/sender). */
 export async function sealDecrypt(args: {
   ciphertext: Uint8Array;
   reportObjectId: string;
@@ -68,6 +70,11 @@ export async function sealDecrypt(args: {
   const client = getSealClient();
   const suiClient = getSuiClient();
 
+  // The Seal identity is embedded in the encrypted object by sealEncrypt.
+  // We read it so the PTB passes the same id that was used at encryption time.
+  const encryptedObject = EncryptedObject.parse(args.ciphertext);
+  const sealIdHex = encryptedObject.id;
+
   // SessionKey authorizes an ephemeral decryption session for this package.
   const sessionKey = await SessionKey.create({
     address: args.signerAddress,
@@ -75,10 +82,11 @@ export async function sealDecrypt(args: {
     ttlMin: 10,
     suiClient
   });
-  // Sign the session personal message with the user's zkLogin key.
   await sessionKey.setPersonalMessageSignature(await args.signPersonalMessage(sessionKey.getPersonalMessage()));
 
-  // id = report object id bytes; the policy asserts id == report.id.to_bytes().
+  // Build the seal_approve PTB. id = report object id bytes (M3-0 decision).
+  // The policy asserts id == report.id.to_bytes(), so reportObjectId must match
+  // the id used at encrypt time (which we derived from the publish dry-run).
   const idBytes = objectIdToBytes(args.reportObjectId);
   const tx = buildSealApprove({
     packageId: config.packageId,
@@ -88,10 +96,18 @@ export async function sealDecrypt(args: {
     passObjectId: args.passObjectId,
     delegationJobId: args.delegationJobId
   });
-  tx.setSender(args.signerAddress);
-  const txBytes = await tx.build({ client: suiClient });
+  // Key servers only need the transaction kind, not a sender/gas budget.
+  const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
 
   try {
+    // Step 1: fetch + cache the derived key shares from the committee.
+    await client.fetchKeys({
+      ids: [sealIdHex],
+      txBytes,
+      sessionKey,
+      threshold: config.sealThreshold
+    });
+    // Step 2: local decryption with the cached key.
     const plaintext = await client.decrypt({
       data: args.ciphertext,
       txBytes,
