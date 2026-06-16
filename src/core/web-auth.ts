@@ -2,9 +2,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
-import { emptyIndexState } from "./local-store.js";
-import { STYLES_CSS, renderAccountPage } from "./web.js";
-import { renderWorkbenchBody, WORKBENCH_JS } from "./web-workbench.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ZKLOGIN_ENTRY = path.resolve(HERE, "..", "web-auth", "zklogin-entry.ts");
@@ -83,7 +80,12 @@ function cspMetaTag(config: AuthSiteConfig): string {
 /** Generate the static login surface into the site: a browser-bundled zkLogin lib, an injected
  *  public config, and the login + callback pages. All client-side — works on a static host;
  *  the salt service and GitHub code exchange are the only server dependencies. */
-export async function buildAuthAssets(outputDir: string, config: AuthSiteConfig): Promise<void> {
+export async function buildAuthAssets(
+  outputDir: string,
+  config: AuthSiteConfig,
+  options: { emitLoginHtml?: boolean } = {}
+): Promise<void> {
+  const emitLoginHtml = options.emitLoginHtml ?? true;
   await fs.mkdir(path.join(outputDir, "auth"), { recursive: true });
 
   await esbuild.build({
@@ -113,59 +115,39 @@ export async function buildAuthAssets(outputDir: string, config: AuthSiteConfig)
   await fs.writeFile(path.join(outputDir, "auth", "login.js"), LOGIN_JS, "utf8");
   await fs.writeFile(path.join(outputDir, "auth", "callback.js"), CALLBACK_JS, "utf8");
   await fs.writeFile(path.join(outputDir, "auth", "github-callback.js"), GITHUB_CALLBACK_JS, "utf8");
-  await fs.writeFile(path.join(outputDir, "login.html"), loginHtml(csp), "utf8");
+  // In the Vercel shell path, login.html / account.html / workbench.html are
+  // produced by the Vite build (web/src/entries/*), so we skip the legacy
+  // string-templated login.html there to avoid clobbering it.
+  if (emitLoginHtml) {
+    await fs.writeFile(path.join(outputDir, "login.html"), loginHtml(csp), "utf8");
+  }
   await fs.writeFile(path.join(outputDir, "auth", "callback.html"), callbackHtml(csp), "utf8");
   await fs.writeFile(path.join(outputDir, "auth", "github-callback.html"), githubCallbackHtml(csp), "utf8");
 }
 
-/** Build the Vercel-only login shell. Content pages intentionally stay absent so Vercel's
- *  catch-all rewrite proxies them to the current Walrus Site, while auth/account files are served
- *  directly by Vercel and can be updated with a single `vercel deploy`. */
+/** Build the Vercel-only auth shell. Content pages (index/dashboard/abs/*) intentionally
+ *  stay absent so Vercel's catch-all rewrite proxies them to the current Walrus Site.
+ *  The three interactive pages (login/account/workbench) + styles.css + workbench.js +
+ *  assets/ are produced by the Vite build (web/), which runs AFTER this in the Vercel
+ *  buildCommand. auth/* + zklogin-browser.js + health.txt are owned here and emitted
+ *  with emitLoginHtml:false so the legacy string login.html does not clobber Vite's. */
 export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteConfig | null): Promise<string> {
   const authConfig = config ?? await loadAuthSiteConfig();
   if (!authConfig) {
     throw new Error("Vercel auth shell requires GOOGLE_CLIENT_ID or GitHub auth env/secrets");
   }
-  await fs.rm(outputDir, { recursive: true, force: true });
+  // The shell dir is co-owned by this function (auth/* + zklogin-browser.js +
+  // health.txt) and the Vite build (login.html / account.html / workbench.html /
+  // workbench.js / styles.css + assets/). Wiping the whole dir would delete the
+  // Vite output when both run in sequence, so we only remove known auth-owned
+  // files and leave everything else intact. emptyOutDir:false on the Vite side
+  // completes the handshake (Vite never wipes auth assets either).
   await fs.mkdir(outputDir, { recursive: true });
+  await fs.rm(path.join(outputDir, "auth"), { recursive: true, force: true });
+  await fs.rm(path.join(outputDir, "zklogin-browser.js"), { force: true });
   await fs.writeFile(path.join(outputDir, "health.txt"), "ok\n", "utf8");
-  await buildAuthAssets(outputDir, authConfig);
-  await fs.writeFile(path.join(outputDir, "styles.css"), STYLES_CSS, "utf8");
-  await fs.writeFile(path.join(outputDir, "workbench.js"), WORKBENCH_JS, "utf8");
-  await fs.writeFile(path.join(outputDir, "account.html"), renderAccountPage([]), "utf8");
-  await fs.writeFile(path.join(outputDir, "workbench.html"), workbenchHtml(workbenchCspMetaTag()), "utf8");
+  await buildAuthAssets(outputDir, authConfig, { emitLoginHtml: false });
   return outputDir;
-}
-
-function workbenchCspMetaTag(): string {
-  return `<meta http-equiv="Content-Security-Policy" content="${[
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "connect-src 'self'",
-    "img-src 'self' data:",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'"
-  ].join("; ")}">`;
-}
-
-function workbenchHtml(csp: string): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-${csp}
-<title>Protocol Workbench · Research Network</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="/styles.css"></head>
-<body>
-  <div class="slim-strip"><div class="wrap">Git is the workspace · Walrus is the snapshot · Sui is the registry · Agents are first-class users</div></div>
-  <header class="banner"><div class="wrap banner-inner"><a class="logo" href="/">research<span class="logo-chi">&chi;</span>iv</a></div></header>
-  <div class="subnav"><div class="wrap subnav-inner">
-    <a href="/">Browse</a><a href="/dashboard.html">Dashboard</a><a href="/workbench.html">Workbench</a><a href="/membership.html">Membership</a><a href="/delegations.html">Delegations</a><a href="/account.html">Account</a><a href="/login.html">Sign in</a>
-  </div></div>
-  <div class="subject-strip"><div class="wrap"><h1>Protocol Workbench</h1></div></div>
-  <main class="wrap">${renderWorkbenchBody(emptyIndexState())}</main>
-  <footer class="footer"><div class="wrap"><p>Vercel auth shell · content is still proxied from the current Walrus Site.</p></div></footer>
-</body></html>`;
 }
 
 const AUTH_STYLE = `<style>

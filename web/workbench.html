@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.sui.io https://sui-testnet-rpc.publicnode.com; base-uri 'self'; form-action 'self' https://github.com https://accounts.google.com" />
+    <title>Protocol Workbench · Research Network</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="container" style="max-width:1080px;margin:0 auto;padding:28px 18px">
+      <h1>Protocol Workbench</h1>
+      <p class="muted">Publish reports, select GitHub org/repo scope, and verify Seal access modes from the same browser session.</p>
+      <div id="root"><p class="muted">Loading workbench...</p></div>
+    </main>
+    <script type="module" src="/src/entries/workbench.tsx"></script>
+  </body>
+</html>

@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run vercel:shell",
+  "buildCommand": "npm run vercel:shell && npm run web:vite:build",
   "outputDirectory": ".vercel-shell",
   "rewrites": [
     {

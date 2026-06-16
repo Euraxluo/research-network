@@ -512,36 +512,32 @@ describe("static web E2E", () => {
       githubBindingPath: "/api/github-binding"
     });
 
+    // The auth shell owns auth/* + zklogin-browser.js + health.txt only.
+    // login.html / account.html / workbench.html / styles.css / workbench.js /
+    // assets/ are produced by the Vite build (web/), which runs AFTER the shell
+    // step in vercel.json buildCommand. So the shell step alone must NOT emit
+    // the interactive pages (Vite owns them) and must NOT emit content pages
+    // (those stay proxied from the Walrus Site via the catch-all rewrite).
     expect(await exists(path.join(shellDir, "health.txt"))).toBe(true);
-    expect(await exists(path.join(shellDir, "login.html"))).toBe(true);
-    expect(await exists(path.join(shellDir, "account.html"))).toBe(true);
-    expect(await exists(path.join(shellDir, "workbench.html"))).toBe(true);
-    expect(await exists(path.join(shellDir, "workbench.js"))).toBe(true);
-    expect(await exists(path.join(shellDir, "styles.css"))).toBe(true);
+    expect(await exists(path.join(shellDir, "auth", "config.js"))).toBe(true);
+    expect(await exists(path.join(shellDir, "auth", "login.js"))).toBe(true);
     expect(await exists(path.join(shellDir, "auth", "callback.js"))).toBe(true);
+    expect(await exists(path.join(shellDir, "auth", "callback.html"))).toBe(true);
+    expect(await exists(path.join(shellDir, "auth", "github-callback.js"))).toBe(true);
+    expect(await exists(path.join(shellDir, "auth", "github-callback.html"))).toBe(true);
     expect(await exists(path.join(shellDir, "zklogin-browser.js"))).toBe(true);
+    // Interactive pages are emitted by the Vite build, not by this shell step.
+    expect(await exists(path.join(shellDir, "login.html"))).toBe(false);
+    // Content pages must never be shadowed — they are served from Walrus.
     expect(await exists(path.join(shellDir, "index.html"))).toBe(false);
     expect(await exists(path.join(shellDir, "dashboard.html"))).toBe(false);
+    expect(await exists(path.join(shellDir, "search.html"))).toBe(false);
 
-    const accountHtml = await fs.readFile(path.join(shellDir, "account.html"), "utf8");
-    expect(accountHtml).toContain('fetch("/site-data.json"');
-    expect(accountHtml).toContain("Sign in with Google");
-    expect(accountHtml).toContain("rn-account-repo-select");
-    expect(accountHtml).toContain("selected_repo");
-    expect(accountHtml).toContain("selected_installation_ids");
-    expect(accountHtml).toContain("organization_scopes");
-    expect(accountHtml).toContain("repo-account-scope");
-    expect(accountHtml).toContain("Add GitHub account/org access");
-    expect(accountHtml).toContain("Not authorized yet");
-    expect(accountHtml).toContain("binding_attestation");
-    expect(accountHtml).toContain("server-attested");
-    expect(accountHtml).toContain("Refresh GitHub repos");
-    expect(accountHtml).not.toContain("Grant more repo access on GitHub");
-
-    const workbenchHtml = await fs.readFile(path.join(shellDir, "workbench.html"), "utf8");
-    expect(workbenchHtml).toContain("Protocol Workbench");
-    expect(workbenchHtml).toContain("/workbench.js?v=");
-    expect(workbenchHtml).toContain("window.__WORKBENCH_INDEX__");
+    // The auth config injects the runtime endpoints the login page reads.
+    const configJs = await fs.readFile(path.join(shellDir, "auth", "config.js"), "utf8");
+    expect(configJs).toContain("RN_AUTH_CONFIG");
+    expect(configJs).toContain("test-client.apps.googleusercontent.com");
+    expect(configJs).toContain("Iv23test");
   });
 
   it("serves a PDF-only asset with embedded PDF and no TeX source", async () => {
