@@ -1,17 +1,16 @@
 // zkLogin transaction signer for the browser. Reconstructs the ephemeral
 // keypair from sessionStorage (written by auth/login.js during the Google
-// flow) and signs/executes transactions with a zkLogin proof.
+// flow), fetches the ZK proof from the server prover, assembles the composite
+// zkLogin signature via @mysten/sui getZkLoginSignature, and submits via
+// executeTransactionBlock.
 //
-// The proof is fetched from the server-side prover (RN_AUTH_CONFIG.proverPath
-// or the legacy /api/zklogin-prove) because browser-side proving is too slow.
-// The assembled zkLogin signature is submitted via executeTransactionBlock.
-//
-// NOTE: zkLogin transaction signing requires the full ephemeral secret + the
-// ZK proof. If the session was created in another tab, rn_zk_eph may be absent
-// (sessionStorage is per-tab); in that case the signer reports unavailable and
-// the workbench falls back to demo publish.
+// Two-step composite signature (per @mysten/sui zklogin):
+//   1. prover returns { proofPoints, ... } (the ZK proof)
+//   2. getZkLoginSignature({ inputs: proof, maxEpoch, userSignature: ephemeralSig })
+//      -> base64 composite signature string for executeTransactionBlock.
 
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { getZkLoginSignature } from "@mysten/sui/zklogin";
 import { getSuiClient } from "./sui-client";
 import type { M3Signer } from "./clients";
 import { readSession } from "./storage";
@@ -32,7 +31,7 @@ interface ZkSession {
 }
 
 /** Try to build an M3Signer from the current zkLogin session. Returns null if
- *  the ephemeral key or ZK proof ingredients aren't available (e.g. cross-tab). */
+ *  the ephemeral key or ZK session aren't available (e.g. cross-tab redirect). */
 export async function buildZkLoginSigner(): Promise<M3Signer | null> {
   const session = readSession();
   if (!session?.address) return null;
@@ -56,16 +55,12 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
   const suiClient = getSuiClient();
 
   async function signAndExecuteTransaction(txBytes: Uint8Array) {
-    // Sign the transaction digest with the ephemeral key.
-    const { signature } = await keypair.signTransaction(txBytes);
+    // 1. Sign the transaction bytes with the ephemeral key.
+    const { signature: userSignature } = await keypair.signTransaction(txBytes);
 
-    // Fetch the ZK proof from the server prover. The prover needs the
-    // ephemeral public key, maxEpoch, and the JWT randomness.
-    const w = window as unknown as { RN_AUTH_CONFIG?: { proverPath?: string } };
-    const proverPath = w.RN_AUTH_CONFIG?.proverPath || "/api/zklogin-prove";
+    // 2. Fetch the ZK proof from the server prover (URL kept server-side).
     const ephemeralPubKeyBase64 = keypair.getPublicKey().toSuiPublicKey();
-
-    const proofRes = await fetch(proverPath, {
+    const proofRes = await fetch("/api/zklogin-prove", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -77,18 +72,24 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
       })
     });
     if (!proofRes.ok) {
-      throw new Error("ZK proof request failed (HTTP " + proofRes.status + ")");
+      const err = await proofRes.text().catch(() => "");
+      throw new Error("ZK proof request failed (HTTP " + proofRes.status + "): " + err);
     }
     const proof = await proofRes.json();
+    // Prover returns the full proof inputs object ({ proofPoints, issBase64Details,
+    // headerBase64, addressSeed }). Pass it straight to getZkLoginSignature.
+    const compositeSig = getZkLoginSignature({
+      inputs: {
+        proofPoints: proof.proofPoints ?? proof.proof_points,
+        issBase64Details: proof.issBase64Details ?? proof.iss_base64_details,
+        headerBase64: proof.headerBase64 ?? proof.header_base64,
+        addressSeed: proof.addressSeed ?? proof.address_seed
+      },
+      maxEpoch: zk!.maxEpoch,
+      userSignature
+    });
 
-    // Assemble the zkLogin signature: { schema, inputs, ... } wrapper.
-    // The exact assembly depends on the @mysten/sui version; we delegate to the
-    // server-prover's response which returns a ready-to-submit composite sig.
-    const compositeSig = proof.composite_signature || proof.signature;
-    if (!compositeSig) {
-      throw new Error("Prover did not return a composite signature.");
-    }
-
+    // 3. Execute the signed transaction.
     const result = await suiClient.executeTransactionBlock({
       transactionBlock: toBase64(txBytes),
       signature: compositeSig,
@@ -108,12 +109,7 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
     return signature;
   }
 
-  return {
-    address,
-    signAndExecuteTransaction,
-    signPersonalMessage
-  };
+  return { address, signAndExecuteTransaction, signPersonalMessage };
 }
 
-// keep imports referenced
 void toBytesUtf8;
