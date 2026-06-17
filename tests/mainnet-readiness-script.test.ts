@@ -322,6 +322,117 @@ describe("mainnet readiness script", () => {
     }
   });
 
+  it("fails mainnet-final when protocol shared objects are from a different package", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
+    let stdout = "";
+    let stderr = "";
+    let mainnetExecuteReceipt: ProductionAcceptanceReceipt | null = null;
+    const wrongPackageId = "0x" + "99".repeat(32);
+    const server = http.createServer(async (request, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { id: unknown; method: string; params: unknown[] };
+      response.setHeader("content-type", "application/json");
+      if (body.method === "sui_multiGetObjects") {
+        const ids = body.params[0] as string[];
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: ids.map((id) => ({
+            data: {
+              objectId: id,
+              type: chainObjectType(id, wrongPackageId)
+            }
+          }))
+        }));
+        return;
+      }
+      if (body.method === "sui_multiGetTransactionBlocks") {
+        const digests = body.params[0] as string[];
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: digests.map((digest) => chainTransactionBlock(digest, mainnetExecuteReceipt))
+        }));
+        return;
+      }
+      if (body.method === "sui_getObject") {
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: walrusSiteObject()
+        }));
+        return;
+      }
+      if (body.method === "suix_getDynamicFieldObject") {
+        const field = body.params[1] as { value?: { path?: string } };
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: walrusSiteResourceObject(field.value?.path ?? "/index.html")
+        }));
+        return;
+      }
+      response.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, error: { message: "unexpected method" } }));
+    });
+    try {
+      const rpcUrl = await listen(server);
+      const env = readinessEnv({
+        RN_SUI_RPC_URL: rpcUrl,
+        VITE_RN_SUI_RPC_URL: rpcUrl,
+        WALRUS_SUI_RPC_URL: rpcUrl,
+        AUTH_SUI_RPC_URL: rpcUrl
+      });
+      const testnetPreflightPath = path.join(dir, "testnet-preflight.json");
+      const testnetExecutePath = path.join(dir, "testnet-execute.json");
+      const mainnetPreflightPath = path.join(dir, "mainnet-preflight.json");
+      const mainnetExecutePath = path.join(dir, "mainnet-execute.json");
+      await fs.writeFile(testnetPreflightPath, JSON.stringify(makePreflightReceipt(), null, 2), "utf8");
+      await fs.writeFile(testnetExecutePath, JSON.stringify(makeExecuteReceipt(), null, 2), "utf8");
+      await fs.writeFile(mainnetPreflightPath, JSON.stringify(makePreflightReceipt("mainnet"), null, 2), "utf8");
+      mainnetExecuteReceipt = makeExecuteReceipt("mainnet", {
+        config: {
+          ...mainnetConfig(),
+          suiRpcUrl: rpcUrl
+        }
+      });
+      await fs.writeFile(mainnetExecutePath, JSON.stringify(mainnetExecuteReceipt, null, 2), "utf8");
+
+      try {
+        await execFileAsync("npx", [
+          "tsx",
+          "scripts/mainnet-readiness.ts",
+          "--stage", "mainnet-final",
+          "--testnet-preflight-receipt", testnetPreflightPath,
+          "--testnet-execute-receipt", testnetExecutePath,
+          "--mainnet-preflight-receipt", mainnetPreflightPath,
+          "--mainnet-execute-receipt", mainnetExecutePath,
+          "--json"
+        ], {
+          cwd: process.cwd(),
+          env
+        });
+      } catch (error) {
+        const failure = error as { stdout?: string; stderr?: string; code?: number };
+        stdout = failure.stdout ?? "";
+        stderr = failure.stderr ?? "";
+        expect(failure.code).toBe(1);
+      }
+
+      expect(stderr).toBe("");
+      const report = JSON.parse(stdout) as { ready: boolean; checks: Array<{ name: string; status: string; message: string }> };
+      expect(report.ready).toBe(false);
+      expect(report.checks.some((check) =>
+        check.name === "chain.mainnet.settlement-config.type" &&
+        check.status === "failed" &&
+        /does not match/.test(check.message)
+      )).toBe(true);
+    } finally {
+      server.close();
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails mainnet-final when the chain RPC omits a receipt transaction", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
     let stdout = "";
@@ -1151,8 +1262,7 @@ function mainnetConfig(): ProductionAcceptanceReceipt["config"] {
   };
 }
 
-function chainObjectType(objectId: string): string {
-  const packageId = MAINNET.packageId;
+function chainObjectType(objectId: string, packageId = MAINNET.packageId): string {
   if (objectId === MAINNET.settlementConfigId) return `${packageId}::settlement::SettlementConfig`;
   if (objectId === MAINNET.agentEarningsId) return `${packageId}::settlement::AgentEarnings`;
   if (objectId === MAINNET.receiptRegistryId) return `${packageId}::settlement::MembershipReceiptRegistry`;

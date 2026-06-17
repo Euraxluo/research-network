@@ -60,6 +60,13 @@ interface ReceiptTransactionEvidence {
   expectedEventTypes: string[];
 }
 
+interface ChainObjectExpectation {
+  label: string;
+  id: string;
+  expectedTypeSuffix?: string;
+  expectedPackageId?: string;
+}
+
 const REQUIRED_MAINNET_WALRUS_SITE_PATHS = [
   "/index.html",
   "/site-data.json",
@@ -491,13 +498,19 @@ async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage,
   }
   const checks: ReadinessCheck[] = [];
   const rpcUrl = env.RN_SUI_RPC_URL;
+  const packageId = env.RN_PACKAGE_ID;
   const ids = [
-    ["package", env.RN_PACKAGE_ID, undefined],
-    ["settlement-config", env.RN_SETTLEMENT_CONFIG_ID, "::settlement::SettlementConfig"],
-    ["agent-earnings", env.RN_AGENT_EARNINGS_ID, "::settlement::AgentEarnings"],
-    ["membership-receipt-registry", env.RN_MEMBERSHIP_RECEIPT_REGISTRY_ID, "::settlement::MembershipReceiptRegistry"],
-    ["seal-key-server", env.RN_SEAL_KEY_SERVER_OBJECT_ID, "::key_server::KeyServer"]
-  ].filter(([, id]) => Boolean(id)) as Array<[string, string, string | undefined]>;
+    { label: "package", id: env.RN_PACKAGE_ID },
+    { label: "settlement-config", id: env.RN_SETTLEMENT_CONFIG_ID, expectedTypeSuffix: "::settlement::SettlementConfig", expectedPackageId: packageId },
+    { label: "agent-earnings", id: env.RN_AGENT_EARNINGS_ID, expectedTypeSuffix: "::settlement::AgentEarnings", expectedPackageId: packageId },
+    {
+      label: "membership-receipt-registry",
+      id: env.RN_MEMBERSHIP_RECEIPT_REGISTRY_ID,
+      expectedTypeSuffix: "::settlement::MembershipReceiptRegistry",
+      expectedPackageId: packageId
+    },
+    { label: "seal-key-server", id: env.RN_SEAL_KEY_SERVER_OBJECT_ID, expectedTypeSuffix: "::key_server::KeyServer" }
+  ].filter((item): item is ChainObjectExpectation => Boolean(item.id));
   if (!rpcUrl) {
     return [fail("chain.mainnet.rpc", "Cannot query mainnet objects because RN_SUI_RPC_URL is missing")];
   }
@@ -515,14 +528,14 @@ async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage,
 
 async function chainObjectChecks(
   rpcUrl: string,
-  ids: Array<[string, string, string | undefined]>
+  ids: ChainObjectExpectation[]
 ): Promise<ReadinessCheck[]> {
   try {
     const responses = await suiRpc<Array<{ data?: { objectId?: string; type?: string }; error?: unknown }>>(rpcUrl, "sui_multiGetObjects", [
-      ids.map(([, id]) => id),
+      ids.map((item) => item.id),
       { showType: true, showOwner: true }
     ]);
-    return ids.flatMap(([label, id, expectedTypeSuffix], index) => {
+    return ids.flatMap(({ label, id, expectedTypeSuffix, expectedPackageId }, index) => {
       const response = responses[index];
       if (response?.data?.objectId) {
         const objectChecks: ReadinessCheck[] = [pass(`chain.mainnet.${label}`, `Mainnet ${label} object exists`, {
@@ -532,11 +545,11 @@ async function chainObjectChecks(
         if (expectedTypeSuffix) {
           objectChecks.push(checkBoolean(
             `chain.mainnet.${label}.type`,
-            typeof response.data.type === "string" && response.data.type.endsWith(expectedTypeSuffix),
+            matchesChainObjectType(response.data.type, expectedTypeSuffix, expectedPackageId),
             `Mainnet ${label} object type matches ${expectedTypeSuffix}`,
             `Mainnet ${label} object type does not match ${expectedTypeSuffix}`,
             true,
-            { objectId: response.data.objectId, type: response.data.type, expectedTypeSuffix }
+            { objectId: response.data.objectId, type: response.data.type, expectedTypeSuffix, expectedPackageId }
           ));
         }
         return objectChecks;
@@ -548,6 +561,16 @@ async function chainObjectChecks(
   } catch (error) {
     return [fail("chain.mainnet.rpc", `Mainnet object query failed: ${message(error)}`)];
   }
+}
+
+function matchesChainObjectType(
+  type: unknown,
+  expectedTypeSuffix: string,
+  expectedPackageId: string | undefined
+): boolean {
+  if (typeof type !== "string" || !type.endsWith(expectedTypeSuffix)) return false;
+  if (!expectedPackageId) return true;
+  return normalizeSuiObjectId(type.split("::", 1)[0]) === normalizeSuiObjectId(expectedPackageId);
 }
 
 async function chainWalrusSiteChecks(env: NodeJS.ProcessEnv): Promise<ReadinessCheck[]> {
@@ -727,6 +750,10 @@ function normalizeConfigValue(value: string | undefined): string | undefined {
     return trimmed.toLowerCase();
   }
   return trimmed;
+}
+
+function normalizeSuiObjectId(value: string | undefined): string | undefined {
+  return normalizeConfigValue(value);
 }
 
 main().catch((error) => {
