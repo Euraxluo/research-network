@@ -5,6 +5,7 @@ import {
   assertProductionAcceptanceSessionFresh,
   assertProductionAcceptanceCanExecute,
   calculateProductionAcceptanceBudget,
+  createProductionAcceptanceReceipt,
   defaultProductionAcceptanceReceiptPath,
   normalizeProductionAcceptanceBalanceChanges,
   normalizeProductionAcceptanceSession,
@@ -98,6 +99,26 @@ describe("production acceptance guardrails", () => {
 
     expect(budget.totalBudgetMist).toBe(103_800_000n);
     expect(budget.maxSpendMist).toBe(110_000_000n);
+  });
+
+  it("records receipt provenance when supplied by the acceptance runner", () => {
+    const config = parseProductionAcceptanceArgs([], {});
+    const budget = assertProductionAcceptanceCanExecute(config);
+    const receipt = createProductionAcceptanceReceipt(config, budget, {
+      generatedBy: "tests/production-acceptance.test.ts",
+      gitCommit: "a".repeat(40),
+      gitTreeState: "clean",
+      packageName: "@research-network/protocol-kit",
+      packageVersion: "0.1.0"
+    });
+
+    expect(receipt.provenance).toEqual({
+      generatedBy: "tests/production-acceptance.test.ts",
+      gitCommit: "a".repeat(40),
+      gitTreeState: "clean",
+      packageName: "@research-network/protocol-kit",
+      packageVersion: "0.1.0"
+    });
   });
 
   it("requires explicit mainnet object ids and service endpoints", () => {

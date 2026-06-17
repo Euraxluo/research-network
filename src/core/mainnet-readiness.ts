@@ -151,6 +151,15 @@ export function checkProductionAcceptanceReceipt(
     { startedAt: receipt.startedAt, finishedAt: receipt.finishedAt }
   ));
 
+  checks.push(checkBoolean(
+    `${baseName}.provenance`,
+    hasValidReceiptProvenance(receipt),
+    `${expectation.label} receipt provenance binds the run to a clean Git commit`,
+    `${expectation.label} receipt must include generatedBy, a 40-character gitCommit, and gitTreeState=clean`,
+    expectation.required,
+    { provenance: receipt.provenance }
+  ));
+
   if (expectation.maxReceiptAgeMs !== undefined) {
     checks.push(checkReceiptFreshness(receipt, expectation));
   }
@@ -556,6 +565,18 @@ function hasValidReceiptTiming(receipt: ProductionAcceptanceReceipt): boolean {
   const started = Date.parse(receipt.startedAt);
   const finished = Date.parse(receipt.finishedAt);
   return Number.isFinite(started) && Number.isFinite(finished) && finished >= started;
+}
+
+function hasValidReceiptProvenance(receipt: ProductionAcceptanceReceipt): boolean {
+  const provenance = receipt.provenance;
+  return Boolean(
+    provenance &&
+      typeof provenance.generatedBy === "string" &&
+      provenance.generatedBy.length > 0 &&
+      typeof provenance.gitCommit === "string" &&
+      /^[0-9a-f]{40}$/i.test(provenance.gitCommit) &&
+      provenance.gitTreeState === "clean"
+  );
 }
 
 function checkReceiptFreshness(receipt: ProductionAcceptanceReceipt, expectation: ReceiptExpectation): ReadinessCheck {

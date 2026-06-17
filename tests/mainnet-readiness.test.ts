@@ -33,6 +33,8 @@ const executeExpectation: ReceiptExpectation = {
   required: true
 };
 
+const TEST_COMMIT = "a".repeat(40);
+
 describe("mainnet readiness receipt checks", () => {
   it("does not accept missing receipts as ready evidence", () => {
     const checks = checkProductionAcceptanceReceipt(undefined, executeExpectation);
@@ -46,6 +48,25 @@ describe("mainnet readiness receipt checks", () => {
     const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
 
     expect(hasBlockingReadinessFailures(checks)).toBe(false);
+  });
+
+  it("rejects receipts without clean Git provenance", () => {
+    const missing = makeExecuteReceipt({ provenance: undefined });
+    const missingChecks = checkProductionAcceptanceReceipt(missing, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(missingChecks)).toBe(true);
+    expect(missingChecks.some((check) => check.name.endsWith(".provenance") && check.status === "failed")).toBe(true);
+
+    const dirty = makeExecuteReceipt({
+      provenance: {
+        ...receiptProvenance(),
+        gitTreeState: "dirty"
+      }
+    });
+    const dirtyChecks = checkProductionAcceptanceReceipt(dirty, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(dirtyChecks)).toBe(true);
+    expect(dirtyChecks.some((check) => check.name.endsWith(".provenance") && check.status === "failed")).toBe(true);
   });
 
   it("rejects a dry-run receipt for execute readiness", () => {
@@ -532,6 +553,7 @@ function makeExecuteReceipt(overrides: Partial<ProductionAcceptanceReceipt> = {}
     finishedAt: "2026-06-17T00:01:00.000Z",
     buyerAddress: "0x" + "aa".repeat(32),
     agentAddress: "0x" + "bb".repeat(32),
+    provenance: receiptProvenance(),
     budget: {
       committedSpendMist: "3800000",
       gasReserveMist: "50000000",
@@ -558,6 +580,7 @@ function makePreflightReceipt(overrides: Partial<ProductionAcceptanceReceipt> = 
     finishedAt: "2026-06-17T00:01:00.000Z",
     buyerAddress: "0x" + "aa".repeat(32),
     agentAddress: "0x" + "bb".repeat(32),
+    provenance: receiptProvenance(),
     budget: {
       committedSpendMist: "3800000",
       gasReserveMist: "50000000",
@@ -571,6 +594,16 @@ function makePreflightReceipt(overrides: Partial<ProductionAcceptanceReceipt> = 
     steps: preflightSteps(),
     conclusion: "passed",
     ...overrides
+  };
+}
+
+function receiptProvenance(): NonNullable<ProductionAcceptanceReceipt["provenance"]> {
+  return {
+    generatedBy: "tests/mainnet-readiness.test.ts",
+    gitCommit: TEST_COMMIT,
+    gitTreeState: "clean",
+    packageName: "@research-network/protocol-kit",
+    packageVersion: "0.1.0"
   };
 }
 

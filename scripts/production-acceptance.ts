@@ -32,7 +32,9 @@
  * `rn_zk_session`) as object keys. Keep these files under
  * `.research-network/secrets/` so git ignores them.
  */
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import { promisify } from "node:util";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { getZkLoginSignature } from "@mysten/sui/zklogin";
 import {
@@ -51,6 +53,7 @@ import {
   zkProofEvidence,
   type ProductionAcceptanceBalanceChange,
   type ProductionAcceptanceConfig,
+  type ProductionAcceptanceReceiptProvenance,
   type ProductionAcceptanceTransactionSpendEvidence,
   type ProductionAcceptanceSessionInput,
   type ProductionAcceptanceReceipt,
@@ -90,6 +93,8 @@ interface AcceptanceTransactionLedgerEntry extends ProductionAcceptanceTransacti
   txError?: string;
 }
 
+const execFileAsync = promisify(execFile);
+
 const steps: ProductionAcceptanceStep[] = [
   { name: "config.validate", status: "pending" },
   { name: "accounts.validate", status: "pending" },
@@ -115,7 +120,7 @@ async function main() {
   const config = parseProductionAcceptanceArgs(process.argv.slice(2));
   const budget = assertProductionAcceptanceCanExecute(config);
   installRuntimeConfig(config);
-  const receipt = createProductionAcceptanceReceipt(config, budget);
+  const receipt = createProductionAcceptanceReceipt(config, budget, await collectReceiptProvenance());
   receipt.config = {
     suiRpcUrl: activeConfig().suiRpcUrl,
     packageId: activeConfig().packageId,
@@ -588,6 +593,42 @@ function currentPeriod(): number {
 function required(value: string | undefined, name: string): string {
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+async function collectReceiptProvenance(): Promise<ProductionAcceptanceReceiptProvenance> {
+  const [gitCommit, gitStatus, packageInfo] = await Promise.all([
+    gitOutput(["rev-parse", "HEAD"]),
+    gitOutput(["status", "--porcelain"]),
+    readPackageInfo()
+  ]);
+  return {
+    generatedBy: "scripts/production-acceptance.ts",
+    gitCommit: gitCommit ?? "unknown",
+    gitTreeState: gitStatus === undefined ? "unknown" : gitStatus.length > 0 ? "dirty" : "clean",
+    packageName: packageInfo.name,
+    packageVersion: packageInfo.version
+  };
+}
+
+async function gitOutput(args: string[]): Promise<string | undefined> {
+  try {
+    const { stdout } = await execFileAsync("git", args, { cwd: process.cwd() });
+    return stdout.trim();
+  } catch {
+    return undefined;
+  }
+}
+
+async function readPackageInfo(): Promise<{ name?: string; version?: string }> {
+  try {
+    const raw = JSON.parse(await readFile("package.json", "utf8")) as { name?: unknown; version?: unknown };
+    return {
+      name: typeof raw.name === "string" ? raw.name : undefined,
+      version: typeof raw.version === "string" ? raw.version : undefined
+    };
+  } catch {
+    return {};
+  }
 }
 
 function reportEvidence(report: {

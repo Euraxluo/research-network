@@ -97,6 +97,14 @@ export interface ProductionAcceptanceSpendSummary {
   transactionCount: number;
 }
 
+export interface ProductionAcceptanceReceiptProvenance {
+  generatedBy: string;
+  gitCommit: string;
+  gitTreeState: "clean" | "dirty" | "unknown";
+  packageName?: string;
+  packageVersion?: string;
+}
+
 export interface ProductionAcceptanceReceipt {
   network: ProductionAcceptanceNetwork;
   execute: boolean;
@@ -105,6 +113,7 @@ export interface ProductionAcceptanceReceipt {
   finishedAt?: string;
   buyerAddress?: string;
   agentAddress?: string;
+  provenance?: ProductionAcceptanceReceiptProvenance;
   budget: {
     committedSpendMist: string;
     gasReserveMist: string;
@@ -583,13 +592,15 @@ function bytesToHex(bytes: Uint8Array): string {
 
 export function createProductionAcceptanceReceipt(
   config: ProductionAcceptanceConfig,
-  budget: ProductionAcceptanceBudget
+  budget: ProductionAcceptanceBudget,
+  provenance?: ProductionAcceptanceReceiptProvenance
 ): ProductionAcceptanceReceipt {
   return {
     network: config.network,
     execute: config.execute,
     preflight: config.preflight,
     startedAt: new Date().toISOString(),
+    provenance,
     budget: {
       committedSpendMist: String(budget.committedSpendMist),
       gasReserveMist: String(budget.gasReserveMist),
