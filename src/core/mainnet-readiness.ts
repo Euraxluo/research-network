@@ -327,6 +327,14 @@ function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: Re
     expectation.required
   ));
   checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.transaction_statuses`,
+    [...EXECUTE_DIGEST_STEPS].every((name) => stepHasSuccessfulTransactionStatus(receipt, name)) &&
+      delegationFundHasSuccessfulTransactionStatus(receipt),
+    `${expectation.label} execute records successful Sui effects status for every transaction`,
+    `${expectation.label} execute is missing successful Sui effects status evidence for one or more transactions`,
+    expectation.required
+  ));
+  checks.push(checkBoolean(
     `receipt.${expectation.label}.execute.unique_digests`,
     receiptTransactionDigestCount(receipt) === expectedReceiptTransactionCount(receipt),
     `${expectation.label} execute records a distinct digest for every Sui transaction`,
@@ -648,6 +656,26 @@ function stepSignerMatchesRole(receipt: ProductionAcceptanceReceipt, name: strin
 function delegationFundSignerMatchesBuyer(receipt: ProductionAcceptanceReceipt): boolean {
   const fundSignerAddress = receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundSignerAddress;
   return sameSuiAddress(fundSignerAddress, receipt.buyerAddress);
+}
+
+function stepHasSuccessfulTransactionStatus(receipt: ProductionAcceptanceReceipt, name: string): boolean {
+  const meta = receipt.steps.find((step) => step.name === name)?.meta;
+  return hasSuccessfulTransactionStatus(meta, "txStatus", "txError");
+}
+
+function delegationFundHasSuccessfulTransactionStatus(receipt: ProductionAcceptanceReceipt): boolean {
+  const meta = receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta;
+  return hasSuccessfulTransactionStatus(meta, "fundTxStatus", "fundTxError");
+}
+
+function hasSuccessfulTransactionStatus(
+  meta: unknown,
+  statusKey: "txStatus" | "fundTxStatus",
+  errorKey: "txError" | "fundTxError"
+): boolean {
+  if (!meta || typeof meta !== "object") return false;
+  const record = meta as Record<string, unknown>;
+  return record[statusKey] === "success" && record[errorKey] === undefined;
 }
 
 function stepHasExpectedEvents(receipt: ProductionAcceptanceReceipt, name: string): boolean {

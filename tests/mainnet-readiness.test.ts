@@ -214,6 +214,20 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".transaction_spend_metadata") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts without successful Sui effects status evidence", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "buyer.buy_platform_membership"
+          ? { ...step, meta: { ...(step.meta ?? {}), txStatus: "failure", txError: "InsufficientGas" } }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".execute.transaction_statuses") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects execute receipts missing Walrus/Seal/decrypt evidence", () => {
     const receipt = makeExecuteReceipt({
       steps: executeSteps().map((step) =>
@@ -494,7 +508,8 @@ function executeSteps(): ProductionAcceptanceStep[] {
         fundSignerAddress: "0x" + "aa".repeat(32),
         fundSuiSpentMist: "2000000",
         fundBalanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-2000000" }],
-        fundEventTypes: eventTypesFor("buyer.fund_delegation")
+        fundEventTypes: eventTypesFor("buyer.fund_delegation"),
+        fundTxStatus: "success"
       };
     }
     if (name === "agent.publish_encrypted_report" || name === "agent.publish_private_result") {
@@ -610,7 +625,8 @@ function spendMeta(name: string): Record<string, unknown> {
     signerAddress,
     suiSpentMist,
     balanceChanges: [{ owner: signerAddress, coinType: "0x2::sui::SUI", amount: `-${suiSpentMist}` }],
-    eventTypes: eventTypesFor(name)
+    eventTypes: eventTypesFor(name),
+    txStatus: "success"
   };
 }
 

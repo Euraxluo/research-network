@@ -83,6 +83,8 @@ interface AcceptanceTransactionLedgerEntry extends ProductionAcceptanceTransacti
   signerAddress: string;
   suiSpentMist: string;
   eventTypes: string[];
+  txStatus: string;
+  txError?: string;
 }
 
 const steps: ProductionAcceptanceStep[] = [
@@ -299,7 +301,9 @@ async function main() {
           fundSignerAddress: fundSpend.signerAddress,
           fundSuiSpentMist: fundSpend.suiSpentMist,
           fundBalanceChanges: fundSpend.balanceChanges,
-          fundEventTypes: fundSpend.eventTypes
+          fundEventTypes: fundSpend.eventTypes,
+          fundTxStatus: fundSpend.txStatus,
+          ...(fundSpend.txError ? { fundTxError: fundSpend.txError } : {})
         } : {})
       }
     });
@@ -441,9 +445,11 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
       if (!Array.isArray(result.balanceChanges)) {
         throw new Error(`Sui transaction ${result.digest} did not include balanceChanges`);
       }
+      const txStatus = result.effects?.status?.status ?? "unknown";
+      const txError = result.effects?.status?.error;
       const balanceChanges = normalizeProductionAcceptanceBalanceChanges(result.balanceChanges);
       const events = normalizeAcceptanceEvents(result.events);
-      recordAcceptanceTransaction(label, address, result.digest, balanceChanges, events.map((event) => event.type));
+      recordAcceptanceTransaction(label, address, result.digest, balanceChanges, events.map((event) => event.type), txStatus, txError);
       const createdObjects: Array<{ objectId: string; objectType?: string }> = [];
       const createdObjectIds: string[] = [];
       for (const change of result.objectChanges || []) {
@@ -455,8 +461,8 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
       }
       return {
         digest: result.digest,
-        status: result.effects?.status?.status ?? "unknown",
-        error: result.effects?.status?.error,
+        status: txStatus,
+        error: txError,
         createdObjectIds,
         createdObjects,
         balanceChanges,
@@ -475,7 +481,9 @@ function recordAcceptanceTransaction(
   signerAddress: string,
   digest: string,
   balanceChanges: ProductionAcceptanceBalanceChange[],
-  eventTypes: string[]
+  eventTypes: string[],
+  txStatus: string,
+  txError?: string
 ) {
   transactionLedger.set(digest, {
     digest,
@@ -483,7 +491,9 @@ function recordAcceptanceTransaction(
     signerAddress,
     balanceChanges,
     suiSpentMist: String(productionAcceptanceSuiSpentMist(balanceChanges, signerAddress)),
-    eventTypes
+    eventTypes,
+    txStatus,
+    ...(txError ? { txError } : {})
   });
 }
 
@@ -495,7 +505,9 @@ function transactionSpendMeta(digest: string): Record<string, unknown> {
     signerAddress: entry.signerAddress,
     suiSpentMist: entry.suiSpentMist,
     balanceChanges: entry.balanceChanges,
-    eventTypes: entry.eventTypes
+    eventTypes: entry.eventTypes,
+    txStatus: entry.txStatus,
+    ...(entry.txError ? { txError: entry.txError } : {})
   };
 }
 
