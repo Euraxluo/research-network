@@ -94,16 +94,29 @@ function nowIso(): string {
 
 function createdObjectId(
   result: { digest: string; createdObjectIds: string[]; createdObjects?: Array<{ objectId: string; objectType?: string }> },
-  typeHint: string
+  typeHint: string,
+  packageId: string
 ): string {
-  const typed = result.createdObjects?.find((obj) => moveStructName(obj.objectType) === typeHint)?.objectId;
+  const typed = result.createdObjects?.find((obj) =>
+    moveStructName(obj.objectType) === typeHint &&
+    movePackageId(obj.objectType) === normalizePackageId(packageId)
+  )?.objectId;
   if (typed) return typed;
-  throw new Error(`Sui transaction succeeded but did not return a typed ${typeHint} object`);
+  throw new Error(`Sui transaction succeeded but did not return a typed ${typeHint} object from configured package ${packageId}`);
 }
 
 function moveStructName(type: string | undefined): string | undefined {
   if (!type) return undefined;
   return type.split("<", 1)[0]?.split("::").pop();
+}
+
+function movePackageId(type: string | undefined): string | undefined {
+  if (!type) return undefined;
+  return normalizePackageId(type.split("::", 1)[0]);
+}
+
+function normalizePackageId(packageId: string | undefined): string | undefined {
+  return packageId?.trim().toLowerCase();
 }
 
 function assertSuiTransactionSuccess(result: { digest: string; status: string; error?: string }): void {
@@ -247,7 +260,7 @@ export async function publishReport(
     const txBytes = await tx.build({ client: suiClient });
     const result = await signer.signAndExecuteTransaction(txBytes);
     assertSuiTransactionSuccess(result);
-    const reportObjectId = createdObjectId(result, "ResearchReport");
+    const reportObjectId = createdObjectId(result, "ResearchReport", config.packageId);
     return {
       report: {
         id: reportObjectId,
@@ -299,7 +312,7 @@ export async function publishReport(
   const txBytes = await tx.build({ client: suiClient });
   const result = await signer.signAndExecuteTransaction(txBytes);
   assertSuiTransactionSuccess(result);
-  const reportObjectId = createdObjectId(result, "ResearchReport");
+  const reportObjectId = createdObjectId(result, "ResearchReport", config.packageId);
 
   return {
     report: {
@@ -342,7 +355,7 @@ export async function buyPlatformMembershipOnChain(input: {
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
   assertSuiTransactionSuccess(result);
-  return { digest: result.digest, objectId: createdObjectId(result, "PlatformMembershipPass") };
+  return { digest: result.digest, objectId: createdObjectId(result, "PlatformMembershipPass", config.packageId) };
 }
 
 export async function buyAgentSubscriptionOnChain(input: {
@@ -366,7 +379,7 @@ export async function buyAgentSubscriptionOnChain(input: {
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
   assertSuiTransactionSuccess(result);
-  return { digest: result.digest, objectId: createdObjectId(result, "AgentSubscriptionPass") };
+  return { digest: result.digest, objectId: createdObjectId(result, "AgentSubscriptionPass", config.packageId) };
 }
 
 export async function createDelegationJobOnChain(input: {
@@ -390,7 +403,7 @@ export async function createDelegationJobOnChain(input: {
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
   assertSuiTransactionSuccess(result);
-  return { digest: result.digest, objectId: createdObjectId(result, "DelegationJob") };
+  return { digest: result.digest, objectId: createdObjectId(result, "DelegationJob", config.packageId) };
 }
 
 export async function acceptDelegationJobOnChain(input: { signer: M3Signer; jobObjectId: string }): Promise<string> {
@@ -483,7 +496,7 @@ export async function publishPrivateResultOnChain(input: {
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
   assertSuiTransactionSuccess(result);
-  const reportObjectId = createdObjectId(result, "ResearchReport");
+  const reportObjectId = createdObjectId(result, "ResearchReport", config.packageId);
   return {
     report: {
       id: reportObjectId,
@@ -527,7 +540,7 @@ export async function recordPlatformAccessReceiptOnChain(input: {
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
   assertSuiTransactionSuccess(result);
-  return { digest: result.digest, objectId: createdObjectId(result, "AccessReceipt") };
+  return { digest: result.digest, objectId: createdObjectId(result, "AccessReceipt", config.packageId) };
 }
 
 export async function settleMembershipReportOnChain(input: {

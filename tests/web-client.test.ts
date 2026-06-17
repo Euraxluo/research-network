@@ -363,6 +363,31 @@ describe("web M3/M4 client publish path", () => {
     await expect(buyPlatformMembershipOnChain({ signer })).rejects.toThrow("typed PlatformMembershipPass");
   });
 
+  it("rejects typed created objects from a package other than the configured protocol package", async () => {
+    const clientModulePath = "../web/src/lib/clients.ts";
+    const { buyPlatformMembershipOnChain } = await import(clientModulePath);
+    mocks.buildBuyPlatformMembership.mockImplementation(() => ({
+      setSender: vi.fn(),
+      build: vi.fn(async () => new Uint8Array([1, 2, 3]))
+    }));
+    const signer = {
+      address: "0x" + "cd".repeat(32),
+      signAndExecuteTransaction: vi.fn(async () => ({
+        digest: "tx-wrong-package-object-type",
+        status: "success",
+        createdObjectIds: ["0x" + "01".repeat(32)],
+        createdObjects: [
+          { objectId: "0x" + "01".repeat(32), objectType: "0xother::access::PlatformMembershipPass" }
+        ]
+      })),
+      signPersonalMessage: vi.fn()
+    };
+
+    await expect(buyPlatformMembershipOnChain({ signer })).rejects.toThrow(
+      /typed PlatformMembershipPass object from configured package 0xpackage/
+    );
+  });
+
   it("rejects commerce object ids that are not backed by typed object changes", async () => {
     const clientModulePath = "../web/src/lib/clients.ts";
     const { buyPlatformMembershipOnChain } = await import(clientModulePath);
