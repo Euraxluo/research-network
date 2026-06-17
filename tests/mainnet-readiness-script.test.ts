@@ -222,6 +222,58 @@ describe("mainnet readiness script", () => {
     }
   });
 
+  it("fails when testnet receipts agree with each other but not with the expected current testnet version", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
+    let stdout = "";
+    let stderr = "";
+    try {
+      const preflightPath = path.join(dir, "testnet-preflight.json");
+      const executePath = path.join(dir, "testnet-execute.json");
+      const wrongConfig = {
+        ...testnetConfig(),
+        packageId: "0x" + "98".repeat(32)
+      };
+      await fs.writeFile(preflightPath, JSON.stringify(makePreflightReceipt("testnet", {
+        config: wrongConfig
+      }), null, 2), "utf8");
+      await fs.writeFile(executePath, JSON.stringify(makeExecuteReceipt("testnet", {
+        config: wrongConfig,
+        steps: executeSteps(wrongConfig.packageId ?? "")
+      }), null, 2), "utf8");
+
+      try {
+        await execFileAsync("npx", [
+          "tsx",
+          "scripts/mainnet-readiness.ts",
+          "--stage", "mainnet-config",
+          "--testnet-preflight-receipt", preflightPath,
+          "--testnet-execute-receipt", executePath,
+          "--skip-chain",
+          "--json"
+        ], {
+          cwd: process.cwd(),
+          env: readinessEnv()
+        });
+      } catch (error) {
+        const failure = error as { stdout?: string; stderr?: string; code?: number };
+        stdout = failure.stdout ?? "";
+        stderr = failure.stderr ?? "";
+        expect(failure.code).toBe(1);
+      }
+
+      expect(stderr).toBe("");
+      const report = JSON.parse(stdout) as { ready: boolean; checks: Array<{ name: string; status: string; message: string }> };
+      expect(report.ready).toBe(false);
+      expect(report.checks.some((check) =>
+        check.name === "receipt.testnet-execute.expected_testnet.package_id" &&
+        check.status === "failed" &&
+        /expected current testnet version/.test(check.message)
+      )).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails when acceptance and Web mainnet economic parameters diverge", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
     let stdout = "";
@@ -1546,7 +1598,10 @@ function readinessEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   };
 }
 
-function makePreflightReceipt(network: "testnet" | "mainnet" = "testnet"): ProductionAcceptanceReceipt {
+function makePreflightReceipt(
+  network: "testnet" | "mainnet" = "testnet",
+  overrides: Partial<ProductionAcceptanceReceipt> = {}
+): ProductionAcceptanceReceipt {
   return {
     network,
     execute: false,
@@ -1580,7 +1635,8 @@ function makePreflightReceipt(network: "testnet" | "mainnet" = "testnet"): Produ
       }
       return { name, status: "skipped", meta: { reason: "preflight_no_transactions" } };
     }),
-    conclusion: "passed"
+    conclusion: "passed",
+    ...overrides
   };
 }
 

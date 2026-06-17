@@ -104,6 +104,7 @@ async function main() {
   checks.push(...receiptChecks(args, receipts));
   checks.push(...await receiptProvenanceChecks(args.stage, receipts));
   checks.push(...receiptPairConfigChecks(args.stage, receipts));
+  checks.push(...expectedTestnetConfigChecks(args.stage, receipts));
   const configResult = configChecks(process.env, args.stage);
   checks.push(...configResult.checks);
   checks.push(...receiptConfigChecks(args.stage, receipts, configResult.acceptance));
@@ -270,6 +271,49 @@ function receiptPairConfigChecks(stage: MainnetReadinessStage, receipts: Receipt
     ));
   }
   return checks;
+}
+
+function expectedTestnetConfigChecks(stage: MainnetReadinessStage, receipts: ReceiptSet): ReadinessCheck[] {
+  if (stage !== "testnet" && stage !== "mainnet-config" && stage !== "mainnet-final") return [];
+  return [
+    ...checkReceiptConfigMatchesExpectedTestnet(receipts.testnetPreflight, "testnet-preflight", true),
+    ...checkReceiptConfigMatchesExpectedTestnet(receipts.testnetExecute, "testnet-execute", true)
+  ];
+}
+
+function checkReceiptConfigMatchesExpectedTestnet(
+  receipt: ProductionAcceptanceReceipt | undefined,
+  label: string,
+  required: boolean
+): ReadinessCheck[] {
+  if (!receipt) return [];
+  const expected = DEFAULT_M3_CONFIG;
+  const fields: Array<[string, string | undefined, string | undefined]> = [
+    ["sui_rpc", receipt.config.suiRpcUrl, expected.suiRpcUrl],
+    ["package_id", receipt.config.packageId, expected.packageId],
+    ["settlement_config_id", receipt.config.settlementConfigId, expected.settlementConfigId],
+    ["agent_earnings_id", receipt.config.agentEarningsId, expected.agentEarningsId],
+    ["receipt_registry_id", receipt.config.membershipReceiptRegistryId, expected.membershipReceiptRegistryId],
+    ["walrus_publisher", receipt.config.walrusPublisherUrl, expected.walrusPublisherUrl],
+    ["walrus_aggregator", receipt.config.walrusAggregatorUrl, expected.walrusAggregatorUrl],
+    ["walrus_epochs", stringifyConfigValue(receipt.config.walrusEpochs), String(expected.walrusEpochs)],
+    ["seal_key_server", receipt.config.sealKeyServerObjectId, expected.sealKeyServers[0]?.objectId],
+    ["seal_aggregator", receipt.config.sealKeyServerAggregatorUrl, expected.sealKeyServers[0]?.aggregatorUrl],
+    ["seal_threshold", stringifyConfigValue(receipt.config.sealThreshold), String(expected.sealThreshold)],
+    ["platform_membership_price", receipt.config.platformMembershipPriceMist, expected.platformMembershipPriceMist],
+    ["agent_subscription_price", receipt.config.agentSubscriptionPriceMist, expected.agentSubscriptionPriceMist],
+    ["delegation_budget", receipt.config.delegationBudgetMist, expected.delegationBudgetMist],
+    ["membership_settlement_share", receipt.config.membershipSettlementShareMist, expected.membershipSettlementShareMist],
+    ["access_duration", stringifyConfigValue(receipt.config.accessDurationMs), String(expected.accessDurationMs)]
+  ];
+  return fields.map(([field, receiptValue, expectedValue]) => checkBoolean(
+    `receipt.${label}.expected_testnet.${field}`,
+    normalizeConfigValue(receiptValue) === normalizeConfigValue(expectedValue) && normalizeConfigValue(expectedValue) !== undefined,
+    `${label} receipt ${field} matches the expected current testnet version`,
+    `${label} receipt ${field} does not match the expected current testnet version`,
+    required,
+    { receiptValue, expectedValue }
+  ));
 }
 
 function checkReceiptConfigPairMatches(

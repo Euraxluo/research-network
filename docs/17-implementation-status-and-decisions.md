@@ -199,7 +199,7 @@ npm run readiness:mainnet -- --stage mainnet-config \
   --skip-chain
 ```
 
-`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，且这两张 receipt 的 provenance 都绑定当前 HEAD、package/RPC/Walrus/Seal/经济参数一致，并且 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在、无 testnet 泄漏、关键 RPC/object/endpoint 在各部署面之间一致。资金相关参数也必须一致：平台会员价格、agent 订阅价格、委托预算、会员结算分成、访问有效期、Walrus epochs 和 Seal threshold。execute receipt 必须包含 `receipt.spend` 和每个交易步骤的 `suiSpentMist`，证明实际链上扣款没有超过显式 cap。`--stage mainnet-final` 还要求 mainnet preflight + 小额 capped execute receipt 通过、mainnet receipt 中的配置与当前 acceptance env 完全一致，且 testnet/mainnet receipt provenance 都来自当前 HEAD；不加 `--skip-chain` 时还会查询 testnet execute receipt 交易（优先使用 `RN_TESTNET_SUI_RPC_URL`，否则使用 receipt 自带 RPC）和 mainnet RPC，确认 package/shared objects 存在、receipt 交易存在且创建了声明的对象，且 settlement shared objects 类型匹配预期。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
+`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，且这两张 receipt 的 provenance 都绑定当前 HEAD、两者 package/RPC/Walrus/Seal/经济参数一致，并且它们还必须逐项等于当前预期 testnet 版本（`DEFAULT_M3_CONFIG` 中的 package id、shared object ids、Sui/Walrus/Seal endpoint、threshold 和经济参数）。两张 receipt 即使彼此一致，只要指向旧 testnet 包或不同 testnet 配置，也不能作为 mainnet 证据。mainnet-config 还要求 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在、无 testnet 泄漏、关键 RPC/object/endpoint 在各部署面之间一致。资金相关参数也必须一致：平台会员价格、agent 订阅价格、委托预算、会员结算分成、访问有效期、Walrus epochs 和 Seal threshold。execute receipt 必须包含 `receipt.spend` 和每个交易步骤的 `suiSpentMist`，证明实际链上扣款没有超过显式 cap。`--stage mainnet-final` 还要求 mainnet preflight + 小额 capped execute receipt 通过、mainnet receipt 中的配置与当前 acceptance env 完全一致，且 testnet/mainnet receipt provenance 都来自当前 HEAD；不加 `--skip-chain` 时还会查询 testnet execute receipt 交易（优先使用 `RN_TESTNET_SUI_RPC_URL`，否则使用 receipt 自带 RPC）和 mainnet RPC，确认 package/shared objects 存在、receipt 交易存在且创建了声明的对象，且 settlement shared objects 类型匹配预期。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
 
 Web/Vercel 生产配置防护：
 
@@ -212,6 +212,7 @@ Web/Vercel 生产配置防护：
 ## 修订记录
 
 - 2026-06-17：Account 页新增 production acceptance session 导出入口，可从真实同 tab Google zkLogin 状态生成 buyer/agent session JSON；新增纯函数与 UI 集成测试覆盖成功导出和缺失 ephemeral key 时失败闭合。
+- 2026-06-17：mainnet readiness 新增 testnet 版本等值门禁。testnet preflight/execute receipt 除了彼此配置一致，还必须逐项匹配当前预期 testnet `DEFAULT_M3_CONFIG`；一致但错误/过期的 testnet package 不再能推进 mainnet-config。
 - 2026-06-17：production acceptance receipt 新增 provenance 门禁。验收脚本写入 Git commit、clean/dirty worktree 和 package metadata；readiness 要求 receipt provenance 来自干净工作树并匹配当前 HEAD，防止复用旧代码生成的真实交易回执。
 - 2026-06-17：production acceptance 新增真实 balance-change spend evidence。脚本现在要求 Sui RPC 返回 `balanceChanges`，按 buyer/agent 地址汇总实际 SUI 扣款到 `receipt.spend`，并在 readiness 中拒绝缺少实际扣款证据或超过 cap 的 execute receipt。
 - 2026-06-17：mainnet readiness 新增经济参数一致性门禁。mainnet acceptance 与 Web config 必须显式配置并匹配价格、委托预算、结算分成、访问时长、Walrus epochs 和 Seal threshold；mainnet-final receipt 也必须与当前 acceptance env 一致。
