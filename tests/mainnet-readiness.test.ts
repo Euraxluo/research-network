@@ -114,6 +114,21 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".execute.unique_digests") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts that reuse created object ids across object-producing steps", () => {
+    const reusedObjectId = objectIdFor("agent.publish_encrypted_report");
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "buyer.buy_platform_membership"
+          ? { ...step, objectId: reusedObjectId }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".execute.unique_objects") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects execute receipts missing actual balance-change spend evidence", () => {
     const receipt = makeExecuteReceipt({ spend: undefined });
     const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
@@ -589,7 +604,7 @@ function executeSteps(packageId = baseConfig("testnet").packageId): ProductionAc
       "buyer.create_and_fund_delegation",
       "agent.publish_private_result"
     ].includes(name)) {
-      step.objectId = "0x" + "cc".repeat(32);
+      step.objectId = objectIdFor(name);
     }
     if (name === "buyer.create_and_fund_delegation") {
       step.meta = {
@@ -679,7 +694,7 @@ function proverMeta(): Record<string, string | boolean> {
 
 function reportMeta(name: string): Record<string, string | number | boolean> {
   return {
-    reportObjectId: "0x" + "cc".repeat(32),
+    reportObjectId: objectIdFor(name),
     txDigest: digestFor(name),
     sealId: "0x" + "dd".repeat(32),
     walrusBlobId: "walrus-blob",
@@ -690,6 +705,18 @@ function reportMeta(name: string): Record<string, string | number | boolean> {
     plaintextCommitment: "sha256:plain",
     visibility: name === "agent.publish_private_result" ? "private_delegation" : "encrypted"
   };
+}
+
+function objectIdFor(seed: string): string {
+  const map: Record<string, string> = {
+    "agent.publish_encrypted_report": "c1",
+    "buyer.buy_platform_membership": "c2",
+    "buyer.record_access_receipt": "c3",
+    "buyer.buy_agent_subscription": "c4",
+    "buyer.create_and_fund_delegation": "c5",
+    "agent.publish_private_result": "c6"
+  };
+  return "0x" + (map[seed] ?? "cf").repeat(32);
 }
 
 function digestFor(seed: string): string {

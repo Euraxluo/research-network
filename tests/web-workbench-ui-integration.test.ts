@@ -413,6 +413,15 @@ describe("Workbench UI production-flow integration", () => {
       agent: AGENT
     });
 
+    await clickDecrypt(REPORT_ID);
+    expect(mocks.decryptReportOnChain).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: REPORT_ID }),
+      "seal_approve_report_with_agent_subscription",
+      expect.objectContaining({ address: BUYER }),
+      SUBSCRIPTION_ID,
+      undefined
+    );
+
     await clickByTestId("create-delegation");
     expect(mocks.createDelegationJobOnChain).toHaveBeenCalledWith(
       expect.objectContaining({

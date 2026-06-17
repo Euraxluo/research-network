@@ -298,6 +298,22 @@ function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: Re
     `${expectation.label} execute is missing one or more valid created object ids`,
     expectation.required
   ));
+  const createdObjectIds = [...EXECUTE_OBJECT_STEPS]
+    .map((name) => receipt.steps.find((step) => step.name === name)?.objectId)
+    .filter(isSuiObjectId);
+  const uniqueCreatedObjectIds = new Set(createdObjectIds.map((id) => normalizeReadinessValue(id)));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.unique_objects`,
+    createdObjectIds.length === EXECUTE_OBJECT_STEPS.size && uniqueCreatedObjectIds.size === createdObjectIds.length,
+    `${expectation.label} execute records a distinct created object id for every object-producing step`,
+    `${expectation.label} execute reuses one or more created object ids across object-producing steps`,
+    expectation.required,
+    {
+      uniqueObjectCount: uniqueCreatedObjectIds.size,
+      expectedObjectCount: EXECUTE_OBJECT_STEPS.size,
+      objectIds: createdObjectIds
+    }
+  ));
   checks.push(checkBoolean(
     `receipt.${expectation.label}.execute.delegation_funded`,
     isSuiDigest(receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundDigest),

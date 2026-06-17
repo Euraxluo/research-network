@@ -60,6 +60,13 @@ interface ReceiptTransactionEvidence {
   digest: string;
   expectedEventTypes: string[];
   expectedSenderAddress?: string;
+  expectedCreatedObjects: ReceiptCreatedObjectEvidence[];
+}
+
+interface ReceiptCreatedObjectEvidence {
+  objectId: string;
+  expectedTypeSuffix?: string;
+  expectedPackageId?: string;
 }
 
 interface ChainObjectExpectation {
@@ -76,6 +83,15 @@ const REQUIRED_MAINNET_WALRUS_SITE_PATHS = [
   "/membership.html",
   "/delegations.html"
 ];
+
+const RECEIPT_CREATED_OBJECT_TYPES: Record<string, string> = {
+  "agent.publish_encrypted_report": "::report::ResearchReport",
+  "buyer.buy_platform_membership": "::access::PlatformMembershipPass",
+  "buyer.record_access_receipt": "::access::AccessReceipt",
+  "buyer.buy_agent_subscription": "::access::AgentSubscriptionPass",
+  "buyer.create_and_fund_delegation": "::delegation::DelegationJob",
+  "agent.publish_private_result": "::report::ResearchReport"
+};
 
 async function main() {
   const args = parseArgs(process.argv.slice(2), process.env);
@@ -638,13 +654,14 @@ async function chainReceiptTransactionChecks(
       transaction?: { data?: { sender?: string } };
       effects?: { status?: { status?: string; error?: string } };
       events?: Array<{ type?: string }>;
+      objectChanges?: Array<{ type?: string; objectId?: string; objectType?: string }>;
       error?: unknown;
     } | null>>(
       rpcUrl,
       "sui_multiGetTransactionBlocks",
       [
         digests,
-        { showEffects: true, showEvents: true, showInput: true }
+        { showEffects: true, showEvents: true, showInput: true, showObjectChanges: true }
       ]
     );
     return digests.map((digest, index) => {
@@ -657,8 +674,13 @@ async function chainReceiptTransactionChecks(
         ? response.events.map((event) => event.type).filter((type): type is string => typeof type === "string")
         : [];
       const expectedEventTypes = evidence[index]?.expectedEventTypes ?? [];
+      const expectedCreatedObjects = evidence[index]?.expectedCreatedObjects ?? [];
+      const chainCreatedObjects = chainCreatedObjectChanges(response?.objectChanges);
       const eventsMatch = expectedEventTypes.every((type) => chainEventTypes.includes(type));
       const senderMatches = sameSuiAddress(chainSenderAddress, expectedSenderAddress);
+      const createdObjectsMatch = expectedCreatedObjects.every((expected) =>
+        chainCreatedObjects.some((created) => createdObjectMatches(created, expected))
+      );
       const timestampMatches = timestampMs !== undefined &&
         startedMs !== undefined &&
         finishedMs !== undefined &&
@@ -666,9 +688,9 @@ async function chainReceiptTransactionChecks(
         timestampMs <= finishedMs;
       return checkBoolean(
         `chain.mainnet.transaction.${index + 1}`,
-        response?.digest === digest && status === "success" && senderMatches && eventsMatch && timestampMatches,
-        `Mainnet receipt transaction ${digest} exists, succeeded, sender matches the receipt role, emitted receipt events, and falls within the receipt window`,
-        `Mainnet receipt transaction ${digest} was not found, did not succeed, sender did not match the receipt role, emitted different events, or falls outside the receipt window`,
+        response?.digest === digest && status === "success" && senderMatches && eventsMatch && createdObjectsMatch && timestampMatches,
+        `Mainnet receipt transaction ${digest} exists, succeeded, sender matches the receipt role, emitted receipt events, created the receipt objects, and falls within the receipt window`,
+        `Mainnet receipt transaction ${digest} was not found, did not succeed, sender did not match the receipt role, emitted different events, did not create the receipt objects, or falls outside the receipt window`,
         true,
         {
           digest,
@@ -678,6 +700,8 @@ async function chainReceiptTransactionChecks(
           chainSenderAddress,
           expectedEventTypes,
           chainEventTypes,
+          expectedCreatedObjects,
+          chainCreatedObjects,
           timestampMs,
           receiptStartedMs: startedMs,
           receiptFinishedMs: finishedMs,
@@ -698,7 +722,8 @@ function receiptTransactionEvidence(receipt: ProductionAcceptanceReceipt): Recei
         evidence,
         step.digest,
         stringArray(step.meta?.eventTypes),
-        stringValue(step.meta?.signerAddress)
+        stringValue(step.meta?.signerAddress),
+        receiptCreatedObjectsForStep(step, receipt.config.packageId)
       );
     }
     const fundDigest = step.meta?.fundDigest;
@@ -707,7 +732,8 @@ function receiptTransactionEvidence(receipt: ProductionAcceptanceReceipt): Recei
         evidence,
         fundDigest,
         stringArray(step.meta?.fundEventTypes),
-        stringValue(step.meta?.fundSignerAddress)
+        stringValue(step.meta?.fundSignerAddress),
+        []
       );
     }
   }
@@ -718,11 +744,20 @@ function mergeReceiptTransactionEvidence(
   evidence: Map<string, ReceiptTransactionEvidence>,
   digest: string,
   eventTypes: string[],
-  expectedSenderAddress: string | undefined
+  expectedSenderAddress: string | undefined,
+  expectedCreatedObjects: ReceiptCreatedObjectEvidence[]
 ) {
-  const item = evidence.get(digest) ?? { digest, expectedEventTypes: [] };
+  const item = evidence.get(digest) ?? { digest, expectedEventTypes: [], expectedCreatedObjects: [] };
   for (const type of eventTypes) {
     if (!item.expectedEventTypes.includes(type)) item.expectedEventTypes.push(type);
+  }
+  for (const object of expectedCreatedObjects) {
+    const exists = item.expectedCreatedObjects.some((candidate) =>
+      normalizeSuiObjectId(candidate.objectId) === normalizeSuiObjectId(object.objectId) &&
+      candidate.expectedTypeSuffix === object.expectedTypeSuffix &&
+      normalizeSuiObjectId(candidate.expectedPackageId) === normalizeSuiObjectId(object.expectedPackageId)
+    );
+    if (!exists) item.expectedCreatedObjects.push(object);
   }
   if (expectedSenderAddress) {
     if (item.expectedSenderAddress && !sameSuiAddress(item.expectedSenderAddress, expectedSenderAddress)) {
@@ -732,6 +767,39 @@ function mergeReceiptTransactionEvidence(
     }
   }
   evidence.set(digest, item);
+}
+
+function receiptCreatedObjectsForStep(
+  step: ProductionAcceptanceStep,
+  packageId: unknown
+): ReceiptCreatedObjectEvidence[] {
+  if (typeof step.objectId !== "string") return [];
+  const expectedTypeSuffix = RECEIPT_CREATED_OBJECT_TYPES[step.name];
+  return [{
+    objectId: step.objectId,
+    expectedTypeSuffix,
+    expectedPackageId: expectedTypeSuffix && typeof packageId === "string" ? packageId : undefined
+  }];
+}
+
+function chainCreatedObjectChanges(
+  objectChanges: Array<{ type?: string; objectId?: string; objectType?: string }> | undefined
+): Array<{ objectId?: string; objectType?: string }> {
+  if (!Array.isArray(objectChanges)) return [];
+  return objectChanges
+    .filter((change) => change?.type === "created")
+    .map((change) => ({ objectId: change.objectId, objectType: change.objectType }));
+}
+
+function createdObjectMatches(
+  created: { objectId?: string; objectType?: string },
+  expected: ReceiptCreatedObjectEvidence
+): boolean {
+  if (normalizeSuiObjectId(created.objectId) !== normalizeSuiObjectId(expected.objectId)) {
+    return false;
+  }
+  if (!expected.expectedTypeSuffix) return true;
+  return matchesChainObjectType(created.objectType, expected.expectedTypeSuffix, expected.expectedPackageId);
 }
 
 function receiptTimestampMs(value: string | undefined): number | undefined {
