@@ -409,7 +409,12 @@ function baseConfig(network: "testnet" | "mainnet"): ProductionAcceptanceReceipt
       walrusEpochs: 5,
       sealKeyServerObjectId: "0x" + "55".repeat(32),
       sealKeyServerAggregatorUrl: "https://seal-aggregator.mainnet.example",
-      sealThreshold: 1
+      sealThreshold: 1,
+      platformMembershipPriceMist: "1000000",
+      agentSubscriptionPriceMist: "1000000",
+      delegationBudgetMist: "1000000",
+      membershipSettlementShareMist: "800000",
+      accessDurationMs: 2592000000
     };
   }
   return {
@@ -423,6 +428,11 @@ function baseConfig(network: "testnet" | "mainnet"): ProductionAcceptanceReceipt
     walrusEpochs: 5,
     sealKeyServerObjectId: "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98",
     sealKeyServerAggregatorUrl: "https://seal-aggregator-testnet.mystenlabs.com",
-    sealThreshold: 1
+    sealThreshold: 1,
+    platformMembershipPriceMist: "1000000",
+    agentSubscriptionPriceMist: "1000000",
+    delegationBudgetMist: "1000000",
+    membershipSettlementShareMist: "800000",
+    accessDurationMs: 2592000000
   };
 }

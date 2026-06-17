@@ -199,11 +199,12 @@ npm run readiness:mainnet -- --stage mainnet-config \
   --skip-chain
 ```
 
-`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，并且 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在、无 testnet 泄漏、关键 RPC/object/endpoint 在各部署面之间一致。execute receipt 必须包含 `receipt.spend` 和每个交易步骤的 `suiSpentMist`，证明实际链上扣款没有超过显式 cap。`--stage mainnet-final` 还要求 mainnet preflight + 小额 capped execute receipt 通过、mainnet receipt 中的配置与当前 acceptance env 完全一致；不加 `--skip-chain` 时还会查询 mainnet RPC，确认 package/shared objects 存在，且 settlement shared objects 类型匹配预期。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
+`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，并且 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在、无 testnet 泄漏、关键 RPC/object/endpoint 在各部署面之间一致。资金相关参数也必须一致：平台会员价格、agent 订阅价格、委托预算、会员结算分成、访问有效期、Walrus epochs 和 Seal threshold。execute receipt 必须包含 `receipt.spend` 和每个交易步骤的 `suiSpentMist`，证明实际链上扣款没有超过显式 cap。`--stage mainnet-final` 还要求 mainnet preflight + 小额 capped execute receipt 通过、mainnet receipt 中的配置与当前 acceptance env 完全一致；不加 `--skip-chain` 时还会查询 mainnet RPC，确认 package/shared objects 存在，且 settlement shared objects 类型匹配预期。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
 
 Web/Vercel 生产配置防护：
 
 - Vite 构建可用 `VITE_RN_NETWORK`、`VITE_RN_SUI_RPC_URL`、`VITE_RN_PACKAGE_ID`、`VITE_RN_SETTLEMENT_CONFIG_ID`、`VITE_RN_AGENT_EARNINGS_ID`、`VITE_RN_MEMBERSHIP_RECEIPT_REGISTRY_ID`、`VITE_RN_WALRUS_PUBLISHER_URL`、`VITE_RN_WALRUS_AGGREGATOR_URL`、`VITE_RN_SEAL_KEY_SERVER_OBJECT_ID`、`VITE_RN_SEAL_KEY_SERVER_AGGREGATOR_URL` 注入，也可继续使用 `window.__RN_M3_CONFIG__` runtime 注入。
+- mainnet readiness 要求同时显式配置 `RN_PLATFORM_MEMBERSHIP_PRICE_MIST`、`RN_AGENT_SUBSCRIPTION_PRICE_MIST`、`RN_DELEGATION_BUDGET_MIST`、`RN_MEMBERSHIP_SETTLEMENT_SHARE_MIST`、`RN_ACCESS_DURATION_MS`，以及对应的 `VITE_RN_*` 变量；验收脚本和 Web 生产包必须使用同一套经济参数。
 - `network: "mainnet"` 时，Web config 会拒绝默认 testnet package/shared objects、testnet RPC、testnet Walrus endpoint 和 testnet Seal key server。
 - `api/walrus.ts` 在 `RN_WEB_NETWORK=mainnet` 或 `WALRUS_NETWORK=mainnet` 时必须显式配置 Walrus Site object、Sui RPC 和 aggregator，并拒绝 testnet 值。
 - `web-auth.ts` 在 `RN_WEB_NETWORK=mainnet` 或 `AUTH_NETWORK=mainnet` 时必须显式配置 `AUTH_SUI_RPC_URL`，并拒绝 testnet RPC，避免正式登录页仍按 testnet epoch 构造 zkLogin session。
@@ -212,6 +213,7 @@ Web/Vercel 生产配置防护：
 
 - 2026-06-17：Account 页新增 production acceptance session 导出入口，可从真实同 tab Google zkLogin 状态生成 buyer/agent session JSON；新增纯函数与 UI 集成测试覆盖成功导出和缺失 ephemeral key 时失败闭合。
 - 2026-06-17：production acceptance 新增真实 balance-change spend evidence。脚本现在要求 Sui RPC 返回 `balanceChanges`，按 buyer/agent 地址汇总实际 SUI 扣款到 `receipt.spend`，并在 readiness 中拒绝缺少实际扣款证据或超过 cap 的 execute receipt。
+- 2026-06-17：mainnet readiness 新增经济参数一致性门禁。mainnet acceptance 与 Web config 必须显式配置并匹配价格、委托预算、结算分成、访问时长、Walrus epochs 和 Seal threshold；mainnet-final receipt 也必须与当前 acceptance env 一致。
 - 2026-06-17：增强 production acceptance receipt 证据。preflight/execute receipt 现在记录 epoch freshness、余额阈值、prover shape、Walrus/Seal/hash 元数据和 decrypt plaintext match；readiness 会拒绝缺少这些证据的 receipt。
 - 2026-06-17：加硬 mainnet readiness gate。mainnet receipts 现在会拒绝已知 testnet object ids、超过小额 acceptance cap 的 execute receipt、与当前 mainnet acceptance env 不一致的 receipt 配置；链上 object 检查会额外验证 settlement shared object 类型后缀。
 - 2026-06-17：补生产配置防误用 guard。Web/Vite config、Vercel Walrus proxy、auth shell 与 production acceptance 均拒绝 mainnet 混入已知 testnet object ids/endpoints；acceptance 会校验 zkLogin session 中可选 `address` 必须等于 `idToken + salt` 派生地址。

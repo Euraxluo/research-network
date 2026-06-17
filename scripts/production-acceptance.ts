@@ -120,7 +120,12 @@ async function main() {
     walrusEpochs: activeConfig().walrusEpochs,
     sealKeyServerObjectId: activeConfig().sealKeyServers[0]?.objectId,
     sealKeyServerAggregatorUrl: activeConfig().sealKeyServers[0]?.aggregatorUrl,
-    sealThreshold: activeConfig().sealThreshold
+    sealThreshold: activeConfig().sealThreshold,
+    platformMembershipPriceMist: activeConfig().platformMembershipPriceMist,
+    agentSubscriptionPriceMist: activeConfig().agentSubscriptionPriceMist,
+    delegationBudgetMist: activeConfig().delegationBudgetMist,
+    membershipSettlementShareMist: activeConfig().membershipSettlementShareMist,
+    accessDurationMs: activeConfig().accessDurationMs
   };
   receipt.steps = steps;
 
@@ -523,7 +528,8 @@ function installRuntimeConfig(config: ProductionAcceptanceConfig) {
     platformMembershipPriceMist: String(config.platformMembershipPriceMist),
     agentSubscriptionPriceMist: String(config.agentSubscriptionPriceMist),
     delegationBudgetMist: String(config.delegationBudgetMist),
-    membershipSettlementShareMist: String(config.membershipSettlementShareMist)
+    membershipSettlementShareMist: String(config.membershipSettlementShareMist),
+    accessDurationMs: config.accessDurationMs
   };
   (globalThis as unknown as { __RN_M3_CONFIG__: M3Config }).__RN_M3_CONFIG__ = merged;
 }

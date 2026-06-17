@@ -55,7 +55,13 @@ describe("M3 web runtime config", () => {
       VITE_RN_WALRUS_AGGREGATOR_URL: "https://aggregator.walrus.space",
       VITE_RN_SEAL_KEY_SERVER_OBJECT_ID: "0x" + "55".repeat(32),
       VITE_RN_SEAL_KEY_SERVER_AGGREGATOR_URL: "https://seal-aggregator.mainnet.example",
-      VITE_RN_SEAL_THRESHOLD: "1"
+      VITE_RN_SEAL_THRESHOLD: "1",
+      VITE_RN_WALRUS_EPOCHS: "5",
+      VITE_RN_PLATFORM_MEMBERSHIP_PRICE_MIST: "1000000",
+      VITE_RN_AGENT_SUBSCRIPTION_PRICE_MIST: "1000000",
+      VITE_RN_DELEGATION_BUDGET_MIST: "1000000",
+      VITE_RN_MEMBERSHIP_SETTLEMENT_SHARE_MIST: "800000",
+      VITE_RN_ACCESS_DURATION_MS: "2592000000"
     });
 
     expect(overrides.network).toBe("mainnet");
@@ -63,6 +69,8 @@ describe("M3 web runtime config", () => {
       objectId: "0x" + "55".repeat(32),
       aggregatorUrl: "https://seal-aggregator.mainnet.example"
     });
+    expect(overrides.platformMembershipPriceMist).toBe("1000000");
+    expect(overrides.accessDurationMs).toBe(2592000000);
   });
 
   it("rejects invalid VITE_RN network values", () => {

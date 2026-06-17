@@ -89,6 +89,23 @@ describe("production acceptance guardrails", () => {
     expect(() => assertProductionAcceptanceCanExecute(config)).toThrow(/mainnet acceptance requires explicit/);
   });
 
+  it("requires explicit mainnet economic parameters before acceptance can approve funds", () => {
+    const config = parseProductionAcceptanceArgs([
+      "--network", "mainnet",
+      "--sui-rpc-url", "https://fullnode.mainnet.sui.io:443",
+      "--package-id", "0x" + "11".repeat(32),
+      "--settlement-config-id", "0x" + "22".repeat(32),
+      "--agent-earnings-id", "0x" + "33".repeat(32),
+      "--membership-receipt-registry-id", "0x" + "44".repeat(32),
+      "--walrus-publisher-url", "https://publisher.walrus.space",
+      "--walrus-aggregator-url", "https://aggregator.walrus.space",
+      "--seal-key-server-object-id", "0x" + "55".repeat(32),
+      "--seal-key-server-aggregator-url", "https://seal-aggregator.mainnet.example"
+    ], {});
+
+    expect(() => assertProductionAcceptanceCanExecute(config)).toThrow(/mainnet acceptance requires explicit platform-membership-mist/);
+  });
+
   it("rejects mainnet acceptance when explicit config still points at testnet", () => {
     const config = parseProductionAcceptanceArgs([
       "--network", "mainnet",
@@ -100,7 +117,12 @@ describe("production acceptance guardrails", () => {
       "--walrus-publisher-url", "https://publisher.walrus-testnet.walrus.space",
       "--walrus-aggregator-url", "https://aggregator.walrus-testnet.walrus.space",
       "--seal-key-server-object-id", "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98",
-      "--seal-key-server-aggregator-url", "https://seal-aggregator-testnet.mystenlabs.com"
+      "--seal-key-server-aggregator-url", "https://seal-aggregator-testnet.mystenlabs.com",
+      "--platform-membership-mist", "1000000",
+      "--agent-subscription-mist", "1000000",
+      "--delegation-budget-mist", "1000000",
+      "--membership-settlement-share-mist", "800000",
+      "--access-duration-ms", "2592000000"
     ], {});
 
     expect(() => assertProductionAcceptanceCanExecute(config)).toThrow(/rejects testnet config/);
@@ -117,11 +139,17 @@ describe("production acceptance guardrails", () => {
       "--walrus-publisher-url", "https://publisher.walrus.space",
       "--walrus-aggregator-url", "https://aggregator.walrus.space",
       "--seal-key-server-object-id", "0x" + "55".repeat(32),
-      "--seal-key-server-aggregator-url", "https://seal-aggregator.mainnet.example"
+      "--seal-key-server-aggregator-url", "https://seal-aggregator.mainnet.example",
+      "--platform-membership-mist", "1000000",
+      "--agent-subscription-mist", "1000000",
+      "--delegation-budget-mist", "1000000",
+      "--membership-settlement-share-mist", "800000",
+      "--access-duration-ms", "2592000000"
     ], {});
     const budget = assertProductionAcceptanceCanExecute(config);
 
     expect(budget.totalBudgetMist).toBe(103_800_000n);
+    expect(config.accessDurationMs).toBe(2_592_000_000);
   });
 
   it("computes committed spend from all real value-transfer legs", () => {

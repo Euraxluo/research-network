@@ -16,6 +16,8 @@ export interface ProductionAcceptanceConfig {
   agentSubscriptionPriceMist: bigint;
   delegationBudgetMist: bigint;
   membershipSettlementShareMist: bigint;
+  accessDurationMs: number;
+  explicitMainnetEconomicConfig: boolean;
   suiRpcUrl?: string;
   packageId?: string;
   settlementConfigId?: string;
@@ -118,6 +120,11 @@ export interface ProductionAcceptanceReceipt {
     sealKeyServerObjectId?: string;
     sealKeyServerAggregatorUrl?: string;
     sealThreshold?: number;
+    platformMembershipPriceMist?: string;
+    agentSubscriptionPriceMist?: string;
+    delegationBudgetMist?: string;
+    membershipSettlementShareMist?: string;
+    accessDurationMs?: number;
   };
   spend?: ProductionAcceptanceSpendSummary;
   steps: ProductionAcceptanceStep[];
@@ -139,6 +146,7 @@ export interface ProductionAcceptanceFreshnessEvidence {
 
 const DEFAULT_RECEIPT_PATH = ".research-network/acceptance/production-acceptance.json";
 const DEFAULT_GAS_RESERVE_MIST = 50_000_000n;
+const DEFAULT_ACCESS_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 const KNOWN_TESTNET_IDS = new Set([
   "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e",
   "0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4",
@@ -185,6 +193,14 @@ export function parseProductionAcceptanceArgs(argv: string[], env: NodeJS.Proces
     throw new Error("--execute and --preflight are mutually exclusive");
   }
 
+  const explicitMainnetEconomicConfig = [
+    ["platform-membership-mist", "RN_PLATFORM_MEMBERSHIP_PRICE_MIST"],
+    ["agent-subscription-mist", "RN_AGENT_SUBSCRIPTION_PRICE_MIST"],
+    ["delegation-budget-mist", "RN_DELEGATION_BUDGET_MIST"],
+    ["membership-settlement-share-mist", "RN_MEMBERSHIP_SETTLEMENT_SHARE_MIST"],
+    ["access-duration-ms", "RN_ACCESS_DURATION_MS"]
+  ].every(([argName, envName]) => args.has(argName) || Boolean(env[envName]));
+
   return {
     network,
     execute,
@@ -198,6 +214,8 @@ export function parseProductionAcceptanceArgs(argv: string[], env: NodeJS.Proces
     agentSubscriptionPriceMist: parseMist(stringArg(args, env, "agent-subscription-mist", "RN_AGENT_SUBSCRIPTION_PRICE_MIST"), 1_000_000n, "agent-subscription-mist"),
     delegationBudgetMist: parseMist(stringArg(args, env, "delegation-budget-mist", "RN_DELEGATION_BUDGET_MIST"), 1_000_000n, "delegation-budget-mist"),
     membershipSettlementShareMist: parseMist(stringArg(args, env, "membership-settlement-share-mist", "RN_MEMBERSHIP_SETTLEMENT_SHARE_MIST"), 800_000n, "membership-settlement-share-mist"),
+    accessDurationMs: positiveNumberArg(args, env, "access-duration-ms", "RN_ACCESS_DURATION_MS") ?? DEFAULT_ACCESS_DURATION_MS,
+    explicitMainnetEconomicConfig,
     suiRpcUrl: stringArg(args, env, "sui-rpc-url", "RN_SUI_RPC_URL"),
     packageId: stringArg(args, env, "package-id", "RN_PACKAGE_ID"),
     settlementConfigId: stringArg(args, env, "settlement-config-id", "RN_SETTLEMENT_CONFIG_ID"),
@@ -250,6 +268,11 @@ export function assertProductionAcceptanceCanExecute(config: ProductionAcceptanc
     ].filter(([, value]) => !value).map(([name]) => name);
     if (missingMainnetConfig.length) {
       throw new Error(`mainnet acceptance requires explicit ${missingMainnetConfig.join(", ")}`);
+    }
+    if (!config.explicitMainnetEconomicConfig) {
+      throw new Error(
+        "mainnet acceptance requires explicit platform-membership-mist, agent-subscription-mist, delegation-budget-mist, membership-settlement-share-mist, access-duration-ms"
+      );
     }
     const testnetLeaks = mainnetTestnetLeaks(config);
     if (testnetLeaks.length) {
@@ -484,7 +507,12 @@ export function createProductionAcceptanceReceipt(
       walrusEpochs: config.walrusEpochs,
       sealKeyServerObjectId: config.sealKeyServerObjectId,
       sealKeyServerAggregatorUrl: config.sealKeyServerAggregatorUrl,
-      sealThreshold: config.sealThreshold
+      sealThreshold: config.sealThreshold,
+      platformMembershipPriceMist: String(config.platformMembershipPriceMist),
+      agentSubscriptionPriceMist: String(config.agentSubscriptionPriceMist),
+      delegationBudgetMist: String(config.delegationBudgetMist),
+      membershipSettlementShareMist: String(config.membershipSettlementShareMist),
+      accessDurationMs: config.accessDurationMs
     },
     steps: [],
     conclusion: config.execute ? "failed" : "not_run"
@@ -508,6 +536,14 @@ function numberArg(args: Map<string, string | boolean>, env: NodeJS.ProcessEnv, 
   const value = Number(raw);
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`${argName} must be a non-negative integer`);
+  }
+  return value;
+}
+
+function positiveNumberArg(args: Map<string, string | boolean>, env: NodeJS.ProcessEnv, argName: string, envName: string): number | undefined {
+  const value = numberArg(args, env, argName, envName);
+  if (value !== undefined && value <= 0) {
+    throw new Error(`${argName} must be a positive integer`);
   }
   return value;
 }

@@ -121,6 +121,49 @@ describe("mainnet readiness script", () => {
     }
   });
 
+  it("fails when acceptance and Web mainnet economic parameters diverge", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
+    let stdout = "";
+    let stderr = "";
+    try {
+      const preflightPath = path.join(dir, "testnet-preflight.json");
+      const executePath = path.join(dir, "testnet-execute.json");
+      await fs.writeFile(preflightPath, JSON.stringify(makePreflightReceipt(), null, 2), "utf8");
+      await fs.writeFile(executePath, JSON.stringify(makeExecuteReceipt(), null, 2), "utf8");
+
+      try {
+        await execFileAsync("npx", [
+          "tsx",
+          "scripts/mainnet-readiness.ts",
+          "--stage", "mainnet-config",
+          "--testnet-preflight-receipt", preflightPath,
+          "--testnet-execute-receipt", executePath,
+          "--skip-chain",
+          "--json"
+        ], {
+          cwd: process.cwd(),
+          env: readinessEnv({ VITE_RN_PLATFORM_MEMBERSHIP_PRICE_MIST: "2000000" })
+        });
+      } catch (error) {
+        const failure = error as { stdout?: string; stderr?: string; code?: number };
+        stdout = failure.stdout ?? "";
+        stderr = failure.stderr ?? "";
+        expect(failure.code).toBe(1);
+      }
+
+      expect(stderr).toBe("");
+      const report = JSON.parse(stdout) as { ready: boolean; checks: Array<{ name: string; status: string; message: string }> };
+      expect(report.ready).toBe(false);
+      expect(report.checks.some((check) =>
+        check.name === "config.consistency.platform_membership_price" &&
+        check.status === "failed" &&
+        /does not match/.test(check.message)
+      )).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails mainnet-final when mainnet receipts do not match the current acceptance env", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
     let stdout = "";
@@ -226,6 +269,13 @@ function readinessEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     RN_WALRUS_AGGREGATOR_URL: MAINNET.walrusAggregator,
     RN_SEAL_KEY_SERVER_OBJECT_ID: MAINNET.sealKeyServer,
     RN_SEAL_KEY_SERVER_AGGREGATOR_URL: MAINNET.sealAggregator,
+    RN_WALRUS_EPOCHS: "5",
+    RN_SEAL_THRESHOLD: "1",
+    RN_PLATFORM_MEMBERSHIP_PRICE_MIST: "1000000",
+    RN_AGENT_SUBSCRIPTION_PRICE_MIST: "1000000",
+    RN_DELEGATION_BUDGET_MIST: "1000000",
+    RN_MEMBERSHIP_SETTLEMENT_SHARE_MIST: "800000",
+    RN_ACCESS_DURATION_MS: "2592000000",
     VITE_RN_NETWORK: "mainnet",
     VITE_RN_SUI_RPC_URL: MAINNET.rpc,
     VITE_RN_PACKAGE_ID: MAINNET.packageId,
@@ -236,6 +286,13 @@ function readinessEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     VITE_RN_WALRUS_AGGREGATOR_URL: MAINNET.walrusAggregator,
     VITE_RN_SEAL_KEY_SERVER_OBJECT_ID: MAINNET.sealKeyServer,
     VITE_RN_SEAL_KEY_SERVER_AGGREGATOR_URL: MAINNET.sealAggregator,
+    VITE_RN_WALRUS_EPOCHS: "5",
+    VITE_RN_SEAL_THRESHOLD: "1",
+    VITE_RN_PLATFORM_MEMBERSHIP_PRICE_MIST: "1000000",
+    VITE_RN_AGENT_SUBSCRIPTION_PRICE_MIST: "1000000",
+    VITE_RN_DELEGATION_BUDGET_MIST: "1000000",
+    VITE_RN_MEMBERSHIP_SETTLEMENT_SHARE_MIST: "800000",
+    VITE_RN_ACCESS_DURATION_MS: "2592000000",
     WALRUS_SITE_OBJECT_ID: MAINNET.walrusSite,
     WALRUS_SUI_RPC_URL: MAINNET.rpc,
     WALRUS_AGGREGATOR_URL: MAINNET.walrusAggregator,
@@ -427,7 +484,12 @@ function testnetConfig(): ProductionAcceptanceReceipt["config"] {
     walrusEpochs: 5,
     sealKeyServerObjectId: "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98",
     sealKeyServerAggregatorUrl: "https://seal-aggregator-testnet.mystenlabs.com",
-    sealThreshold: 1
+    sealThreshold: 1,
+    platformMembershipPriceMist: "1000000",
+    agentSubscriptionPriceMist: "1000000",
+    delegationBudgetMist: "1000000",
+    membershipSettlementShareMist: "800000",
+    accessDurationMs: 2592000000
   };
 }
 
@@ -443,6 +505,11 @@ function mainnetConfig(): ProductionAcceptanceReceipt["config"] {
     walrusEpochs: 5,
     sealKeyServerObjectId: MAINNET.sealKeyServer,
     sealKeyServerAggregatorUrl: MAINNET.sealAggregator,
-    sealThreshold: 1
+    sealThreshold: 1,
+    platformMembershipPriceMist: "1000000",
+    agentSubscriptionPriceMist: "1000000",
+    delegationBudgetMist: "1000000",
+    membershipSettlementShareMist: "800000",
+    accessDurationMs: 2592000000
   };
 }

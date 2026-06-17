@@ -373,7 +373,12 @@ export function checkReceiptConfigMatchesAcceptanceConfig(
     ["walrus_publisher", receipt.config.walrusPublisherUrl, config.walrusPublisherUrl],
     ["walrus_aggregator", receipt.config.walrusAggregatorUrl, config.walrusAggregatorUrl],
     ["seal_key_server", receipt.config.sealKeyServerObjectId, config.sealKeyServerObjectId],
-    ["seal_aggregator", receipt.config.sealKeyServerAggregatorUrl, config.sealKeyServerAggregatorUrl]
+    ["seal_aggregator", receipt.config.sealKeyServerAggregatorUrl, config.sealKeyServerAggregatorUrl],
+    ["platform_membership_price", receipt.config.platformMembershipPriceMist, String(config.platformMembershipPriceMist)],
+    ["agent_subscription_price", receipt.config.agentSubscriptionPriceMist, String(config.agentSubscriptionPriceMist)],
+    ["delegation_budget", receipt.config.delegationBudgetMist, String(config.delegationBudgetMist)],
+    ["membership_settlement_share", receipt.config.membershipSettlementShareMist, String(config.membershipSettlementShareMist)],
+    ["access_duration", receipt.config.accessDurationMs, config.accessDurationMs]
   ];
   if (config.walrusEpochs !== undefined) {
     fields.push(["walrus_epochs", receipt.config.walrusEpochs, config.walrusEpochs]);

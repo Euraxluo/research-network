@@ -213,7 +213,14 @@ function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): {
       "membershipReceiptRegistryId",
       "walrusPublisherUrl",
       "walrusAggregatorUrl",
-      "sealKeyServers"
+      "sealKeyServers",
+      "walrusEpochs",
+      "sealThreshold",
+      "platformMembershipPriceMist",
+      "agentSubscriptionPriceMist",
+      "delegationBudgetMist",
+      "membershipSettlementShareMist",
+      "accessDurationMs"
     ] as const;
     const missing = requiredWebKeys.filter((key) => overrides[key] === undefined);
     if (missing.length) {
@@ -354,6 +361,55 @@ function configConsistencyChecks(configSet: {
       "Acceptance Seal aggregator does not match Web Seal aggregator",
       acceptance.sealKeyServerAggregatorUrl,
       web.sealKeyServers?.[0]?.aggregatorUrl
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.platform_membership_price",
+      "Acceptance platform membership price matches Web config",
+      "Acceptance platform membership price does not match Web config",
+      String(acceptance.platformMembershipPriceMist),
+      web.platformMembershipPriceMist
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.agent_subscription_price",
+      "Acceptance agent subscription price matches Web config",
+      "Acceptance agent subscription price does not match Web config",
+      String(acceptance.agentSubscriptionPriceMist),
+      web.agentSubscriptionPriceMist
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.delegation_budget",
+      "Acceptance delegation budget matches Web config",
+      "Acceptance delegation budget does not match Web config",
+      String(acceptance.delegationBudgetMist),
+      web.delegationBudgetMist
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.membership_settlement_share",
+      "Acceptance membership settlement share matches Web config",
+      "Acceptance membership settlement share does not match Web config",
+      String(acceptance.membershipSettlementShareMist),
+      web.membershipSettlementShareMist
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.access_duration",
+      "Acceptance access duration matches Web config",
+      "Acceptance access duration does not match Web config",
+      String(acceptance.accessDurationMs),
+      web.accessDurationMs === undefined ? undefined : String(web.accessDurationMs)
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.walrus_epochs",
+      "Acceptance Walrus epochs matches Web config",
+      "Acceptance Walrus epochs does not match Web config",
+      acceptance.walrusEpochs === undefined ? undefined : String(acceptance.walrusEpochs),
+      web.walrusEpochs === undefined ? undefined : String(web.walrusEpochs)
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.seal_threshold",
+      "Acceptance Seal threshold matches Web config",
+      "Acceptance Seal threshold does not match Web config",
+      acceptance.sealThreshold === undefined ? undefined : String(acceptance.sealThreshold),
+      web.sealThreshold === undefined ? undefined : String(web.sealThreshold)
     ));
   }
   if (acceptance && walrus) {
