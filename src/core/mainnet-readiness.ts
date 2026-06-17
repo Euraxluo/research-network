@@ -26,9 +26,12 @@ export interface ReceiptExpectation {
   preflight: boolean;
   required: boolean;
   maxSpendMist?: bigint;
+  maxReceiptAgeMs?: number;
+  nowMs?: number;
 }
 
 export const DEFAULT_MAINNET_ACCEPTANCE_MAX_SPEND_MIST = 110_000_000n;
+export const DEFAULT_MAINNET_RECEIPT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 const ACCEPTANCE_STEPS = [
   "config.validate",
@@ -147,6 +150,10 @@ export function checkProductionAcceptanceReceipt(
     expectation.required,
     { startedAt: receipt.startedAt, finishedAt: receipt.finishedAt }
   ));
+
+  if (expectation.maxReceiptAgeMs !== undefined) {
+    checks.push(checkReceiptFreshness(receipt, expectation));
+  }
 
   checks.push(checkBoolean(
     `${baseName}.accounts`,
@@ -485,6 +492,29 @@ function hasValidReceiptTiming(receipt: ProductionAcceptanceReceipt): boolean {
   const started = Date.parse(receipt.startedAt);
   const finished = Date.parse(receipt.finishedAt);
   return Number.isFinite(started) && Number.isFinite(finished) && finished >= started;
+}
+
+function checkReceiptFreshness(receipt: ProductionAcceptanceReceipt, expectation: ReceiptExpectation): ReadinessCheck {
+  const nowMs = expectation.nowMs ?? Date.now();
+  const maxAgeMs = expectation.maxReceiptAgeMs;
+  const finishedMs = typeof receipt.finishedAt === "string" ? Date.parse(receipt.finishedAt) : Number.NaN;
+  const ageMs = finishedMs <= nowMs ? nowMs - finishedMs : Number.NaN;
+  return checkBoolean(
+    `receipt.${expectation.label}.freshness`,
+    Number.isFinite(finishedMs) &&
+      Number.isFinite(nowMs) &&
+      maxAgeMs !== undefined &&
+      ageMs >= 0 &&
+      ageMs <= maxAgeMs,
+    `${expectation.label} receipt is fresh enough for final mainnet funding approval`,
+    `${expectation.label} receipt is stale or timestamped in the future for final mainnet funding approval`,
+    expectation.required,
+    {
+      finishedAt: receipt.finishedAt,
+      ageMs: Number.isFinite(ageMs) ? ageMs : undefined,
+      maxReceiptAgeMs: maxAgeMs
+    }
+  );
 }
 
 function valuesMatch(left: string | number | undefined, right: string | number | undefined): boolean {

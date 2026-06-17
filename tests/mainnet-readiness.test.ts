@@ -327,6 +327,45 @@ describe("mainnet readiness receipt checks", () => {
     expect(hasBlockingReadinessFailures(checks)).toBe(true);
     expect(checks.some((check) => check.name.endsWith(".budget.mainnet_cap") && check.status === "failed")).toBe(true);
   });
+
+  it("rejects stale or future-dated mainnet receipts when a final freshness window is required", () => {
+    const expectation: ReceiptExpectation = {
+      label: "mainnet-execute",
+      network: "mainnet",
+      execute: true,
+      preflight: false,
+      required: true,
+      maxReceiptAgeMs: 24 * 60 * 60 * 1000,
+      nowMs: Date.parse("2026-06-18T00:01:00.000Z")
+    };
+    const staleReceipt = makeExecuteReceipt({
+      network: "mainnet",
+      finishedAt: "2026-06-16T00:00:00.000Z"
+    });
+    const staleChecks = checkProductionAcceptanceReceipt(staleReceipt, expectation);
+
+    expect(hasBlockingReadinessFailures(staleChecks)).toBe(true);
+    expect(staleChecks.some((check) => check.name.endsWith(".freshness") && check.status === "failed")).toBe(true);
+
+    const futureReceipt = makeExecuteReceipt({
+      network: "mainnet",
+      startedAt: "2026-06-18T00:00:00.000Z",
+      finishedAt: "2026-06-18T00:02:00.000Z"
+    });
+    const futureChecks = checkProductionAcceptanceReceipt(futureReceipt, expectation);
+
+    expect(hasBlockingReadinessFailures(futureChecks)).toBe(true);
+    expect(futureChecks.some((check) => check.name.endsWith(".freshness") && check.status === "failed")).toBe(true);
+
+    const freshReceipt = makeExecuteReceipt({
+      network: "mainnet",
+      startedAt: "2026-06-17T23:59:00.000Z",
+      finishedAt: "2026-06-18T00:00:00.000Z"
+    });
+    const freshChecks = checkProductionAcceptanceReceipt(freshReceipt, expectation);
+
+    expect(freshChecks.some((check) => check.name.endsWith(".freshness") && check.status === "passed")).toBe(true);
+  });
 });
 
 function makeExecuteReceipt(overrides: Partial<ProductionAcceptanceReceipt> = {}): ProductionAcceptanceReceipt {

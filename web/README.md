@@ -90,10 +90,11 @@ npm run readiness:mainnet -- --stage mainnet-final \
   --testnet-preflight-receipt .research-network/acceptance/testnet-preflight.json \
   --testnet-execute-receipt .research-network/acceptance/testnet-production.json \
   --mainnet-preflight-receipt .research-network/acceptance/mainnet-preflight.json \
-  --mainnet-execute-receipt .research-network/acceptance/mainnet-production.json
+  --mainnet-execute-receipt .research-network/acceptance/mainnet-production.json \
+  --mainnet-receipt-max-age-ms 86400000
 ```
 
-`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, missing or inverted receipt timestamps, known testnet id/endpoint in mainnet evidence, missing prover/mainnet env, mismatch between acceptance/Web/Vercel/Auth mainnet values, stale mainnet receipt config, or over-large mainnet acceptance spend cap keeps the report red. Without `--skip-chain`, the gate also checks configured mainnet package/shared objects via RPC and validates the settlement shared-object type suffixes. `mainnet-final` always requires live chain checks; `--skip-chain` is only accepted for earlier config/preflight review.
+`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, missing or inverted receipt timestamps, stale or future-dated final mainnet receipt, known testnet id/endpoint in mainnet evidence, missing prover/mainnet env, mismatch between acceptance/Web/Vercel/Auth mainnet values, stale mainnet receipt config, or over-large mainnet acceptance spend cap keeps the report red. Without `--skip-chain`, the gate also checks configured mainnet package/shared objects via RPC and validates the settlement shared-object type suffixes. `mainnet-final` always requires live chain checks and fresh mainnet preflight/execute receipts; `--skip-chain` is only accepted for earlier config/preflight review. The default final receipt freshness window is 24 hours and can be changed with `RN_MAINNET_RECEIPT_MAX_AGE_MS` or `--mainnet-receipt-max-age-ms`.
 
 Production config guards:
 

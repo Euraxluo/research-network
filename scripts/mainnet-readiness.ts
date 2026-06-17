@@ -3,8 +3,8 @@
  *
  * This script does not spend funds. It verifies whether the evidence needed to
  * approve real funds/mainnet is present: successful testnet receipts, explicit
- * mainnet config, no testnet-looking endpoints, and optional on-chain object
- * existence checks when the mainnet RPC is reachable.
+ * mainnet config, no testnet-looking endpoints, and on-chain object/transaction
+ * existence checks for final mainnet funding approval.
  */
 import { readFile } from "node:fs/promises";
 import {
@@ -17,6 +17,7 @@ import {
   checkBoolean,
   checkProductionAcceptanceReceipt,
   DEFAULT_MAINNET_ACCEPTANCE_MAX_SPEND_MIST,
+  DEFAULT_MAINNET_RECEIPT_MAX_AGE_MS,
   fail,
   hasBlockingReadinessFailures,
   pass,
@@ -34,6 +35,7 @@ interface ReadinessArgs {
   testnetExecuteReceipt?: string;
   mainnetPreflightReceipt?: string;
   mainnetExecuteReceipt?: string;
+  mainnetReceiptMaxAgeMs: number;
   json: boolean;
   skipChain: boolean;
 }
@@ -112,6 +114,7 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ReadinessArgs {
     testnetExecuteReceipt: stringArg(map, env, "testnet-execute-receipt", "RN_TESTNET_EXECUTE_RECEIPT"),
     mainnetPreflightReceipt: stringArg(map, env, "mainnet-preflight-receipt", "RN_MAINNET_PREFLIGHT_RECEIPT"),
     mainnetExecuteReceipt: stringArg(map, env, "mainnet-execute-receipt", "RN_MAINNET_EXECUTE_RECEIPT"),
+    mainnetReceiptMaxAgeMs: positiveIntegerArg(map, env, "mainnet-receipt-max-age-ms", "RN_MAINNET_RECEIPT_MAX_AGE_MS") ?? DEFAULT_MAINNET_RECEIPT_MAX_AGE_MS,
     json: map.get("json") === true || env.RN_READINESS_JSON === "1",
     skipChain: map.get("skip-chain") === true || env.RN_READINESS_SKIP_CHAIN === "1"
   };
@@ -130,6 +133,7 @@ function receiptChecks(args: ReadinessArgs, receipts: ReceiptSet): ReadinessChec
   const checks: ReadinessCheck[] = [];
   const needsTestnet = args.stage === "testnet" || args.stage === "mainnet-config" || args.stage === "mainnet-final";
   const needsMainnet = args.stage === "mainnet-final";
+  const nowMs = Date.now();
   if (needsTestnet) {
     checks.push(...checkProductionAcceptanceReceipt(receipts.testnetPreflight, {
       label: "testnet-preflight",
@@ -152,7 +156,9 @@ function receiptChecks(args: ReadinessArgs, receipts: ReceiptSet): ReadinessChec
       network: "mainnet",
       execute: false,
       preflight: true,
-      required: true
+      required: true,
+      maxReceiptAgeMs: args.mainnetReceiptMaxAgeMs,
+      nowMs
     }));
     checks.push(...checkProductionAcceptanceReceipt(receipts.mainnetExecute, {
       label: "mainnet-execute",
@@ -160,7 +166,9 @@ function receiptChecks(args: ReadinessArgs, receipts: ReceiptSet): ReadinessChec
       execute: true,
       preflight: false,
       required: true,
-      maxSpendMist: DEFAULT_MAINNET_ACCEPTANCE_MAX_SPEND_MIST
+      maxSpendMist: DEFAULT_MAINNET_ACCEPTANCE_MAX_SPEND_MIST,
+      maxReceiptAgeMs: args.mainnetReceiptMaxAgeMs,
+      nowMs
     }));
   }
   return checks;
@@ -611,6 +619,16 @@ function printTextReport(report: Report): void {
 function stringArg(args: Map<string, string | boolean>, env: NodeJS.ProcessEnv, argName: string, envName: string): string | undefined {
   const value = args.get(argName);
   return typeof value === "string" ? value : env[envName];
+}
+
+function positiveIntegerArg(args: Map<string, string | boolean>, env: NodeJS.ProcessEnv, argName: string, envName: string): number | undefined {
+  const raw = stringArg(args, env, argName, envName);
+  if (raw === undefined || raw === "") return undefined;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`--${argName} must be a positive integer`);
+  }
+  return value;
 }
 
 function message(error: unknown): string {
