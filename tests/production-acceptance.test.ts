@@ -311,8 +311,27 @@ describe("production acceptance guardrails", () => {
     ).toThrow(/spend metadata does not match balanceChanges/);
   });
 
-  it("rejects transaction spend evidence without a negative signer SUI balance change", () => {
+  it("allows net-positive signer transactions while keeping zero spend self-consistent", () => {
     const buyer = "0x" + "aa".repeat(32);
+    const summary = summarizeProductionAcceptanceSpend({
+      buyerAddress: buyer,
+      agentAddress: "0x" + "bb".repeat(32),
+      maxSpendMist: 1200n,
+      transactions: [{
+        digest: "tx-claim",
+        signerAddress: buyer,
+        suiSpentMist: "0",
+        balanceChanges: [{ owner: buyer, coinType: "0x2::sui::SUI", amount: "1000" }]
+      }]
+    });
+
+    expect(summary.buyerSpentMist).toBe("0");
+    expect(summary.withinCap).toBe(true);
+  });
+
+  it("rejects transaction spend evidence without a signer SUI balance change", () => {
+    const buyer = "0x" + "aa".repeat(32);
+    const other = "0x" + "cc".repeat(32);
 
     expect(() =>
       summarizeProductionAcceptanceSpend({
@@ -323,9 +342,9 @@ describe("production acceptance guardrails", () => {
           digest: "tx-buyer",
           signerAddress: buyer,
           suiSpentMist: "0",
-          balanceChanges: [{ owner: buyer, coinType: "0x2::sui::SUI", amount: "1000" }]
+          balanceChanges: [{ owner: other, coinType: "0x2::sui::SUI", amount: "-1000" }]
         }]
       })
-    ).toThrow(/has no negative SUI balance change/);
+    ).toThrow(/has no SUI balance change/);
   });
 });

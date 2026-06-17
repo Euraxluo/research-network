@@ -5,7 +5,7 @@ import type {
   ProductionAcceptanceReceipt,
   ProductionAcceptanceStep
 } from "./production-acceptance.js";
-import { productionAcceptanceSuiSpentMist } from "./production-acceptance.js";
+import { hasSignerSuiBalanceChange, productionAcceptanceSuiSpentMist } from "./production-acceptance.js";
 
 export type MainnetReadinessStage = "testnet" | "mainnet-config" | "mainnet-final";
 export type ReadinessStatus = "passed" | "failed" | "warning";
@@ -293,6 +293,7 @@ function checkExecuteBudget(receipt: ProductionAcceptanceReceipt, expectation: R
   const receiptSpendMax = isNonNegativeIntegerString(receipt.spend?.maxSpendMist)
     ? BigInt(receipt.spend.maxSpendMist)
     : undefined;
+  const expectedTransactionCount = receiptTransactionDigestCount(receipt);
   const checks = [
     checkBoolean(
       `receipt.${expectation.label}.budget.cap`,
@@ -325,6 +326,14 @@ function checkExecuteBudget(receipt: ProductionAcceptanceReceipt, expectation: R
       `${expectation.label} actual SUI spend exceeds or omits the explicit cap`,
       expectation.required,
       { totalSpentMist: receipt.spend?.totalSpentMist, maxSpendMist: String(maxSpend), spend: receipt.spend }
+    ),
+    checkBoolean(
+      `receipt.${expectation.label}.spend.transaction_count`,
+      receipt.spend?.transactionCount === expectedTransactionCount,
+      `${expectation.label} actual spend summary covers every executed Sui transaction`,
+      `${expectation.label} actual spend summary transaction count does not match executed Sui transactions`,
+      expectation.required,
+      { transactionCount: receipt.spend?.transactionCount, expectedTransactionCount }
     )
   ];
   if (expectation.network === "mainnet") {
@@ -469,6 +478,17 @@ function hasSpendSummary(value: unknown): boolean {
     spend.transactionCount > 0;
 }
 
+function receiptTransactionDigestCount(receipt: ProductionAcceptanceReceipt): number {
+  const digests = new Set<string>();
+  for (const name of EXECUTE_DIGEST_STEPS) {
+    const digest = receipt.steps.find((step) => step.name === name)?.digest;
+    if (typeof digest === "string") digests.add(digest);
+  }
+  const fundDigest = receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundDigest;
+  if (typeof fundDigest === "string") digests.add(fundDigest);
+  return digests.size;
+}
+
 function hasBalanceChanges(value: unknown): boolean {
   if (!Array.isArray(value) || value.length === 0) return false;
   return value.every((change) => {
@@ -495,7 +515,8 @@ function hasTransactionSpendEvidence(
   if (!hasBalanceChanges(record[balanceChangesKey])) return false;
   const balanceChanges = record[balanceChangesKey] as ProductionAcceptanceBalanceChange[];
   try {
-    return String(productionAcceptanceSuiSpentMist(balanceChanges, signerAddress)) === expectedSpend;
+    return hasSignerSuiBalanceChange(balanceChanges, signerAddress) &&
+      String(productionAcceptanceSuiSpentMist(balanceChanges, signerAddress)) === expectedSpend;
   } catch {
     return false;
   }

@@ -103,6 +103,19 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".spend.actual_cap") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts whose spend summary does not cover every Sui transaction", () => {
+    const receipt = makeExecuteReceipt({
+      spend: {
+        ...spendSummary(),
+        transactionCount: 9
+      }
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".spend.transaction_count") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects execute receipts missing per-transaction spend metadata", () => {
     const receipt = makeExecuteReceipt({
       steps: executeSteps().map((step) =>

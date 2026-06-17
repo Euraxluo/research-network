@@ -446,8 +446,8 @@ export function summarizeProductionAcceptanceSpend(input: {
     if (signerAddress && transaction.suiSpentMist !== undefined && String(computedSpend) !== transaction.suiSpentMist) {
       throw new Error(`transaction ${transaction.digest} spend metadata does not match balanceChanges`);
     }
-    if (signerAddress && computedSpend !== undefined && computedSpend === 0n) {
-      throw new Error(`transaction ${transaction.digest} has no negative SUI balance change for signer ${signerAddress}`);
+    if (signerAddress && !hasSignerSuiBalanceChange(transaction.balanceChanges, signerAddress)) {
+      throw new Error(`transaction ${transaction.digest} has no SUI balance change for signer ${signerAddress}`);
     }
     if (!signerAddress || normalizeSuiTypeAddress(signerAddress) === normalizeSuiTypeAddress(input.buyerAddress)) {
       buyerSpentMist += signerAddress ? computedSpend ?? 0n : productionAcceptanceSuiSpentMist(transaction.balanceChanges, input.buyerAddress);
@@ -465,6 +465,18 @@ export function summarizeProductionAcceptanceSpend(input: {
     withinCap: totalSpentMist <= input.maxSpendMist,
     transactionCount: input.transactions.length
   };
+}
+
+export function hasSignerSuiBalanceChange(
+  balanceChanges: ProductionAcceptanceBalanceChange[],
+  address: string
+): boolean {
+  const normalizedAddress = normalizeSuiTypeAddress(address);
+  return balanceChanges.some((change) =>
+    change.owner !== undefined &&
+    normalizeSuiTypeAddress(change.owner) === normalizedAddress &&
+    isProductionAcceptanceSuiCoinType(change.coinType)
+  );
 }
 
 function mainnetTestnetLeaks(config: ProductionAcceptanceConfig): string[] {
