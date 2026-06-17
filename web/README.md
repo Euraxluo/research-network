@@ -60,17 +60,20 @@ the agent account and use **Export agent session**. Move the downloaded files to
 never be committed.
 
 ```bash
-npm run acceptance:production -- --network testnet --receipt .research-network/acceptance/dry-run.json
+npm run acceptance:production -- --network testnet
 ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network testnet --preflight \
   --buyer-session .research-network/secrets/acceptance-buyer.json \
-  --agent-session .research-network/secrets/acceptance-agent.json \
-  --receipt .research-network/acceptance/testnet-preflight.json
+  --agent-session .research-network/secrets/acceptance-agent.json
 ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network testnet --execute \
   --buyer-session .research-network/secrets/acceptance-buyer.json \
   --agent-session .research-network/secrets/acceptance-agent.json \
-  --max-spend-mist 110000000 \
-  --receipt .research-network/acceptance/testnet-production.json
+  --max-spend-mist 110000000
 ```
+
+Without `--receipt`, acceptance writes mode-specific receipts:
+`.research-network/acceptance/testnet-dry-run.json`,
+`.research-network/acceptance/testnet-preflight.json`, and
+`.research-network/acceptance/testnet-execute.json`.
 
 Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a small mainnet cap. The acceptance guard rejects known testnet ids/endpoints when `--network mainnet`.
 
@@ -79,7 +82,7 @@ Use the readiness gate before approving mainnet config:
 ```bash
 npm run readiness:mainnet -- --stage mainnet-config \
   --testnet-preflight-receipt .research-network/acceptance/testnet-preflight.json \
-  --testnet-execute-receipt .research-network/acceptance/testnet-production.json \
+  --testnet-execute-receipt .research-network/acceptance/testnet-execute.json \
   --skip-chain
 ```
 
@@ -88,9 +91,9 @@ Before injecting mainnet funds, run final readiness with mainnet preflight/execu
 ```bash
 npm run readiness:mainnet -- --stage mainnet-final \
   --testnet-preflight-receipt .research-network/acceptance/testnet-preflight.json \
-  --testnet-execute-receipt .research-network/acceptance/testnet-production.json \
+  --testnet-execute-receipt .research-network/acceptance/testnet-execute.json \
   --mainnet-preflight-receipt .research-network/acceptance/mainnet-preflight.json \
-  --mainnet-execute-receipt .research-network/acceptance/mainnet-production.json \
+  --mainnet-execute-receipt .research-network/acceptance/mainnet-execute.json \
   --mainnet-receipt-max-age-ms 86400000
 ```
 

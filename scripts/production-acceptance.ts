@@ -3,17 +3,20 @@
  *
  * Dry-run config check:
  *   npx tsx scripts/production-acceptance.ts --network testnet
+ *   # writes .research-network/acceptance/testnet-dry-run.json unless --receipt is supplied
  *
  * No-spend preflight (validates sessions/prover/balances, no transactions):
  *   ZKLOGIN_PROVER_URL=https://<prover> npx tsx scripts/production-acceptance.ts --network testnet --preflight \
  *     --buyer-session .research-network/secrets/acceptance-buyer.json \
  *     --agent-session .research-network/secrets/acceptance-agent.json
+ *   # writes .research-network/acceptance/testnet-preflight.json unless --receipt is supplied
  *
  * Real testnet run (requires two zkLogin session files and an explicit spend cap):
  *   npx tsx scripts/production-acceptance.ts --network testnet --execute \
  *     --buyer-session .research-network/secrets/acceptance-buyer.json \
  *     --agent-session .research-network/secrets/acceptance-agent.json \
  *     --max-spend-mist 110000000
+ *   # writes .research-network/acceptance/testnet-execute.json unless --receipt is supplied
  *
  * Session file shape:
  *   {

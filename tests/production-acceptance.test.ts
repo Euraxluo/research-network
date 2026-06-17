@@ -5,6 +5,7 @@ import {
   assertProductionAcceptanceSessionFresh,
   assertProductionAcceptanceCanExecute,
   calculateProductionAcceptanceBudget,
+  defaultProductionAcceptanceReceiptPath,
   normalizeProductionAcceptanceBalanceChanges,
   normalizeProductionAcceptanceSession,
   parseProductionAcceptanceArgs,
@@ -22,6 +23,7 @@ describe("production acceptance guardrails", () => {
 
     expect(config.network).toBe("testnet");
     expect(config.execute).toBe(false);
+    expect(config.receiptPath).toBe(defaultProductionAcceptanceReceiptPath("testnet", "dry-run"));
     expect(budget.committedSpendMist).toBe(3_800_000n);
     expect(budget.buyerMinimumMist).toBe(53_800_000n);
     expect(budget.agentMinimumMist).toBe(50_000_000n);
@@ -41,6 +43,7 @@ describe("production acceptance guardrails", () => {
       "--agent-session", ".research-network/secrets/agent.json"
     ], {});
 
+    expect(config.receiptPath).toBe(defaultProductionAcceptanceReceiptPath("testnet", "execute"));
     expect(() => assertProductionAcceptanceCanExecute(config)).toThrow(/max-spend-mist/);
   });
 
@@ -54,7 +57,19 @@ describe("production acceptance guardrails", () => {
 
     expect(config.preflight).toBe(true);
     expect(config.execute).toBe(false);
+    expect(config.receiptPath).toBe(defaultProductionAcceptanceReceiptPath("testnet", "preflight"));
     expect(budget.totalBudgetMist).toBe(103_800_000n);
+  });
+
+  it("keeps an explicit receipt path when provided", () => {
+    const config = parseProductionAcceptanceArgs([
+      "--preflight",
+      "--buyer-session", ".research-network/secrets/buyer.json",
+      "--agent-session", ".research-network/secrets/agent.json",
+      "--receipt", ".research-network/acceptance/custom-preflight.json"
+    ], {});
+
+    expect(config.receiptPath).toBe(".research-network/acceptance/custom-preflight.json");
   });
 
   it("does not allow execute and preflight in the same run", () => {

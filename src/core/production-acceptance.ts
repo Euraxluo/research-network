@@ -4,6 +4,7 @@ import { decodeJwt } from "@mysten/sui/zklogin";
 import { genAddressSeed } from "@mysten/sui/zklogin";
 
 export type ProductionAcceptanceNetwork = "testnet" | "mainnet";
+export type ProductionAcceptanceMode = "dry-run" | "preflight" | "execute";
 
 export interface ProductionAcceptanceConfig {
   network: ProductionAcceptanceNetwork;
@@ -156,7 +157,7 @@ export interface ProductionAcceptanceProverEvidence {
   urlSha256: string;
 }
 
-const DEFAULT_RECEIPT_PATH = ".research-network/acceptance/production-acceptance.json";
+const DEFAULT_RECEIPT_DIR = ".research-network/acceptance";
 const DEFAULT_GAS_RESERVE_MIST = 50_000_000n;
 const DEFAULT_ACCESS_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 const KNOWN_TESTNET_IDS = new Set([
@@ -219,7 +220,8 @@ export function parseProductionAcceptanceArgs(argv: string[], env: NodeJS.Proces
     preflight,
     buyerSessionPath: stringArg(args, env, "buyer-session", "RN_ACCEPTANCE_BUYER_SESSION"),
     agentSessionPath: stringArg(args, env, "agent-session", "RN_ACCEPTANCE_AGENT_SESSION"),
-    receiptPath: stringArg(args, env, "receipt", "RN_ACCEPTANCE_RECEIPT") ?? DEFAULT_RECEIPT_PATH,
+    receiptPath: stringArg(args, env, "receipt", "RN_ACCEPTANCE_RECEIPT") ??
+      defaultProductionAcceptanceReceiptPath(network, productionAcceptanceMode(execute, preflight)),
     maxSpendMist: parseMist(stringArg(args, env, "max-spend-mist", "RN_ACCEPTANCE_MAX_SPEND_MIST"), 0n, "max-spend-mist"),
     gasReserveMist: parseMist(stringArg(args, env, "gas-reserve-mist", "RN_ACCEPTANCE_GAS_RESERVE_MIST"), DEFAULT_GAS_RESERVE_MIST, "gas-reserve-mist"),
     platformMembershipPriceMist: parseMist(stringArg(args, env, "platform-membership-mist", "RN_PLATFORM_MEMBERSHIP_PRICE_MIST"), 1_000_000n, "platform-membership-mist"),
@@ -240,6 +242,19 @@ export function parseProductionAcceptanceArgs(argv: string[], env: NodeJS.Proces
     sealKeyServerAggregatorUrl: stringArg(args, env, "seal-key-server-aggregator-url", "RN_SEAL_KEY_SERVER_AGGREGATOR_URL"),
     sealThreshold: numberArg(args, env, "seal-threshold", "RN_SEAL_THRESHOLD")
   };
+}
+
+export function productionAcceptanceMode(execute: boolean, preflight: boolean): ProductionAcceptanceMode {
+  if (execute) return "execute";
+  if (preflight) return "preflight";
+  return "dry-run";
+}
+
+export function defaultProductionAcceptanceReceiptPath(
+  network: ProductionAcceptanceNetwork,
+  mode: ProductionAcceptanceMode
+): string {
+  return path.join(DEFAULT_RECEIPT_DIR, `${network}-${mode}.json`);
 }
 
 export function calculateProductionAcceptanceBudget(config: Pick<

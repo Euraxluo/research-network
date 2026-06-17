@@ -9,6 +9,7 @@
 import { readFile } from "node:fs/promises";
 import {
   assertProductionAcceptanceCanExecute,
+  defaultProductionAcceptanceReceiptPath,
   parseProductionAcceptanceArgs,
   type ProductionAcceptanceReceipt
 } from "../src/core/production-acceptance.js";
@@ -132,10 +133,14 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ReadinessArgs {
   }
   return {
     stage,
-    testnetPreflightReceipt: stringArg(map, env, "testnet-preflight-receipt", "RN_TESTNET_PREFLIGHT_RECEIPT"),
-    testnetExecuteReceipt: stringArg(map, env, "testnet-execute-receipt", "RN_TESTNET_EXECUTE_RECEIPT"),
-    mainnetPreflightReceipt: stringArg(map, env, "mainnet-preflight-receipt", "RN_MAINNET_PREFLIGHT_RECEIPT"),
-    mainnetExecuteReceipt: stringArg(map, env, "mainnet-execute-receipt", "RN_MAINNET_EXECUTE_RECEIPT"),
+    testnetPreflightReceipt: stringArg(map, env, "testnet-preflight-receipt", "RN_TESTNET_PREFLIGHT_RECEIPT") ??
+      defaultProductionAcceptanceReceiptPath("testnet", "preflight"),
+    testnetExecuteReceipt: stringArg(map, env, "testnet-execute-receipt", "RN_TESTNET_EXECUTE_RECEIPT") ??
+      defaultProductionAcceptanceReceiptPath("testnet", "execute"),
+    mainnetPreflightReceipt: stringArg(map, env, "mainnet-preflight-receipt", "RN_MAINNET_PREFLIGHT_RECEIPT") ??
+      defaultProductionAcceptanceReceiptPath("mainnet", "preflight"),
+    mainnetExecuteReceipt: stringArg(map, env, "mainnet-execute-receipt", "RN_MAINNET_EXECUTE_RECEIPT") ??
+      defaultProductionAcceptanceReceiptPath("mainnet", "execute"),
     mainnetReceiptMaxAgeMs: positiveIntegerArg(map, env, "mainnet-receipt-max-age-ms", "RN_MAINNET_RECEIPT_MAX_AGE_MS") ?? DEFAULT_MAINNET_RECEIPT_MAX_AGE_MS,
     json: map.get("json") === true || env.RN_READINESS_JSON === "1",
     skipChain: map.get("skip-chain") === true || env.RN_READINESS_SKIP_CHAIN === "1"
