@@ -67,6 +67,17 @@ ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network t
 
 Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a smaller mainnet cap. The acceptance guard rejects known testnet ids/endpoints when `--network mainnet`.
 
+Use the readiness gate before approving real funds:
+
+```bash
+npm run readiness:mainnet -- --stage mainnet-config \
+  --testnet-preflight-receipt .research-network/acceptance/testnet-preflight.json \
+  --testnet-execute-receipt .research-network/acceptance/testnet-production.json \
+  --skip-chain
+```
+
+`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, testnet-looking mainnet endpoint, or missing prover/mainnet env keeps the report red.
+
 Production config guards:
 
 - Vite/Web: set `VITE_RN_NETWORK`, `VITE_RN_SUI_RPC_URL`, `VITE_RN_PACKAGE_ID`, `VITE_RN_SETTLEMENT_CONFIG_ID`, `VITE_RN_AGENT_EARNINGS_ID`, `VITE_RN_MEMBERSHIP_RECEIPT_REGISTRY_ID`, `VITE_RN_WALRUS_PUBLISHER_URL`, `VITE_RN_WALRUS_AGGREGATOR_URL`, `VITE_RN_SEAL_KEY_SERVER_OBJECT_ID`, and `VITE_RN_SEAL_KEY_SERVER_AGGREGATOR_URL` for production builds, or inject the same values through `window.__RN_M3_CONFIG__`.

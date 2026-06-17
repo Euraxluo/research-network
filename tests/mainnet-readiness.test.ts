@@ -1,0 +1,235 @@
+import { describe, expect, it } from "vitest";
+import {
+  checkProductionAcceptanceReceipt,
+  hasBlockingReadinessFailures,
+  type ReceiptExpectation
+} from "../src/core/mainnet-readiness.js";
+import type { ProductionAcceptanceReceipt, ProductionAcceptanceStep } from "../src/core/production-acceptance.js";
+
+const ALL_STEPS = [
+  "config.validate",
+  "accounts.validate",
+  "balances.validate",
+  "agent.publish_encrypted_report",
+  "buyer.buy_platform_membership",
+  "buyer.decrypt_report",
+  "buyer.record_access_receipt",
+  "buyer.buy_agent_subscription",
+  "buyer.decrypt_report_with_subscription",
+  "platform.settle_membership_receipt",
+  "agent.claim_membership_earnings",
+  "buyer.create_and_fund_delegation",
+  "agent.publish_private_result",
+  "buyer.decrypt_private_result",
+  "buyer.complete_delegation"
+];
+
+const executeExpectation: ReceiptExpectation = {
+  label: "testnet-execute",
+  network: "testnet",
+  execute: true,
+  preflight: false,
+  required: true
+};
+
+describe("mainnet readiness receipt checks", () => {
+  it("does not accept missing receipts as ready evidence", () => {
+    const checks = checkProductionAcceptanceReceipt(undefined, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks[0].message).toMatch(/missing/);
+  });
+
+  it("accepts a full capped execute receipt with digests and object ids", () => {
+    const receipt = makeExecuteReceipt();
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(false);
+  });
+
+  it("rejects a dry-run receipt for execute readiness", () => {
+    const receipt = makeExecuteReceipt({ execute: false, conclusion: "not_run" });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".mode") && check.status === "failed")).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".conclusion") && check.status === "failed")).toBe(true);
+  });
+
+  it("rejects execute receipts missing transaction digest evidence", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "agent.claim_membership_earnings" ? { ...step, digest: undefined } : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".digests") && check.status === "failed")).toBe(true);
+  });
+
+  it("accepts no-spend preflight receipts only when transaction steps are skipped", () => {
+    const expectation: ReceiptExpectation = {
+      label: "testnet-preflight",
+      network: "testnet",
+      execute: false,
+      preflight: true,
+      required: true
+    };
+    const receipt = makePreflightReceipt();
+
+    expect(hasBlockingReadinessFailures(checkProductionAcceptanceReceipt(receipt, expectation))).toBe(false);
+
+    const badReceipt = makePreflightReceipt({
+      steps: preflightSteps().map((step) =>
+        step.name === "agent.publish_encrypted_report" ? { ...step, status: "passed" as const, meta: undefined } : step
+      )
+    });
+    const badChecks = checkProductionAcceptanceReceipt(badReceipt, expectation);
+    expect(hasBlockingReadinessFailures(badChecks)).toBe(true);
+  });
+
+  it("rejects mainnet receipts that still contain testnet-looking config", () => {
+    const expectation: ReceiptExpectation = {
+      label: "mainnet-execute",
+      network: "mainnet",
+      execute: true,
+      preflight: false,
+      required: true
+    };
+    const receipt = makeExecuteReceipt({
+      network: "mainnet",
+      config: {
+        ...baseConfig("mainnet"),
+        walrusAggregatorUrl: "https://aggregator.walrus-testnet.walrus.space"
+      }
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, expectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".config.no_testnet_values") && check.status === "failed")).toBe(true);
+  });
+});
+
+function makeExecuteReceipt(overrides: Partial<ProductionAcceptanceReceipt> = {}): ProductionAcceptanceReceipt {
+  const network = overrides.network ?? "testnet";
+  return {
+    network,
+    execute: true,
+    preflight: false,
+    startedAt: "2026-06-17T00:00:00.000Z",
+    finishedAt: "2026-06-17T00:01:00.000Z",
+    buyerAddress: "0x" + "aa".repeat(32),
+    agentAddress: "0x" + "bb".repeat(32),
+    budget: {
+      committedSpendMist: "3800000",
+      gasReserveMist: "50000000",
+      buyerMinimumMist: "53800000",
+      agentMinimumMist: "50000000",
+      totalBudgetMist: "103800000",
+      maxSpendMist: "110000000"
+    },
+    config: baseConfig(network),
+    steps: executeSteps(),
+    conclusion: "passed",
+    ...overrides
+  };
+}
+
+function makePreflightReceipt(overrides: Partial<ProductionAcceptanceReceipt> = {}): ProductionAcceptanceReceipt {
+  const network = overrides.network ?? "testnet";
+  return {
+    network,
+    execute: false,
+    preflight: true,
+    startedAt: "2026-06-17T00:00:00.000Z",
+    finishedAt: "2026-06-17T00:01:00.000Z",
+    buyerAddress: "0x" + "aa".repeat(32),
+    agentAddress: "0x" + "bb".repeat(32),
+    budget: {
+      committedSpendMist: "3800000",
+      gasReserveMist: "50000000",
+      buyerMinimumMist: "53800000",
+      agentMinimumMist: "50000000",
+      totalBudgetMist: "103800000",
+      maxSpendMist: "0"
+    },
+    config: baseConfig(network),
+    steps: preflightSteps(),
+    conclusion: "passed",
+    ...overrides
+  };
+}
+
+function executeSteps(): ProductionAcceptanceStep[] {
+  return ALL_STEPS.map((name) => {
+    const step: ProductionAcceptanceStep = { name, status: "passed" };
+    if ([
+      "agent.publish_encrypted_report",
+      "buyer.buy_platform_membership",
+      "buyer.record_access_receipt",
+      "buyer.buy_agent_subscription",
+      "platform.settle_membership_receipt",
+      "agent.claim_membership_earnings",
+      "buyer.create_and_fund_delegation",
+      "agent.publish_private_result",
+      "buyer.complete_delegation"
+    ].includes(name)) {
+      step.digest = `tx-${name}`;
+    }
+    if ([
+      "agent.publish_encrypted_report",
+      "buyer.buy_platform_membership",
+      "buyer.record_access_receipt",
+      "buyer.buy_agent_subscription",
+      "buyer.create_and_fund_delegation",
+      "agent.publish_private_result"
+    ].includes(name)) {
+      step.objectId = "0x" + "cc".repeat(32);
+    }
+    if (name === "buyer.create_and_fund_delegation") {
+      step.meta = { fundDigest: "tx-fund" };
+    }
+    return step;
+  });
+}
+
+function preflightSteps(): ProductionAcceptanceStep[] {
+  return ALL_STEPS.map((name) => {
+    if (["config.validate", "accounts.validate", "balances.validate"].includes(name)) {
+      return { name, status: "passed" };
+    }
+    return { name, status: "skipped", meta: { reason: "preflight_no_transactions" } };
+  });
+}
+
+function baseConfig(network: "testnet" | "mainnet"): ProductionAcceptanceReceipt["config"] {
+  if (network === "mainnet") {
+    return {
+      suiRpcUrl: "https://fullnode.mainnet.sui.io:443",
+      packageId: "0x" + "11".repeat(32),
+      settlementConfigId: "0x" + "22".repeat(32),
+      agentEarningsId: "0x" + "33".repeat(32),
+      membershipReceiptRegistryId: "0x" + "44".repeat(32),
+      walrusPublisherUrl: "https://publisher.walrus.space",
+      walrusAggregatorUrl: "https://aggregator.walrus.space",
+      walrusEpochs: 5,
+      sealKeyServerObjectId: "0x" + "55".repeat(32),
+      sealKeyServerAggregatorUrl: "https://seal-aggregator.mainnet.example",
+      sealThreshold: 1
+    };
+  }
+  return {
+    suiRpcUrl: "https://sui-testnet-rpc.publicnode.com",
+    packageId: "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e",
+    settlementConfigId: "0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4",
+    agentEarningsId: "0xb637059cb77aca697e36673afa2e8639f7f82d16b8f0eba8eb6a1f5bd12eda2b",
+    membershipReceiptRegistryId: "0x5a25a789a4032c8460afa68b26b839a081c770372fa04e567207c606b68ad748",
+    walrusPublisherUrl: "https://publisher.walrus-testnet.walrus.space",
+    walrusAggregatorUrl: "https://aggregator.walrus-testnet.walrus.space",
+    walrusEpochs: 5,
+    sealKeyServerObjectId: "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98",
+    sealKeyServerAggregatorUrl: "https://seal-aggregator-testnet.mystenlabs.com",
+    sealThreshold: 1
+  };
+}

@@ -26,7 +26,8 @@
     "web:serve": "tsx src/cli.ts web:serve --port 4173",
     "web:portal": "docker rm -f research-walrus-portal 2>/dev/null; docker run --rm --name research-walrus-portal -v /tmp/walrus-portal-config.yaml:/portal-config.yaml:ro -e PORTAL_CONFIG=/portal-config.yaml -p 3010:3000 mysten/walrus-sites-server-portal:mainnet-v2.10.0",
     "web:deploy": "vercel deploy --prod",
-    "acceptance:production": "tsx scripts/production-acceptance.ts"
+    "acceptance:production": "tsx scripts/production-acceptance.ts",
+    "readiness:mainnet": "tsx scripts/mainnet-readiness.ts"
   },
   "dependencies": {
     "@mysten/sui": "^2.17.0",
