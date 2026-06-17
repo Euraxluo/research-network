@@ -39,7 +39,9 @@ import {
   createProductionAcceptanceReceipt,
   normalizeProductionAcceptanceSession,
   parseProductionAcceptanceArgs,
+  productionAcceptanceFreshnessEvidence,
   writeProductionAcceptanceReceipt,
+  zkProofEvidence,
   type ProductionAcceptanceConfig,
   type ProductionAcceptanceSessionInput,
   type ProductionAcceptanceReceipt,
@@ -134,18 +136,42 @@ async function main() {
     }
     receipt.buyerAddress = buyer.address;
     receipt.agentAddress = agent.address;
-    pass("accounts.validate", { buyer: buyer.address, agent: agent.address });
+    const currentEpoch = await getCurrentEpoch();
+    const buyerFreshness = productionAcceptanceFreshnessEvidence(buyer.session, currentEpoch);
+    const agentFreshness = productionAcceptanceFreshnessEvidence(agent.session, currentEpoch);
+    pass("accounts.validate", {
+      buyer: buyer.address,
+      agent: agent.address,
+      currentEpoch,
+      buyerMaxEpoch: buyer.session.maxEpoch,
+      agentMaxEpoch: agent.session.maxEpoch,
+      buyerEpochsRemaining: buyerFreshness.epochsRemaining,
+      agentEpochsRemaining: agentFreshness.epochsRemaining
+    });
 
-    await validateBalance("buyer", buyer.address, budget.buyerMinimumMist);
-    await validateBalance("agent", agent.address, budget.agentMinimumMist);
-    pass("balances.validate");
+    const buyerBalance = await validateBalance("buyer", buyer.address, budget.buyerMinimumMist);
+    const agentBalance = await validateBalance("agent", agent.address, budget.agentMinimumMist);
+    pass("balances.validate", {
+      buyerBalanceMist: String(buyerBalance.balanceMist),
+      buyerMinimumMist: String(buyerBalance.minimumMist),
+      agentBalanceMist: String(agentBalance.balanceMist),
+      agentMinimumMist: String(agentBalance.minimumMist)
+    });
 
     if (config.preflight) {
-      const currentEpoch = await getCurrentEpoch();
       assertProductionAcceptanceSessionFresh("buyer", buyer.session, currentEpoch);
       assertProductionAcceptanceSessionFresh("agent", agent.session, currentEpoch);
-      await buyer.proof();
-      await agent.proof();
+      const buyerProof = await buyer.proof();
+      const agentProof = await agent.proof();
+      pass("accounts.validate", {
+        buyer: buyer.address,
+        agent: agent.address,
+        currentEpoch,
+        buyerFreshness,
+        agentFreshness,
+        buyerProof: zkProofEvidence(buyerProof),
+        agentProof: zkProofEvidence(agentProof)
+      });
       for (const step of receipt.steps.filter((step) => step.status === "pending")) {
         step.status = "skipped";
         step.meta = { reason: "preflight_no_transactions" };
@@ -166,7 +192,7 @@ async function main() {
     pass("agent.publish_encrypted_report", {
       digest: encrypted.txDigest,
       objectId: encrypted.report.sui_object_id,
-      meta: { sealId: encrypted.report.seal_id, walrusBlobId: encrypted.report.walrus_blob_id }
+      meta: reportEvidence(encrypted.report)
     });
 
     const membership = await buyPlatformMembershipOnChain({
@@ -184,7 +210,9 @@ async function main() {
     if (!memberPlaintext || memberPlaintext !== encrypted.plaintext) {
       throw new Error("buyer platform membership decrypt did not return the encrypted report plaintext");
     }
-    pass("buyer.decrypt_report");
+    pass("buyer.decrypt_report", {
+      meta: decryptEvidence(encrypted.report, "platform_member", memberPlaintext)
+    });
 
     const periodId = currentPeriod();
     const accessReceipt = await recordPlatformAccessReceiptOnChain({
@@ -211,7 +239,9 @@ async function main() {
     if (!subscriberPlaintext || subscriberPlaintext !== encrypted.plaintext) {
       throw new Error("buyer agent subscription decrypt did not return the encrypted report plaintext");
     }
-    pass("buyer.decrypt_report_with_subscription");
+    pass("buyer.decrypt_report_with_subscription", {
+      meta: decryptEvidence(encrypted.report, "agent_subscription", subscriberPlaintext)
+    });
 
     const settleDigest = await settleMembershipReportOnChain({
       signer: buyer,
@@ -252,7 +282,7 @@ async function main() {
     pass("agent.publish_private_result", {
       digest: privateResult.txDigest,
       objectId: privateResult.report.sui_object_id,
-      meta: { sealId: privateResult.report.seal_id, walrusBlobId: privateResult.report.walrus_blob_id }
+      meta: reportEvidence(privateResult.report)
     });
 
     const privatePlaintext = await decryptReport(
@@ -265,7 +295,9 @@ async function main() {
     if (!privatePlaintext || privatePlaintext !== privateResult.plaintext) {
       throw new Error("buyer private delegation decrypt did not return the private result plaintext");
     }
-    pass("buyer.decrypt_private_result");
+    pass("buyer.decrypt_private_result", {
+      meta: decryptEvidence(privateResult.report, "private_delegation", privatePlaintext)
+    });
 
     const completeDigest = await completeDelegationJobOnChain({ signer: buyer, jobObjectId: job.objectId });
     pass("buyer.complete_delegation", { digest: completeDigest });
@@ -368,13 +400,18 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
   };
 }
 
-async function validateBalance(label: string, owner: string, minimumMist: bigint) {
+async function validateBalance(
+  label: string,
+  owner: string,
+  minimumMist: bigint
+): Promise<{ balanceMist: bigint; minimumMist: bigint }> {
   const { getSuiClient } = await import("../web/src/lib/sui-client.ts");
   const coins = await getSuiClient().getCoins({ owner });
   const balance = coins.data.reduce((sum, coin) => sum + BigInt(coin.balance), 0n);
   if (balance < minimumMist) {
     throw new Error(`${label} balance ${balance} MIST is below required ${minimumMist} MIST`);
   }
+  return { balanceMist: balance, minimumMist };
 }
 
 async function getCurrentEpoch(): Promise<number> {
@@ -424,6 +461,40 @@ function currentPeriod(): number {
 function required(value: string | undefined, name: string): string {
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+function reportEvidence(report: {
+  id?: string;
+  sui_object_id?: string;
+  tx_digest?: string;
+  seal_id?: string;
+  walrus_blob_id?: string;
+  ciphertext_hash?: string;
+  plaintext_commitment?: string;
+  visibility?: string;
+}) {
+  return {
+    reportObjectId: report.sui_object_id || report.id,
+    txDigest: report.tx_digest,
+    sealId: report.seal_id,
+    walrusBlobId: report.walrus_blob_id,
+    ciphertextHash: report.ciphertext_hash,
+    plaintextCommitment: report.plaintext_commitment,
+    visibility: report.visibility
+  };
+}
+
+function decryptEvidence(
+  report: Parameters<typeof reportEvidence>[0],
+  accessPath: string,
+  plaintext: string
+) {
+  return {
+    ...reportEvidence(report),
+    accessPath,
+    plaintextBytes: new TextEncoder().encode(plaintext).length,
+    plaintextMatched: true
+  };
 }
 
 function toBase64(bytes: Uint8Array): string {

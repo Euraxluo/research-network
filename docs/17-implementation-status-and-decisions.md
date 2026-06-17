@@ -188,7 +188,7 @@ npm run acceptance:production -- --network testnet --execute \
   --receipt .research-network/acceptance/testnet-production.json
 ```
 
-会话文件必须来自真实 Google zkLogin 登录，放在 `.research-network/secrets/`，包含 `address`、`ephemeralSecretKey`、`idToken`、`salt`、`maxEpoch`、`randomness`，也可以使用浏览器 storage 形状的 `rn_zk_eph` / `rn_zk_session`。脚本覆盖 encrypted report 发布、平台会员购买、Seal 解密、receipt 记录、agent subscription 购买与解密、会员 receipt 结算、agent claim、私有委托创建/资金托管/结果提交/买家解密/完成放款。`--execute` 会真实花费 testnet/mainnet SUI，预算由 `--max-spend-mist` 硬限制；`--network mainnet` 会拒绝已知 testnet object ids 和 testnet endpoints。
+会话文件必须来自真实 Google zkLogin 登录，放在 `.research-network/secrets/`，包含 `address`、`ephemeralSecretKey`、`idToken`、`salt`、`maxEpoch`、`randomness`，也可以使用浏览器 storage 形状的 `rn_zk_eph` / `rn_zk_session`。脚本覆盖 encrypted report 发布、平台会员购买、Seal 解密、receipt 记录、agent subscription 购买与解密、会员 receipt 结算、agent claim、私有委托创建/资金托管/结果提交/买家解密/完成放款。receipt 会记录非敏感证据：当前 epoch/session freshness、余额与最低要求、prover 响应 shape、交易 digest/object id、Walrus blob id、Seal id、ciphertext/plaintext commitment hash、解密路径与 plaintext match。`--execute` 会真实花费 testnet/mainnet SUI，预算由 `--max-spend-mist` 硬限制；`--network mainnet` 会拒绝已知 testnet object ids 和 testnet endpoints。
 
 Mainnet readiness gate 用来汇总“是否可上 mainnet/注入真实资金”的证据，默认不花钱：
 
@@ -211,6 +211,7 @@ Web/Vercel 生产配置防护：
 ## 修订记录
 
 - 2026-06-17：Account 页新增 production acceptance session 导出入口，可从真实同 tab Google zkLogin 状态生成 buyer/agent session JSON；新增纯函数与 UI 集成测试覆盖成功导出和缺失 ephemeral key 时失败闭合。
+- 2026-06-17：增强 production acceptance receipt 证据。preflight/execute receipt 现在记录 epoch freshness、余额阈值、prover shape、Walrus/Seal/hash 元数据和 decrypt plaintext match；readiness 会拒绝缺少这些证据的 receipt。
 - 2026-06-17：加硬 mainnet readiness gate。mainnet receipts 现在会拒绝已知 testnet object ids、超过小额 acceptance cap 的 execute receipt、与当前 mainnet acceptance env 不一致的 receipt 配置；链上 object 检查会额外验证 settlement shared object 类型后缀。
 - 2026-06-17：补生产配置防误用 guard。Web/Vite config、Vercel Walrus proxy、auth shell 与 production acceptance 均拒绝 mainnet 混入已知 testnet object ids/endpoints；acceptance 会校验 zkLogin session 中可选 `address` 必须等于 `idToken + salt` 派生地址。
 - 2026-06-17：新增 `npm run readiness:mainnet` 可执行门禁，检查 testnet/mainnet acceptance receipts、mainnet env/Web/Vercel/Auth/prover 配置和可选链上 object 存在性，防止把 dry-run 或缺失凭据误判为 mainnet ready。

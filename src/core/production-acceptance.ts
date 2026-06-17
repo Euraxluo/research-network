@@ -103,6 +103,19 @@ export interface ProductionAcceptanceReceipt {
   conclusion: "not_run" | "passed" | "failed";
 }
 
+export interface ProductionAcceptanceProofEvidence {
+  hasProofPoints: boolean;
+  hasIssBase64Details: boolean;
+  hasHeaderBase64: boolean;
+  hasAddressSeed: boolean;
+}
+
+export interface ProductionAcceptanceFreshnessEvidence {
+  maxEpoch: number;
+  currentEpoch: number;
+  epochsRemaining: number;
+}
+
 const DEFAULT_RECEIPT_PATH = ".research-network/acceptance/production-acceptance.json";
 const DEFAULT_GAS_RESERVE_MIST = 50_000_000n;
 const KNOWN_TESTNET_IDS = new Set([
@@ -284,6 +297,17 @@ export function assertProductionAcceptanceSessionFresh(
   }
 }
 
+export function productionAcceptanceFreshnessEvidence(
+  session: Pick<ProductionAcceptanceSession, "maxEpoch">,
+  currentEpoch: number
+): ProductionAcceptanceFreshnessEvidence {
+  return {
+    maxEpoch: session.maxEpoch,
+    currentEpoch,
+    epochsRemaining: session.maxEpoch - currentEpoch
+  };
+}
+
 export function assertProductionAcceptanceSessionAddress(
   label: string,
   session: Pick<ProductionAcceptanceSession, "address" | "idToken" | "salt">,
@@ -294,6 +318,15 @@ export function assertProductionAcceptanceSessionAddress(
     throw new Error(`${label} zkLogin session address ${session.address} does not match derived address ${derived}`);
   }
   return derived;
+}
+
+export function zkProofEvidence(proof: Record<string, unknown>): ProductionAcceptanceProofEvidence {
+  return {
+    hasProofPoints: Boolean(proof.proofPoints ?? proof.proof_points),
+    hasIssBase64Details: Boolean(proof.issBase64Details ?? proof.iss_base64_details),
+    hasHeaderBase64: Boolean(proof.headerBase64 ?? proof.header_base64),
+    hasAddressSeed: Boolean(proof.addressSeed ?? proof.address_seed)
+  };
 }
 
 function mainnetTestnetLeaks(config: ProductionAcceptanceConfig): string[] {

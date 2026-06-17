@@ -5,7 +5,9 @@ import {
   assertProductionAcceptanceCanExecute,
   calculateProductionAcceptanceBudget,
   normalizeProductionAcceptanceSession,
-  parseProductionAcceptanceArgs
+  parseProductionAcceptanceArgs,
+  productionAcceptanceFreshnessEvidence,
+  zkProofEvidence
 } from "../src/core/production-acceptance.js";
 
 describe("production acceptance guardrails", () => {
@@ -177,5 +179,24 @@ describe("production acceptance guardrails", () => {
     expect(() => assertProductionAcceptanceSessionFresh("buyer", { maxEpoch: 101 }, 100, 2)).toThrow(
       /expires too soon/
     );
+  });
+
+  it("summarizes freshness and prover evidence without storing sensitive proof material", () => {
+    expect(productionAcceptanceFreshnessEvidence({ maxEpoch: 105 }, 100)).toEqual({
+      maxEpoch: 105,
+      currentEpoch: 100,
+      epochsRemaining: 5
+    });
+    expect(zkProofEvidence({
+      proofPoints: { a: ["1"] },
+      issBase64Details: { value: "issuer" },
+      headerBase64: "header",
+      addressSeed: "seed"
+    })).toEqual({
+      hasProofPoints: true,
+      hasIssBase64Details: true,
+      hasHeaderBase64: true,
+      hasAddressSeed: true
+    });
   });
 });

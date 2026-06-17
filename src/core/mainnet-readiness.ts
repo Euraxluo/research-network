@@ -164,6 +164,7 @@ function checkPreflightSteps(receipt: ProductionAcceptanceReceipt, expectation: 
   const checks: ReadinessCheck[] = [];
   const passedCore = ["config.validate", "accounts.validate", "balances.validate"];
   const transactionSteps = ACCEPTANCE_STEPS.filter((name) => !passedCore.includes(name));
+  const accountMeta = receipt.steps.find((step) => step.name === "accounts.validate")?.meta;
   checks.push(checkBoolean(
     `receipt.${expectation.label}.preflight.core_steps`,
     passedCore.every((name) => stepStatus(receipt, name) === "passed"),
@@ -180,6 +181,23 @@ function checkPreflightSteps(receipt: ProductionAcceptanceReceipt, expectation: 
     `${expectation.label} preflight skipped all transaction steps without spending funds`,
     `${expectation.label} preflight should skip transaction steps with preflight_no_transactions`,
     expectation.required
+  ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.preflight.zkproof_evidence`,
+    hasProofEvidence(accountMeta?.buyerProof) && hasProofEvidence(accountMeta?.agentProof),
+    `${expectation.label} preflight records non-sensitive zkLogin prover evidence for both accounts`,
+    `${expectation.label} preflight is missing zkLogin prover evidence`,
+    expectation.required,
+    { buyerProof: accountMeta?.buyerProof, agentProof: accountMeta?.agentProof }
+  ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.preflight.epoch_freshness`,
+    hasPositiveNumber(accountMeta?.buyerFreshness, "epochsRemaining") &&
+      hasPositiveNumber(accountMeta?.agentFreshness, "epochsRemaining"),
+    `${expectation.label} preflight records positive zkLogin epoch freshness for both accounts`,
+    `${expectation.label} preflight is missing positive zkLogin epoch freshness evidence`,
+    expectation.required,
+    { buyerFreshness: accountMeta?.buyerFreshness, agentFreshness: accountMeta?.agentFreshness }
   ));
   return checks;
 }
@@ -212,6 +230,30 @@ function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: Re
     typeof receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundDigest === "string",
     `${expectation.label} execute records the delegation funding digest`,
     `${expectation.label} execute is missing the delegation funding digest`,
+    expectation.required
+  ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.publish_metadata`,
+    ["agent.publish_encrypted_report", "agent.publish_private_result"].every((name) => {
+      const meta = receipt.steps.find((step) => step.name === name)?.meta;
+      return hasString(meta?.sealId) && hasString(meta?.walrusBlobId) && hasString(meta?.ciphertextHash);
+    }),
+    `${expectation.label} execute records Walrus/Seal/hash metadata for encrypted publish steps`,
+    `${expectation.label} execute is missing Walrus/Seal/hash metadata for encrypted publish steps`,
+    expectation.required
+  ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.decrypt_evidence`,
+    ["buyer.decrypt_report", "buyer.decrypt_report_with_subscription", "buyer.decrypt_private_result"].every((name) => {
+      const meta = receipt.steps.find((step) => step.name === name)?.meta;
+      return meta?.plaintextMatched === true &&
+        hasString(meta?.accessPath) &&
+        hasString(meta?.sealId) &&
+        hasString(meta?.walrusBlobId) &&
+        hasPositiveNumber(meta, "plaintextBytes");
+    }),
+    `${expectation.label} execute records successful Seal decrypt evidence for all decrypt paths`,
+    `${expectation.label} execute is missing successful Seal decrypt evidence`,
     expectation.required
   ));
   return checks;
@@ -331,6 +373,25 @@ function normalizeReadinessValue(value: string | number | undefined): string | u
     return trimmed.toLowerCase();
   }
   return trimmed;
+}
+
+function hasProofEvidence(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const proof = value as Record<string, unknown>;
+  return proof.hasProofPoints === true &&
+    proof.hasIssBase64Details === true &&
+    proof.hasHeaderBase64 === true &&
+    proof.hasAddressSeed === true;
+}
+
+function hasString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function hasPositiveNumber(value: unknown, key: string): boolean {
+  if (!value || typeof value !== "object") return false;
+  const raw = (value as Record<string, unknown>)[key];
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0;
 }
 
 export function pass(

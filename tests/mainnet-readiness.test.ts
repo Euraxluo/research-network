@@ -68,6 +68,18 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".digests") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts missing Walrus/Seal/decrypt evidence", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "buyer.decrypt_report" ? { ...step, meta: undefined } : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".decrypt_evidence") && check.status === "failed")).toBe(true);
+  });
+
   it("accepts no-spend preflight receipts only when transaction steps are skipped", () => {
     const expectation: ReceiptExpectation = {
       label: "testnet-preflight",
@@ -233,6 +245,18 @@ function executeSteps(): ProductionAcceptanceStep[] {
     if (name === "buyer.create_and_fund_delegation") {
       step.meta = { fundDigest: "tx-fund" };
     }
+    if (name === "agent.publish_encrypted_report" || name === "agent.publish_private_result") {
+      step.meta = reportMeta(name);
+    }
+    if (name === "buyer.decrypt_report") {
+      step.meta = decryptMeta("platform_member");
+    }
+    if (name === "buyer.decrypt_report_with_subscription") {
+      step.meta = decryptMeta("agent_subscription");
+    }
+    if (name === "buyer.decrypt_private_result") {
+      step.meta = decryptMeta("private_delegation");
+    }
     return step;
   });
 }
@@ -240,10 +264,52 @@ function executeSteps(): ProductionAcceptanceStep[] {
 function preflightSteps(): ProductionAcceptanceStep[] {
   return ALL_STEPS.map((name) => {
     if (["config.validate", "accounts.validate", "balances.validate"].includes(name)) {
+      if (name === "accounts.validate") {
+        return {
+          name,
+          status: "passed",
+          meta: {
+            buyerProof: proofMeta(),
+            agentProof: proofMeta(),
+            buyerFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 },
+            agentFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 }
+          }
+        };
+      }
       return { name, status: "passed" };
     }
     return { name, status: "skipped", meta: { reason: "preflight_no_transactions" } };
   });
+}
+
+function proofMeta(): Record<string, boolean> {
+  return {
+    hasProofPoints: true,
+    hasIssBase64Details: true,
+    hasHeaderBase64: true,
+    hasAddressSeed: true
+  };
+}
+
+function reportMeta(name: string): Record<string, string> {
+  return {
+    reportObjectId: "0x" + "cc".repeat(32),
+    txDigest: `tx-${name}`,
+    sealId: "0x" + "dd".repeat(32),
+    walrusBlobId: "walrus-blob",
+    ciphertextHash: "sha256:cipher",
+    plaintextCommitment: "sha256:plain",
+    visibility: name === "agent.publish_private_result" ? "private_delegation" : "encrypted"
+  };
+}
+
+function decryptMeta(accessPath: string): Record<string, string | number | boolean> {
+  return {
+    ...reportMeta("agent.publish_encrypted_report"),
+    accessPath,
+    plaintextBytes: 42,
+    plaintextMatched: true
+  };
 }
 
 function baseConfig(network: "testnet" | "mainnet"): ProductionAcceptanceReceipt["config"] {
