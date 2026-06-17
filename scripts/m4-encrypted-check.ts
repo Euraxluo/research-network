@@ -51,6 +51,46 @@ function env(name: string, fallback: string): string {
   const value = process.env[name];
   return value && value.trim() ? value.trim() : fallback;
 }
+function normalizePackageId(packageId: string | undefined): string | undefined {
+  return packageId?.trim().toLowerCase();
+}
+function movePackageId(type: string | undefined): string | undefined {
+  if (!type) return undefined;
+  return normalizePackageId(type.split("::", 1)[0]);
+}
+function moveStructName(type: string | undefined): string | undefined {
+  if (!type) return undefined;
+  return type.split("<", 1)[0]?.split("::").pop();
+}
+function createdObjectId(
+  changes: unknown[] | undefined,
+  typeHint: string,
+  packageId: string
+): string {
+  const typed = changes?.find((change) => {
+    const item = change as { type?: string; objectType?: string; objectId?: string };
+    return item.type === "created" &&
+      typeof item.objectId === "string" &&
+      moveStructName(item.objectType) === typeHint &&
+      movePackageId(item.objectType) === normalizePackageId(packageId);
+  }) as { objectId?: string } | undefined;
+  if (!typed?.objectId) {
+    throw new Error(`Sui transaction succeeded but did not return a typed ${typeHint} object from configured package ${packageId}`);
+  }
+  return typed.objectId;
+}
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+async function readWalrusBlob(blobId: string): Promise<Uint8Array> {
+  const res = await fetch(`${WALRUS_AGGREGATOR}/v1/blobs/${blobId}`);
+  if (!res.ok) throw new Error(`Walrus readback failed: HTTP ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
 
 async function main() {
   if (NETWORK !== "testnet" && process.env.RN_ALLOW_M4_MAINNET !== "1") {
@@ -108,6 +148,11 @@ async function main() {
   const blobId = (upload.newlyCreated?.blobObject || upload.alreadyCertified)?.blobId;
   if (!blobId) throw new Error("No blobId");
   console.log("   Walrus blobId:", blobId);
+  const uploadedCipher = await readWalrusBlob(blobId);
+  if (!bytesEqual(uploadedCipher, ciphertext)) {
+    throw new Error(`Walrus encrypted blob ${blobId} readback did not match uploaded ciphertext`);
+  }
+  console.log("   Walrus readback verified:", uploadedCipher.length, "bytes");
 
   // 4. Publish encrypted report
   console.log("4. Publishing encrypted report on Sui...");
@@ -128,14 +173,12 @@ async function main() {
   const result = await client.signAndExecuteTransaction({ transaction: tx, signer: keypair, options: { showEffects: true, showObjectChanges: true } });
   console.log("   tx digest:", result.digest, "| status:", result.effects?.status?.status);
   const created = (result.objectChanges || []).filter((c) => c.type === "created");
-  const reportId = (created.find((c) => c.type === "created" && String(c.objectType || "").includes("ResearchReport")) as { objectId?: string })?.objectId;
+  const reportId = createdObjectId(created, "ResearchReport", PACKAGE_ID);
   console.log("   ResearchReport object:", reportId);
-  if (!reportId) { console.log("ERROR: report not created"); process.exit(1); }
 
   // 5. Seal decrypt
   console.log("\n5. Seal decrypting (author path: caller == agent)...");
-  const aggRes = await fetch(`${WALRUS_AGGREGATOR}/v1/blobs/${blobId}`);
-  const fetchedCipher = new Uint8Array(await aggRes.arrayBuffer());
+  const fetchedCipher = uploadedCipher;
   console.log("   fetched ciphertext bytes:", fetchedCipher.length);
 
   const sessionKey = await SessionKey.create({
