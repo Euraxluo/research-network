@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertProductionAcceptanceSessionFresh,
   assertProductionAcceptanceCanExecute,
   calculateProductionAcceptanceBudget,
+  normalizeProductionAcceptanceSession,
   parseProductionAcceptanceArgs
 } from "../src/core/production-acceptance.js";
 
@@ -21,7 +23,34 @@ describe("production acceptance guardrails", () => {
   it("requires two session files and a positive spend cap before real execution", () => {
     const config = parseProductionAcceptanceArgs(["--execute"], {});
 
-    expect(() => assertProductionAcceptanceCanExecute(config)).toThrow(/buyer-session, agent-session, max-spend-mist/);
+    expect(() => assertProductionAcceptanceCanExecute(config)).toThrow(/buyer-session, agent-session/);
+  });
+
+  it("requires a positive spend cap after execution session files are present", () => {
+    const config = parseProductionAcceptanceArgs([
+      "--execute",
+      "--buyer-session", ".research-network/secrets/buyer.json",
+      "--agent-session", ".research-network/secrets/agent.json"
+    ], {});
+
+    expect(() => assertProductionAcceptanceCanExecute(config)).toThrow(/max-spend-mist/);
+  });
+
+  it("supports no-spend preflight with sessions but without a spend cap", () => {
+    const config = parseProductionAcceptanceArgs([
+      "--preflight",
+      "--buyer-session", ".research-network/secrets/buyer.json",
+      "--agent-session", ".research-network/secrets/agent.json"
+    ], {});
+    const budget = assertProductionAcceptanceCanExecute(config);
+
+    expect(config.preflight).toBe(true);
+    expect(config.execute).toBe(false);
+    expect(budget.totalBudgetMist).toBe(103_800_000n);
+  });
+
+  it("does not allow execute and preflight in the same run", () => {
+    expect(() => parseProductionAcceptanceArgs(["--execute", "--preflight"], {})).toThrow(/mutually exclusive/);
   });
 
   it("rejects execution when configured spend exceeds the explicit cap", () => {
@@ -103,5 +132,28 @@ describe("production acceptance guardrails", () => {
     expect(budget.buyerMinimumMist).toBe(105n);
     expect(budget.agentMinimumMist).toBe(5n);
     expect(budget.totalBudgetMist).toBe(110n);
+  });
+
+  it("normalizes browser-style zkLogin session files", () => {
+    const session = normalizeProductionAcceptanceSession("buyer", {
+      address: "0xabc",
+      rn_zk_eph: { secret: "suiprivkey1x", maxEpoch: 123, randomness: "9" },
+      rn_zk_session: { id_token: "header.payload.sig", salt: "456", maxEpoch: 123, randomness: "9" }
+    });
+
+    expect(session).toMatchObject({
+      address: "0xabc",
+      ephemeralSecretKey: "suiprivkey1x",
+      idToken: "header.payload.sig",
+      salt: "456",
+      maxEpoch: 123,
+      randomness: "9"
+    });
+  });
+
+  it("rejects zkLogin sessions that are already too close to expiry", () => {
+    expect(() => assertProductionAcceptanceSessionFresh("buyer", { maxEpoch: 101 }, 100, 2)).toThrow(
+      /expires too soon/
+    );
   });
 });

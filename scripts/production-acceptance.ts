@@ -4,6 +4,11 @@
  * Dry-run config check:
  *   npx tsx scripts/production-acceptance.ts --network testnet
  *
+ * No-spend preflight (validates sessions/prover/balances, no transactions):
+ *   ZKLOGIN_PROVER_URL=https://<prover> npx tsx scripts/production-acceptance.ts --network testnet --preflight \
+ *     --buyer-session .research-network/secrets/acceptance-buyer.json \
+ *     --agent-session .research-network/secrets/acceptance-agent.json
+ *
  * Real testnet run (requires two zkLogin session files and an explicit spend cap):
  *   npx tsx scripts/production-acceptance.ts --network testnet --execute \
  *     --buyer-session .research-network/secrets/acceptance-buyer.json \
@@ -29,10 +34,13 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { getZkLoginSignature } from "@mysten/sui/zklogin";
 import {
   assertProductionAcceptanceCanExecute,
+  assertProductionAcceptanceSessionFresh,
   createProductionAcceptanceReceipt,
+  normalizeProductionAcceptanceSession,
   parseProductionAcceptanceArgs,
   writeProductionAcceptanceReceipt,
   type ProductionAcceptanceConfig,
+  type ProductionAcceptanceSessionInput,
   type ProductionAcceptanceReceipt,
   type ProductionAcceptanceStep
 } from "../src/core/production-acceptance.js";
@@ -53,22 +61,12 @@ import {
 } from "../web/src/lib/clients.ts";
 import { DEFAULT_M3_CONFIG, type M3Config } from "../web/src/lib/config.ts";
 
-interface SessionFile {
-  address?: string;
-  ephemeralSecretKey?: string;
-  secret?: string;
-  idToken?: string;
-  id_token?: string;
-  salt?: string;
-  maxEpoch?: number;
-  max_epoch?: number;
-  randomness?: string;
-  rn_zk_eph?: { secret?: string; maxEpoch?: number; randomness?: string };
-  rn_zk_session?: { id_token?: string; salt?: string; maxEpoch?: number; randomness?: string };
-}
+type SessionFile = ProductionAcceptanceSessionInput;
 
 interface AcceptanceSigner extends M3Signer {
   label: "buyer" | "agent";
+  session: { maxEpoch: number };
+  proof: () => Promise<Record<string, unknown>>;
 }
 
 const steps: ProductionAcceptanceStep[] = [
@@ -113,11 +111,12 @@ async function main() {
     pass("config.validate", {
       network: config.network,
       execute: config.execute,
+      preflight: config.preflight,
       totalBudgetMist: String(budget.totalBudgetMist),
       packageId: activeConfig().packageId
     });
 
-    if (!config.execute) {
+    if (!config.execute && !config.preflight) {
       for (const step of receipt.steps.filter((step) => step.status === "pending")) {
         step.status = "skipped";
         step.meta = { reason: "dry_run" };
@@ -139,6 +138,20 @@ async function main() {
     await validateBalance("buyer", buyer.address, budget.buyerMinimumMist);
     await validateBalance("agent", agent.address, budget.agentMinimumMist);
     pass("balances.validate");
+
+    if (config.preflight) {
+      const currentEpoch = await getCurrentEpoch();
+      assertProductionAcceptanceSessionFresh("buyer", buyer.session, currentEpoch);
+      assertProductionAcceptanceSessionFresh("agent", agent.session, currentEpoch);
+      await buyer.proof();
+      await agent.proof();
+      for (const step of receipt.steps.filter((step) => step.status === "pending")) {
+        step.status = "skipped";
+        step.meta = { reason: "preflight_no_transactions" };
+      }
+      receipt.conclusion = "passed";
+      return;
+    }
 
     const encrypted = await publishReport({
       title: "Production acceptance encrypted report",
@@ -287,26 +300,19 @@ function pass(name: string, result?: { digest?: string; objectId?: string; meta?
 
 async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, config: ProductionAcceptanceConfig): Promise<AcceptanceSigner> {
   const raw = JSON.parse(await readFile(filePath, "utf8")) as SessionFile;
-  const ephSecret = raw.ephemeralSecretKey ?? raw.secret ?? raw.rn_zk_eph?.secret;
-  const idToken = raw.idToken ?? raw.id_token ?? raw.rn_zk_session?.id_token;
-  const salt = raw.salt ?? raw.rn_zk_session?.salt;
-  const maxEpoch = Number(raw.maxEpoch ?? raw.max_epoch ?? raw.rn_zk_session?.maxEpoch ?? raw.rn_zk_eph?.maxEpoch ?? 0);
-  const randomness = raw.randomness ?? raw.rn_zk_session?.randomness ?? raw.rn_zk_eph?.randomness;
-  if (!ephSecret || !idToken || !salt || !maxEpoch || !randomness) {
-    throw new Error(`${label} session is missing ephemeralSecretKey/idToken/salt/maxEpoch/randomness`);
-  }
-  const keypair = Ed25519Keypair.fromSecretKey(ephSecret);
-  const address = raw.address ?? deriveZkLoginAddress(idToken, salt);
+  const session = normalizeProductionAcceptanceSession(label, raw);
+  const keypair = Ed25519Keypair.fromSecretKey(session.ephemeralSecretKey);
+  const address = session.address ?? deriveZkLoginAddress(session.idToken, session.salt);
 
   async function proof() {
     const proverUrl = process.env.ZKLOGIN_PROVER_URL;
-    if (!proverUrl) throw new Error("ZKLOGIN_PROVER_URL is required for --execute");
+    if (!proverUrl) throw new Error("ZKLOGIN_PROVER_URL is required for --preflight/--execute");
     return await requestZkProof(proverUrl, {
-      jwt: idToken,
+      jwt: session.idToken,
       extendedEphemeralPublicKey: keypair.getPublicKey().toSuiPublicKey(),
-      maxEpoch,
-      jwtRandomness: randomness,
-      salt,
+      maxEpoch: session.maxEpoch,
+      jwtRandomness: session.randomness,
+      salt: session.salt,
       keyClaimName: "sub"
     });
   }
@@ -319,13 +325,15 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
         headerBase64: proofInputs.headerBase64 ?? proofInputs.header_base64,
         addressSeed: proofInputs.addressSeed ?? proofInputs.address_seed
       },
-      maxEpoch,
+      maxEpoch: session.maxEpoch,
       userSignature
     });
   }
 
   return {
     label,
+    session,
+    proof,
     address,
     signAndExecuteTransaction: async (txBytes: Uint8Array) => {
       const { getSuiClient } = await import("../web/src/lib/sui-client.ts");
@@ -366,6 +374,12 @@ async function validateBalance(label: string, owner: string, minimumMist: bigint
   if (balance < minimumMist) {
     throw new Error(`${label} balance ${balance} MIST is below required ${minimumMist} MIST`);
   }
+}
+
+async function getCurrentEpoch(): Promise<number> {
+  const { getSuiClient } = await import("../web/src/lib/sui-client.ts");
+  const state = await getSuiClient().getLatestSuiSystemState({});
+  return Number(state.epoch);
 }
 
 function installRuntimeConfig(config: ProductionAcceptanceConfig) {

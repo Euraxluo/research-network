@@ -50,10 +50,14 @@ messages.
 Mainnet is not approved yet. The current default testnet config points at the latest Seal Access
 package `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`, which includes
 `settled_receipts` replay protection and has passed a real Walrus + Seal + Sui author decrypt
-round-trip. The next gate is capped two-account zkLogin acceptance:
+round-trip. The next gate is two-account zkLogin preflight, then capped acceptance:
 
 ```bash
 npm run acceptance:production -- --network testnet --receipt .research-network/acceptance/dry-run.json
+ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network testnet --preflight \
+  --buyer-session .research-network/secrets/acceptance-buyer.json \
+  --agent-session .research-network/secrets/acceptance-agent.json \
+  --receipt .research-network/acceptance/testnet-preflight.json
 ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network testnet --execute \
   --buyer-session .research-network/secrets/acceptance-buyer.json \
   --agent-session .research-network/secrets/acceptance-agent.json \
@@ -61,4 +65,4 @@ ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network t
   --receipt .research-network/acceptance/testnet-production.json
 ```
 
-Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a smaller mainnet cap.
+Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a smaller mainnet cap. The acceptance guard rejects known testnet ids/endpoints when `--network mainnet`.

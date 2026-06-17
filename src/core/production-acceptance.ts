@@ -6,6 +6,7 @@ export type ProductionAcceptanceNetwork = "testnet" | "mainnet";
 export interface ProductionAcceptanceConfig {
   network: ProductionAcceptanceNetwork;
   execute: boolean;
+  preflight: boolean;
   buyerSessionPath?: string;
   agentSessionPath?: string;
   receiptPath: string;
@@ -37,6 +38,29 @@ export interface ProductionAcceptanceBudget {
   maxSpendMist: bigint;
 }
 
+export interface ProductionAcceptanceSessionInput {
+  address?: string;
+  ephemeralSecretKey?: string;
+  secret?: string;
+  idToken?: string;
+  id_token?: string;
+  salt?: string;
+  maxEpoch?: number;
+  max_epoch?: number;
+  randomness?: string;
+  rn_zk_eph?: { secret?: string; maxEpoch?: number; randomness?: string };
+  rn_zk_session?: { id_token?: string; salt?: string; maxEpoch?: number; randomness?: string };
+}
+
+export interface ProductionAcceptanceSession {
+  address?: string;
+  ephemeralSecretKey: string;
+  idToken: string;
+  salt: string;
+  maxEpoch: number;
+  randomness: string;
+}
+
 export interface ProductionAcceptanceStep {
   name: string;
   status: "pending" | "passed" | "failed" | "skipped";
@@ -49,6 +73,7 @@ export interface ProductionAcceptanceStep {
 export interface ProductionAcceptanceReceipt {
   network: ProductionAcceptanceNetwork;
   execute: boolean;
+  preflight: boolean;
   startedAt: string;
   finishedAt?: string;
   buyerAddress?: string;
@@ -99,8 +124,8 @@ export function parseProductionAcceptanceArgs(argv: string[], env: NodeJS.Proces
   const args = new Map<string, string | boolean>();
   for (let i = 0; i < argv.length; i += 1) {
     const item = argv[i];
-    if (item === "--execute") {
-      args.set("execute", true);
+    if (item === "--execute" || item === "--preflight") {
+      args.set(item.slice(2), true);
       continue;
     }
     if (!item.startsWith("--")) {
@@ -120,9 +145,16 @@ export function parseProductionAcceptanceArgs(argv: string[], env: NodeJS.Proces
     throw new Error("network must be testnet or mainnet");
   }
 
+  const execute = args.get("execute") === true || env.RN_ACCEPTANCE_EXECUTE === "1";
+  const preflight = args.get("preflight") === true || env.RN_ACCEPTANCE_PREFLIGHT === "1";
+  if (execute && preflight) {
+    throw new Error("--execute and --preflight are mutually exclusive");
+  }
+
   return {
     network,
-    execute: args.get("execute") === true || env.RN_ACCEPTANCE_EXECUTE === "1",
+    execute,
+    preflight,
     buyerSessionPath: stringArg(args, env, "buyer-session", "RN_ACCEPTANCE_BUYER_SESSION"),
     agentSessionPath: stringArg(args, env, "agent-session", "RN_ACCEPTANCE_AGENT_SESSION"),
     receiptPath: stringArg(args, env, "receipt", "RN_ACCEPTANCE_RECEIPT") ?? DEFAULT_RECEIPT_PATH,
@@ -190,14 +222,17 @@ export function assertProductionAcceptanceCanExecute(config: ProductionAcceptanc
       throw new Error(`mainnet acceptance rejects testnet config in ${testnetLeaks.join(", ")}`);
     }
   }
-  if (!config.execute) return budget;
+  if (!config.execute && !config.preflight) return budget;
   const missing = [
     ["buyer-session", config.buyerSessionPath],
-    ["agent-session", config.agentSessionPath],
-    ["max-spend-mist", config.maxSpendMist > 0n ? String(config.maxSpendMist) : undefined]
+    ["agent-session", config.agentSessionPath]
   ].filter(([, value]) => !value).map(([name]) => name);
   if (missing.length) {
-    throw new Error(`--execute requires ${missing.join(", ")}`);
+    throw new Error(`${config.preflight ? "--preflight" : "--execute"} requires ${missing.join(", ")}`);
+  }
+  if (config.preflight) return budget;
+  if (config.maxSpendMist <= 0n) {
+    throw new Error("--execute requires max-spend-mist");
   }
   if (budget.totalBudgetMist > config.maxSpendMist) {
     throw new Error(
@@ -205,6 +240,48 @@ export function assertProductionAcceptanceCanExecute(config: ProductionAcceptanc
     );
   }
   return budget;
+}
+
+export function normalizeProductionAcceptanceSession(
+  label: string,
+  raw: ProductionAcceptanceSessionInput
+): ProductionAcceptanceSession {
+  const session = {
+    address: raw.address,
+    ephemeralSecretKey: raw.ephemeralSecretKey ?? raw.secret ?? raw.rn_zk_eph?.secret,
+    idToken: raw.idToken ?? raw.id_token ?? raw.rn_zk_session?.id_token,
+    salt: raw.salt ?? raw.rn_zk_session?.salt,
+    maxEpoch: Number(raw.maxEpoch ?? raw.max_epoch ?? raw.rn_zk_session?.maxEpoch ?? raw.rn_zk_eph?.maxEpoch ?? 0),
+    randomness: raw.randomness ?? raw.rn_zk_session?.randomness ?? raw.rn_zk_eph?.randomness
+  };
+  const missing = [
+    ["ephemeralSecretKey", session.ephemeralSecretKey],
+    ["idToken", session.idToken],
+    ["salt", session.salt],
+    ["maxEpoch", session.maxEpoch > 0 ? String(session.maxEpoch) : undefined],
+    ["randomness", session.randomness]
+  ].filter(([, value]) => !value).map(([name]) => name);
+  if (missing.length) {
+    throw new Error(`${label} session is missing ${missing.join(", ")}`);
+  }
+  return session as ProductionAcceptanceSession;
+}
+
+export function assertProductionAcceptanceSessionFresh(
+  label: string,
+  session: Pick<ProductionAcceptanceSession, "maxEpoch">,
+  currentEpoch: number,
+  minEpochsRemaining = 2
+): void {
+  if (!Number.isFinite(currentEpoch) || currentEpoch < 0) {
+    throw new Error("current epoch must be a non-negative number");
+  }
+  const remaining = session.maxEpoch - currentEpoch;
+  if (remaining < minEpochsRemaining) {
+    throw new Error(
+      `${label} zkLogin session expires too soon: maxEpoch ${session.maxEpoch}, currentEpoch ${currentEpoch}, remaining ${remaining}`
+    );
+  }
 }
 
 function mainnetTestnetLeaks(config: ProductionAcceptanceConfig): string[] {
@@ -238,6 +315,7 @@ export function createProductionAcceptanceReceipt(
   return {
     network: config.network,
     execute: config.execute,
+    preflight: config.preflight,
     startedAt: new Date().toISOString(),
     budget: {
       committedSpendMist: String(budget.committedSpendMist),

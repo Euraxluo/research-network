@@ -36,9 +36,10 @@ docs/01-16 可能保留历史设计脉络；本篇给出当前代码与产品语
 
 本轮 Seal Access 重构是**本地协议、schema、indexer、web、生产验收脚手架和测试**变更。不要对外宣称当前源码已经可上 mainnet，除非之后明确执行并记录：
 
-1. 使用两个真实 zkLogin 账号运行 `npm run acceptance:production -- --network testnet --execute ...` 并保留 receipt。
-2. 确认 production Web 配置、indexer 和部署环境均指向该 testnet package/shared objects。
-3. 再切换 mainnet package/shared objects/RPC/Walrus/Seal key server 配置并跑小额 mainnet acceptance。
+1. 使用两个真实 zkLogin 账号运行 `npm run acceptance:production -- --network testnet --preflight ...`，确认 session/prover/余额无资金预检通过。
+2. 使用同一组账号运行 `npm run acceptance:production -- --network testnet --execute ...` 并保留 receipt。
+3. 确认 production Web 配置、indexer 和部署环境均指向该 testnet package/shared objects。
+4. 再切换 mainnet package/shared objects/RPC/Walrus/Seal key server 配置并跑小额 mainnet preflight + acceptance。
 
 历史部署记录仍有价值：
 
@@ -158,13 +159,23 @@ sui move test --path move --silence-warnings
 
 ## 生产验收命令
 
-Dry-run 只校验配置、预算和步骤，不会花钱：
+Dry-run 只校验配置、预算和步骤，不读取 session，不会花钱：
 
 ```bash
 npm run acceptance:production -- --network testnet --receipt .research-network/acceptance/dry-run.json
 ```
 
-真实 testnet production acceptance 必须显式传入两个不同 zkLogin 会话文件和资金上限：
+Preflight 会读取两个不同 zkLogin 会话文件，检查地址、当前 epoch、余额和 prover，不会发交易、不花钱：
+
+```bash
+ZKLOGIN_PROVER_URL=https://<prover> \
+npm run acceptance:production -- --network testnet --preflight \
+  --buyer-session .research-network/secrets/acceptance-buyer.json \
+  --agent-session .research-network/secrets/acceptance-agent.json \
+  --receipt .research-network/acceptance/testnet-preflight.json
+```
+
+真实 testnet production acceptance 必须显式传入同一组会话文件和资金上限：
 
 ```bash
 ZKLOGIN_PROVER_URL=https://<prover> \
@@ -175,7 +186,7 @@ npm run acceptance:production -- --network testnet --execute \
   --receipt .research-network/acceptance/testnet-production.json
 ```
 
-会话文件必须来自真实 Google zkLogin 登录，放在 `.research-network/secrets/`，包含 `address`、`ephemeralSecretKey`、`idToken`、`salt`、`maxEpoch`、`randomness`。脚本覆盖 encrypted report 发布、平台会员购买、Seal 解密、receipt 记录、agent subscription 购买与解密、会员 receipt 结算、agent claim、私有委托创建/资金托管/结果提交/买家解密/完成放款。`--execute` 会真实花费 testnet/mainnet SUI，预算由 `--max-spend-mist` 硬限制。
+会话文件必须来自真实 Google zkLogin 登录，放在 `.research-network/secrets/`，包含 `address`、`ephemeralSecretKey`、`idToken`、`salt`、`maxEpoch`、`randomness`，也可以使用浏览器 storage 形状的 `rn_zk_eph` / `rn_zk_session`。脚本覆盖 encrypted report 发布、平台会员购买、Seal 解密、receipt 记录、agent subscription 购买与解密、会员 receipt 结算、agent claim、私有委托创建/资金托管/结果提交/买家解密/完成放款。`--execute` 会真实花费 testnet/mainnet SUI，预算由 `--max-spend-mist` 硬限制；`--network mainnet` 会拒绝已知 testnet object ids 和 testnet endpoints。
 
 ## 修订记录
 

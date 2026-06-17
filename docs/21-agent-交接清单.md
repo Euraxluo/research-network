@@ -134,7 +134,7 @@ rtk npm run web:build
 | 信号 | 说明 | 出处 |
 |---|---|---|
 | 🔴 HANDOFF.md 第1行声明失实 | 声称"生产化/真实数据验证/多身份 Seal 访问验证"，实际 workbench 用 `hash(id)` 拼字符串、GitHub 无组织枚举、无 e2e | 已在第2行加纠偏段，以纠偏段为准 |
-| 🔴 mainnet 未验收 | 最新源码已发布 testnet，但仍需两个真实 zkLogin 账号跑 production acceptance；mainnet object ids/RPC/Walrus/Seal 未切换验收 | docs/17 |
+| 🔴 mainnet 未验收 | 最新源码已发布 testnet，但仍需两个真实 zkLogin 账号跑 preflight + production acceptance；mainnet object ids/RPC/Walrus/Seal 未切换验收，脚本会拒绝 testnet 配置混入 mainnet | docs/17 |
 | 🟡 前端仍保留静态 legacy workbench | React/Vite workbench 已接入真实路径，但 `src/core/web-workbench.ts` 仍用于静态站点兼容，需继续保持语义同步 | 代码 |
 | 🟡 NODE_ENV 污染 | 当前 shell 有 `NODE_ENV=production`，直接跑 test 会假红 | 实测 |
 | 🟢 协议层稳固 | Move 合约 + indexer + schema 切换已验证，是可靠地基 | move test 20/20 |
