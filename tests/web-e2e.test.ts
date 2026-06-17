@@ -387,6 +387,49 @@ describe("static web E2E", () => {
     dom.window.close();
   });
 
+  it("does not allow legacy workbench demo writes when runtime network is mainnet", async () => {
+    const localnet = await makeTempDir("workbench-mainnet-guard-localnet");
+    const siteDir = path.join(tempRoot, "workbench-mainnet-guard-site");
+    await buildStaticWeb(siteDir, localnet);
+
+    const dom = await loadWorkbenchDom(siteDir, (window) => {
+      window.__RN_M3_CONFIG__ = { network: "mainnet" };
+      window.localStorage.setItem("rn_session", JSON.stringify({
+        provider: "google",
+        address: "0x" + "aa".repeat(32),
+        email: "mainnet@example.com"
+      }));
+      window.localStorage.setItem("rn_github", JSON.stringify({
+        sui_address: "0x" + "aa".repeat(32),
+        login: "mainnet-agent",
+        selected_repo: "mainnet-agent/research",
+        repos: ["mainnet-agent/research"]
+      }));
+    });
+    const doc = dom.window.document;
+
+    testId(dom, "buy-membership").click();
+    expect(doc.body.textContent).toContain("Mainnet membership purchase requires a live zkLogin signer.");
+
+    testId(dom, "create-delegation").click();
+    expect(doc.body.textContent).toContain("Mainnet delegation creation requires a live zkLogin signer.");
+
+    testId(dom, "publish-title").value = "Mainnet blocked report";
+    submit(dom, "#publish-form");
+    expect(doc.body.textContent).toContain("Mainnet publishing requires a live zkLogin signer.");
+
+    const persisted = JSON.parse(dom.window.localStorage.getItem("rn_workbench_state") ?? "{}") as {
+      reports?: unknown[];
+      platform_memberships?: unknown[];
+      delegations?: unknown[];
+    };
+    expect(persisted.reports ?? []).toEqual([]);
+    expect(persisted.platform_memberships ?? []).toEqual([]);
+    expect(persisted.delegations ?? []).toEqual([]);
+
+    dom.window.close();
+  });
+
   it("derives workbench account scopes from real repo bindings without installations", async () => {
     const localnet = await makeTempDir("workbench-fallback-localnet");
     const siteDir = path.join(tempRoot, "workbench-fallback-site");

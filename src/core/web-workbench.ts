@@ -105,6 +105,15 @@ export const WORKBENCH_JS = `
   function saveWorkbench(state) {
     writeJson("rn_workbench_state", state);
   }
+  function runtimeNetwork() {
+    var config = window.__RN_M3_CONFIG__ || {};
+    return String(config.network || window.__RN_NETWORK__ || "testnet");
+  }
+  function blockMainnetDemoFallback(action) {
+    if (runtimeNetwork() !== "mainnet") return false;
+    setStatus("Mainnet " + action + " requires a live zkLogin signer.", true);
+    return true;
+  }
   function mergeById(base, local, idKey) {
     var out = {};
     (base || []).forEach(function (item) { if (item && item[idKey]) out[String(item[idKey])] = item; });
@@ -458,6 +467,7 @@ export const WORKBENCH_JS = `
       setStatus("Report title is required.", true);
       return;
     }
+    if (blockMainnetDemoFallback("publishing")) return;
     var stamp = Date.now();
     var id = "report:ui:" + hash(session.address + ":" + title + ":" + stamp);
     var report = {
@@ -494,6 +504,7 @@ export const WORKBENCH_JS = `
     }
   }
   function buyMembership() {
+    if (blockMainnetDemoFallback("membership purchase")) return;
     var session = readSession();
     var view = stateView();
     var state = view.state;
@@ -511,6 +522,7 @@ export const WORKBENCH_JS = `
     render();
   }
   function subscribeAgent() {
+    if (blockMainnetDemoFallback("agent subscription")) return;
     var session = readSession();
     var view = stateView();
     var state = view.state;
@@ -531,6 +543,7 @@ export const WORKBENCH_JS = `
     render();
   }
   function createDelegation() {
+    if (blockMainnetDemoFallback("delegation creation")) return;
     var session = readSession();
     var state = readWorkbench();
     var agent = session && session.address ? session.address : "0xAGENT";
@@ -549,6 +562,7 @@ export const WORKBENCH_JS = `
     render();
   }
   function submitDelegationResult() {
+    if (blockMainnetDemoFallback("private result submission")) return;
     var session = readSession();
     var view = stateView();
     var state = view.state;
@@ -593,6 +607,7 @@ export const WORKBENCH_JS = `
     render();
   }
   function openDispute() {
+    if (blockMainnetDemoFallback("dispute handling")) return;
     var view = stateView();
     var state = view.state;
     var job = view.delegations.filter(function (item) { return item.result_report_id; })[0] || view.delegations[0];
@@ -616,6 +631,7 @@ export const WORKBENCH_JS = `
     render();
   }
   function completeDelegation() {
+    if (blockMainnetDemoFallback("delegation completion")) return;
     var view = stateView();
     var state = view.state;
     var job = view.delegations.filter(function (item) { return item.status === "submitted"; })[0];

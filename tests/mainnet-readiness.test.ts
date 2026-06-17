@@ -69,6 +69,18 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".digests") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts with placeholder-looking transaction digests", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "buyer.buy_platform_membership" ? { ...step, digest: "tx-not-a-sui-digest" } : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".digests") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects execute receipts missing actual balance-change spend evidence", () => {
     const receipt = makeExecuteReceipt({ spend: undefined });
     const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
@@ -283,7 +295,7 @@ function executeSteps(): ProductionAcceptanceStep[] {
       "agent.publish_private_result",
       "buyer.complete_delegation"
     ].includes(name)) {
-      step.digest = `tx-${name}`;
+      step.digest = digestFor(name);
     }
     if ([
       "agent.publish_encrypted_report",
@@ -297,7 +309,7 @@ function executeSteps(): ProductionAcceptanceStep[] {
     }
     if (name === "buyer.create_and_fund_delegation") {
       step.meta = {
-        fundDigest: "tx-fund",
+        fundDigest: digestFor("fund"),
         fundSuiSpentMist: "2000000",
         fundBalanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-2000000" }]
       };
@@ -357,13 +369,25 @@ function proofMeta(): Record<string, boolean> {
 function reportMeta(name: string): Record<string, string> {
   return {
     reportObjectId: "0x" + "cc".repeat(32),
-    txDigest: `tx-${name}`,
+    txDigest: digestFor(name),
     sealId: "0x" + "dd".repeat(32),
     walrusBlobId: "walrus-blob",
     ciphertextHash: "sha256:cipher",
     plaintextCommitment: "sha256:plain",
     visibility: name === "agent.publish_private_result" ? "private_delegation" : "encrypted"
   };
+}
+
+function digestFor(seed: string): string {
+  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  let hash = 0;
+  for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  let digest = "";
+  for (let index = 0; index < 44; index += 1) {
+    hash = (hash * 1664525 + 1013904223) >>> 0;
+    digest += alphabet[hash % alphabet.length];
+  }
+  return digest;
 }
 
 function decryptMeta(accessPath: string): Record<string, string | number | boolean> {

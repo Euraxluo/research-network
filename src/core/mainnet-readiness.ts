@@ -214,23 +214,23 @@ function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: Re
   ));
   checks.push(checkBoolean(
     `receipt.${expectation.label}.execute.digests`,
-    [...EXECUTE_DIGEST_STEPS].every((name) => Boolean(receipt.steps.find((step) => step.name === name)?.digest)),
+    [...EXECUTE_DIGEST_STEPS].every((name) => isSuiDigest(receipt.steps.find((step) => step.name === name)?.digest)),
     `${expectation.label} execute records transaction digests for all transaction steps`,
-    `${expectation.label} execute is missing one or more transaction digests`,
+    `${expectation.label} execute is missing one or more valid Sui transaction digests`,
     expectation.required
   ));
   checks.push(checkBoolean(
     `receipt.${expectation.label}.execute.objects`,
-    [...EXECUTE_OBJECT_STEPS].every((name) => Boolean(receipt.steps.find((step) => step.name === name)?.objectId)),
+    [...EXECUTE_OBJECT_STEPS].every((name) => isSuiObjectId(receipt.steps.find((step) => step.name === name)?.objectId)),
     `${expectation.label} execute records created object ids for object-producing steps`,
-    `${expectation.label} execute is missing one or more created object ids`,
+    `${expectation.label} execute is missing one or more valid created object ids`,
     expectation.required
   ));
   checks.push(checkBoolean(
     `receipt.${expectation.label}.execute.delegation_funded`,
-    typeof receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundDigest === "string",
+    isSuiDigest(receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundDigest),
     `${expectation.label} execute records the delegation funding digest`,
-    `${expectation.label} execute is missing the delegation funding digest`,
+    `${expectation.label} execute is missing a valid delegation funding digest`,
     expectation.required
   ));
   checks.push(checkBoolean(
@@ -439,6 +439,14 @@ function hasProofEvidence(value: unknown): boolean {
 
 function hasString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+function isSuiDigest(value: unknown): value is string {
+  return typeof value === "string" && /^[1-9A-HJ-NP-Za-km-z]{32,88}$/.test(value);
+}
+
+function isSuiObjectId(value: unknown): value is string {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value);
 }
 
 function hasPositiveNumber(value: unknown, key: string): boolean {

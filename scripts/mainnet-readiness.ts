@@ -61,7 +61,7 @@ async function main() {
   checks.push(...configResult.checks);
   checks.push(...receiptConfigChecks(args.stage, receipts, configResult.acceptance));
   if (!args.skipChain) {
-    checks.push(...await chainChecks(process.env, args.stage));
+    checks.push(...await chainChecks(process.env, args.stage, receipts));
   }
   const report: Report = {
     stage: args.stage,
@@ -459,10 +459,11 @@ function compareConfigValue(
   );
 }
 
-async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): Promise<ReadinessCheck[]> {
+async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage, receipts: ReceiptSet): Promise<ReadinessCheck[]> {
   if (stage === "testnet") {
     return [warn("chain.mainnet.skipped", "Mainnet chain object checks skipped for testnet stage")];
   }
+  const checks: ReadinessCheck[] = [];
   const rpcUrl = env.RN_SUI_RPC_URL;
   const ids = [
     ["package", env.RN_PACKAGE_ID, undefined],
@@ -475,8 +476,20 @@ async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage)
     return [fail("chain.mainnet.rpc", "Cannot query mainnet objects because RN_SUI_RPC_URL is missing")];
   }
   if (!ids.length) {
-    return [fail("chain.mainnet.objects", "Cannot query mainnet objects because no RN_* object ids are configured")];
+    checks.push(fail("chain.mainnet.objects", "Cannot query mainnet objects because no RN_* object ids are configured"));
+  } else {
+    checks.push(...await chainObjectChecks(rpcUrl, ids));
   }
+  if (stage === "mainnet-final") {
+    checks.push(...await chainReceiptTransactionChecks(rpcUrl, receipts.mainnetExecute));
+  }
+  return checks;
+}
+
+async function chainObjectChecks(
+  rpcUrl: string,
+  ids: Array<[string, string, string | undefined]>
+): Promise<ReadinessCheck[]> {
   try {
     const responses = await suiRpc<Array<{ data?: { objectId?: string; type?: string }; error?: unknown }>>(rpcUrl, "sui_multiGetObjects", [
       ids.map(([, id]) => id),
@@ -508,6 +521,50 @@ async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage)
   } catch (error) {
     return [fail("chain.mainnet.rpc", `Mainnet object query failed: ${message(error)}`)];
   }
+}
+
+async function chainReceiptTransactionChecks(
+  rpcUrl: string,
+  receipt: ProductionAcceptanceReceipt | undefined
+): Promise<ReadinessCheck[]> {
+  const digests = receipt ? receiptTransactionDigests(receipt) : [];
+  if (!digests.length) {
+    return [fail("chain.mainnet.transactions", "Cannot query mainnet receipt transactions because no execute receipt digests are available")];
+  }
+  try {
+    const responses = await suiRpc<Array<{ digest?: string; effects?: { status?: { status?: string; error?: string } }; error?: unknown } | null>>(
+      rpcUrl,
+      "sui_multiGetTransactionBlocks",
+      [
+        digests,
+        { showEffects: true }
+      ]
+    );
+    return digests.map((digest, index) => {
+      const response = responses[index];
+      const status = response?.effects?.status?.status;
+      return checkBoolean(
+        `chain.mainnet.transaction.${index + 1}`,
+        response?.digest === digest && status === "success",
+        `Mainnet receipt transaction ${digest} exists and succeeded`,
+        `Mainnet receipt transaction ${digest} was not found or did not succeed`,
+        true,
+        { digest, returnedDigest: response?.digest, status, error: response?.effects?.status?.error ?? response?.error }
+      );
+    });
+  } catch (error) {
+    return [fail("chain.mainnet.transactions", `Mainnet receipt transaction query failed: ${message(error)}`)];
+  }
+}
+
+function receiptTransactionDigests(receipt: ProductionAcceptanceReceipt): string[] {
+  const digests = new Set<string>();
+  for (const step of receipt.steps) {
+    if (typeof step.digest === "string") digests.add(step.digest);
+    const fundDigest = step.meta?.fundDigest;
+    if (typeof fundDigest === "string") digests.add(fundDigest);
+  }
+  return [...digests];
 }
 
 async function suiRpc<T>(rpcUrl: string, method: string, params: unknown[]): Promise<T> {

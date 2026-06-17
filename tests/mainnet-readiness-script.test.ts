@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -221,6 +222,104 @@ describe("mainnet readiness script", () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("fails mainnet-final when the chain RPC omits a receipt transaction", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
+    let stdout = "";
+    let stderr = "";
+    const server = http.createServer(async (request, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { id: unknown; method: string; params: unknown[] };
+      response.setHeader("content-type", "application/json");
+      if (body.method === "sui_multiGetObjects") {
+        const ids = body.params[0] as string[];
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: ids.map((id) => ({
+            data: {
+              objectId: id,
+              type: chainObjectType(id)
+            }
+          }))
+        }));
+        return;
+      }
+      if (body.method === "sui_multiGetTransactionBlocks") {
+        const digests = body.params[0] as string[];
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: digests.slice(0, -1).map((digest) => ({
+            digest,
+            effects: { status: { status: "success" } }
+          }))
+        }));
+        return;
+      }
+      response.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, error: { message: "unexpected method" } }));
+    });
+    try {
+      const rpcUrl = await listen(server);
+      const env = readinessEnv({
+        RN_SUI_RPC_URL: rpcUrl,
+        VITE_RN_SUI_RPC_URL: rpcUrl,
+        WALRUS_SUI_RPC_URL: rpcUrl,
+        AUTH_SUI_RPC_URL: rpcUrl
+      });
+      const testnetPreflightPath = path.join(dir, "testnet-preflight.json");
+      const testnetExecutePath = path.join(dir, "testnet-execute.json");
+      const mainnetPreflightPath = path.join(dir, "mainnet-preflight.json");
+      const mainnetExecutePath = path.join(dir, "mainnet-execute.json");
+      await fs.writeFile(testnetPreflightPath, JSON.stringify(makePreflightReceipt(), null, 2), "utf8");
+      await fs.writeFile(testnetExecutePath, JSON.stringify(makeExecuteReceipt(), null, 2), "utf8");
+      await fs.writeFile(mainnetPreflightPath, JSON.stringify(makePreflightReceipt("mainnet"), null, 2), "utf8");
+      await fs.writeFile(
+        mainnetExecutePath,
+        JSON.stringify(makeExecuteReceipt("mainnet", {
+          config: {
+            ...mainnetConfig(),
+            suiRpcUrl: rpcUrl
+          }
+        }), null, 2),
+        "utf8"
+      );
+
+      try {
+        await execFileAsync("npx", [
+          "tsx",
+          "scripts/mainnet-readiness.ts",
+          "--stage", "mainnet-final",
+          "--testnet-preflight-receipt", testnetPreflightPath,
+          "--testnet-execute-receipt", testnetExecutePath,
+          "--mainnet-preflight-receipt", mainnetPreflightPath,
+          "--mainnet-execute-receipt", mainnetExecutePath,
+          "--json"
+        ], {
+          cwd: process.cwd(),
+          env
+        });
+      } catch (error) {
+        const failure = error as { stdout?: string; stderr?: string; code?: number };
+        stdout = failure.stdout ?? "";
+        stderr = failure.stderr ?? "";
+        expect(failure.code).toBe(1);
+      }
+
+      expect(stderr).toBe("");
+      const report = JSON.parse(stdout) as { ready: boolean; checks: Array<{ name: string; status: string; message: string }> };
+      expect(report.ready).toBe(false);
+      expect(report.checks.some((check) =>
+        check.name.startsWith("chain.mainnet.transaction.") &&
+        check.status === "failed" &&
+        /was not found or did not succeed/.test(check.message)
+      )).toBe(true);
+    } finally {
+      server.close();
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 const ALL_STEPS = [
@@ -369,7 +468,7 @@ function executeSteps(): ProductionAcceptanceStep[] {
       "agent.publish_private_result",
       "buyer.complete_delegation"
     ].includes(name)) {
-      step.digest = `tx-${name}`;
+      step.digest = digestFor(name);
     }
     if ([
       "agent.publish_encrypted_report",
@@ -383,7 +482,7 @@ function executeSteps(): ProductionAcceptanceStep[] {
     }
     if (name === "buyer.create_and_fund_delegation") {
       step.meta = {
-        fundDigest: "tx-fund",
+        fundDigest: digestFor("fund"),
         fundSuiSpentMist: "2000000",
         fundBalanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-2000000" }]
       };
@@ -422,13 +521,25 @@ function proofMeta(): Record<string, boolean> {
 function reportMeta(name: string): Record<string, string> {
   return {
     reportObjectId: "0x" + "cc".repeat(32),
-    txDigest: `tx-${name}`,
+    txDigest: digestFor(name),
     sealId: "0x" + "dd".repeat(32),
     walrusBlobId: "walrus-blob",
     ciphertextHash: "sha256:cipher",
     plaintextCommitment: "sha256:plain",
     visibility: name === "agent.publish_private_result" ? "private_delegation" : "encrypted"
   };
+}
+
+function digestFor(seed: string): string {
+  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+  let hash = 0;
+  for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  let digest = "";
+  for (let index = 0; index < 44; index += 1) {
+    hash = (hash * 1664525 + 1013904223) >>> 0;
+    digest += alphabet[hash % alphabet.length];
+  }
+  return digest;
 }
 
 function decryptMeta(accessPath: string): Record<string, string | number | boolean> {
@@ -512,4 +623,22 @@ function mainnetConfig(): ProductionAcceptanceReceipt["config"] {
     membershipSettlementShareMist: "800000",
     accessDurationMs: 2592000000
   };
+}
+
+function chainObjectType(objectId: string): string {
+  const packageId = MAINNET.packageId;
+  if (objectId === MAINNET.settlementConfigId) return `${packageId}::settlement::SettlementConfig`;
+  if (objectId === MAINNET.agentEarningsId) return `${packageId}::settlement::AgentEarnings`;
+  if (objectId === MAINNET.receiptRegistryId) return `${packageId}::settlement::MembershipReceiptRegistry`;
+  if (objectId === MAINNET.sealKeyServer) return `${packageId}::key_server::KeyServer`;
+  return `${packageId}::package::Package`;
+}
+
+async function listen(server: http.Server): Promise<string> {
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    throw new Error("test RPC server did not bind to a TCP port");
+  }
+  return `http://127.0.0.1:${address.port}`;
 }

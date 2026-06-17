@@ -124,6 +124,15 @@ function isSuiId(value?: string): boolean {
   return Boolean(value && /^0x[0-9a-fA-F]{64}$/.test(value));
 }
 
+function shouldBlockMainnetDemoFallback(signer: M3Signer | null): boolean {
+  if (signer) return false;
+  try {
+    return loadM3Config().network === "mainnet";
+  } catch {
+    return true;
+  }
+}
+
 function signerMatchesActor(signer: M3Signer, actor: ReturnType<typeof activeActor>): boolean {
   return sameAddress(actor.address, signer.address);
 }
@@ -222,6 +231,10 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
         report = result.report;
         stored = result.plaintext;
       } else {
+        if (shouldBlockMainnetDemoFallback(signer)) {
+          get().setStatus("Mainnet publishing requires a live zkLogin signer; demo fallback is disabled.", true);
+          return;
+        }
         const demo = publishReportDemo({
           title,
           visibility,
@@ -252,8 +265,8 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
   buyMembership: async () => {
     const actor = get().activeActor();
     const signer = get().signer;
-    const config = loadM3Config();
     if (signer) {
+      const config = loadM3Config();
       if (!signerMatchesActor(signer, actor)) {
         get().setStatus("Select the current zkLogin signer before buying a real membership.", true);
         return;
@@ -279,6 +292,11 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       }
       return;
     }
+    if (shouldBlockMainnetDemoFallback(signer)) {
+      get().setStatus("Mainnet membership purchase requires a live zkLogin signer.", true);
+      return;
+    }
+    const config = loadM3Config();
     const next = readWorkbench();
     const id = "pm:" + hash(actor.address + ":" + Date.now());
     next.platform_memberships.push({
@@ -300,8 +318,8 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     const selected = v.reports.find((r) => r.id === get().selected_report_id) || v.reports[0];
     const agent = selected?.agent || get().session?.address || "0xAGENT";
     const signer = get().signer;
-    const config = loadM3Config();
     if (signer) {
+      const config = loadM3Config();
       if (!signerMatchesActor(signer, actor)) {
         get().setStatus("Select the current zkLogin signer before buying a real agent subscription.", true);
         return;
@@ -332,6 +350,11 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       }
       return;
     }
+    if (shouldBlockMainnetDemoFallback(signer)) {
+      get().setStatus("Mainnet agent subscription requires a live zkLogin signer.", true);
+      return;
+    }
+    const config = loadM3Config();
     const next = readWorkbench();
     const id = "sub:" + hash(actor.address + ":" + agent + ":" + Date.now());
     next.agent_subscriptions.push({
@@ -353,8 +376,8 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     const actor = get().activeActor();
     const v = get().view();
     const selected = v.reports.find((r) => r.id === get().selected_report_id) || v.reports[0];
-    const config = loadM3Config();
     if (signer) {
+      const config = loadM3Config();
       if (!signerMatchesActor(signer, actor)) {
         get().setStatus("Select the current zkLogin signer before creating a real delegation.", true);
         return;
@@ -392,6 +415,10 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       } catch (err) {
         get().setStatus("Delegation creation failed: " + String((err as Error)?.message || err), true);
       }
+      return;
+    }
+    if (shouldBlockMainnetDemoFallback(signer)) {
+      get().setStatus("Mainnet delegation creation requires a live zkLogin signer.", true);
       return;
     }
     const agent = get().session?.address || "0xAGENT";
@@ -472,6 +499,10 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       } catch (err) {
         get().setStatus("Private result submission failed: " + String((err as Error)?.message || err), true);
       }
+      return;
+    }
+    if (shouldBlockMainnetDemoFallback(signer)) {
+      get().setStatus("Mainnet private result submission requires a live zkLogin signer.", true);
       return;
     }
     const job =
@@ -557,6 +588,10 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       }
       return;
     }
+    if (shouldBlockMainnetDemoFallback(signer)) {
+      get().setStatus("Mainnet dispute handling requires a live zkLogin signer.", true);
+      return;
+    }
     const job = v.delegations.find((j) => j.result_report_id) || v.delegations[0];
     if (!job) {
       get().setStatus("Create a delegation job first.", true);
@@ -610,6 +645,10 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       } catch (err) {
         get().setStatus("Delegation completion failed: " + String((err as Error)?.message || err), true);
       }
+      return;
+    }
+    if (shouldBlockMainnetDemoFallback(signer)) {
+      get().setStatus("Mainnet delegation completion requires a live zkLogin signer.", true);
       return;
     }
     const job = v.delegations.find((j) => j.status === "submitted");
