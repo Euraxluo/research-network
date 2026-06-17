@@ -7,24 +7,32 @@
 #   v2   economic-safety:    0x1c8ecc61ae13c03d8d0f7427e12abf39f286aac3235732f02928352be770b592
 #   M3-0 id=object-id:       0x97ea53589f599affc946b747ca71e1918cfadc10ca1313d453671f033fc2c5aa
 #   M4-2 id=seal_id:         0x4b4651ec926c38c9ded5591495a2cf61a8ba6faac98c6b8f4e841872b1c72af2
-#   M4-2 + author approve:   (current) — seal_approve_report_author added, id=seal_id
+#   M4-2 + author approve:   0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283
+#     publish-tx AXwVEyZGvv7S4C7P1hvYJSmAXf3MykaY1ic7Gc5NL1pa
+#     upgrade-cap 0x14648bcba24e9a478e3450d65dd78b40fe9fe99200e54c106669d43bbe7ac3dc
+#     SettlementConfig          = 0x544f91423d07fe8f58baf5d3b027bfb28e128f7424f197d54e06816690c5968e
+#     AgentEarnings             = 0xe1236e34459fafafd82ed3f88dcaa6c0d17addb6010a8849804d073a6f8fa9b6
+#     MembershipReceiptRegistry = 0x8683682aaaacbb6ceaf1eb45d29b04674290014cc6e2c9be9a41e5d8babca361
+#     SettlerCap (owned)        = 0xd4174fd108f0e7db3fc1c0fed671723eb3df02dd99c20a42dd5c5579736f2521
+#
+# Current testnet package includes settlement::AgentEarnings.settled_receipts
+# replay protection for AccessReceipt settlement.
 
 [published.testnet]
 chain-id = "4c78adac"
-published-at = "0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283"
-original-id = "0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283"
+published-at = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e"
+original-id = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e"
 version = 1
 toolchain-version = "1.71.1"
 build-config = { flavor = "sui", edition = "2024" }
-upgrade-capability = "0x14648bcba24e9a478e3450d65dd78b40fe9fe99200e54c106669d43bbe7ac3dc"
-publish-tx = "AXwVEyZGvv7S4C7P1hvYJSmAXf3MykaY1ic7Gc5NL1pa"
+upgrade-capability = "0x37623166a16dff2c7ee5641c3b1aef5d51e4defb2b39a1a875cb32ef5a0d9f7e"
+publish-tx = "CvzaiupRbddPTmNhKQ5zLkS737GUS2DLmpKkjePnaoX6"
 
 # seal_approve_* assert id == report::seal_id (publisher-chosen field, NOT object id).
-# seal_approve_report_author: author-only decrypt (no pass arg). Both verified in
-# M4-2: real Seal key server 0xb0123...1e1e98 granted decryption (tx 68h3uX7c...).
-#
-# Shared / owned objects (settlement::init):
-#   SettlementConfig          = 0x544f91423d07fe8f58baf5d3b027bfb28e128f7424f197d54e06816690c5968e
-#   AgentEarnings             = 0xe1236e34459fafafd82ed3f88dcaa6c0d17addb6010a8849804d073a6f8fa9b6
-#   MembershipReceiptRegistry = 0x8683682aaaacbb6ceaf1eb45d29b04674290014cc6e2c9be9a41e5d8babca361
-#   SettlerCap (owned)        = 0xd4174fd108f0e7db3fc1c0fed671723eb3df02dd99c20a42dd5c5579736f2521
+# Shared / owned objects from settlement::init / payment::init:
+#   SettlementConfig          = 0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4
+#   AgentEarnings             = 0xb637059cb77aca697e36673afa2e8639f7f82d16b8f0eba8eb6a1f5bd12eda2b
+#   MembershipReceiptRegistry = 0x5a25a789a4032c8460afa68b26b839a081c770372fa04e567207c606b68ad748
+#   Payment SettlementRegistry= 0x03485f5dc44ab8e465ec73435ed9754928128daa297cfb118a6a9cc3d2382340
+#   UpgradeCap (owned)        = 0x37623166a16dff2c7ee5641c3b1aef5d51e4defb2b39a1a875cb32ef5a0d9f7e
+#   SettlerCap (owned)        = 0x46b1c097f6bf4002290a474c445c310031678c5b2381be014c2d4746ae36780d
