@@ -55,6 +55,11 @@ interface ReceiptSet {
   mainnetExecute?: ProductionAcceptanceReceipt;
 }
 
+interface ReceiptTransactionEvidence {
+  digest: string;
+  expectedEventTypes: string[];
+}
+
 const REQUIRED_MAINNET_WALRUS_SITE_PATHS = [
   "/index.html",
   "/site-data.json",
@@ -590,29 +595,35 @@ async function chainReceiptTransactionChecks(
   rpcUrl: string,
   receipt: ProductionAcceptanceReceipt | undefined
 ): Promise<ReadinessCheck[]> {
-  const digests = receipt ? receiptTransactionDigests(receipt) : [];
-  if (!digests.length) {
+  const evidence = receipt ? receiptTransactionEvidence(receipt) : [];
+  if (!evidence.length) {
     return [fail("chain.mainnet.transactions", "Cannot query mainnet receipt transactions because no execute receipt digests are available")];
   }
+  const digests = evidence.map((item) => item.digest);
   try {
-    const responses = await suiRpc<Array<{ digest?: string; effects?: { status?: { status?: string; error?: string } }; error?: unknown } | null>>(
+    const responses = await suiRpc<Array<{ digest?: string; effects?: { status?: { status?: string; error?: string } }; events?: Array<{ type?: string }>; error?: unknown } | null>>(
       rpcUrl,
       "sui_multiGetTransactionBlocks",
       [
         digests,
-        { showEffects: true }
+        { showEffects: true, showEvents: true }
       ]
     );
     return digests.map((digest, index) => {
       const response = responses[index];
       const status = response?.effects?.status?.status;
+      const chainEventTypes = Array.isArray(response?.events)
+        ? response.events.map((event) => event.type).filter((type): type is string => typeof type === "string")
+        : [];
+      const expectedEventTypes = evidence[index]?.expectedEventTypes ?? [];
+      const eventsMatch = expectedEventTypes.every((type) => chainEventTypes.includes(type));
       return checkBoolean(
         `chain.mainnet.transaction.${index + 1}`,
-        response?.digest === digest && status === "success",
-        `Mainnet receipt transaction ${digest} exists and succeeded`,
-        `Mainnet receipt transaction ${digest} was not found or did not succeed`,
+        response?.digest === digest && status === "success" && eventsMatch,
+        `Mainnet receipt transaction ${digest} exists, succeeded, and emitted receipt events`,
+        `Mainnet receipt transaction ${digest} was not found, did not succeed, or emitted different events`,
         true,
-        { digest, returnedDigest: response?.digest, status, error: response?.effects?.status?.error ?? response?.error }
+        { digest, returnedDigest: response?.digest, status, expectedEventTypes, chainEventTypes, error: response?.effects?.status?.error ?? response?.error }
       );
     });
   } catch (error) {
@@ -620,14 +631,34 @@ async function chainReceiptTransactionChecks(
   }
 }
 
-function receiptTransactionDigests(receipt: ProductionAcceptanceReceipt): string[] {
-  const digests = new Set<string>();
+function receiptTransactionEvidence(receipt: ProductionAcceptanceReceipt): ReceiptTransactionEvidence[] {
+  const evidence = new Map<string, ReceiptTransactionEvidence>();
   for (const step of receipt.steps) {
-    if (typeof step.digest === "string") digests.add(step.digest);
+    if (typeof step.digest === "string") {
+      mergeReceiptTransactionEvidence(evidence, step.digest, stringArray(step.meta?.eventTypes));
+    }
     const fundDigest = step.meta?.fundDigest;
-    if (typeof fundDigest === "string") digests.add(fundDigest);
+    if (typeof fundDigest === "string") {
+      mergeReceiptTransactionEvidence(evidence, fundDigest, stringArray(step.meta?.fundEventTypes));
+    }
   }
-  return [...digests];
+  return [...evidence.values()];
+}
+
+function mergeReceiptTransactionEvidence(
+  evidence: Map<string, ReceiptTransactionEvidence>,
+  digest: string,
+  eventTypes: string[]
+) {
+  const item = evidence.get(digest) ?? { digest, expectedEventTypes: [] };
+  for (const type of eventTypes) {
+    if (!item.expectedEventTypes.includes(type)) item.expectedEventTypes.push(type);
+  }
+  evidence.set(digest, item);
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 async function suiRpc<T>(rpcUrl: string, method: string, params: unknown[]): Promise<T> {

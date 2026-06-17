@@ -4,6 +4,7 @@ dist/
 web/dist/
 move/build/
 *.log
+*.tsbuildinfo
 .env
 
 # OAuth/app credentials — never commit
