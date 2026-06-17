@@ -81,6 +81,7 @@ interface AcceptanceTransactionLedgerEntry extends ProductionAcceptanceTransacti
   signerLabel: "buyer" | "agent";
   signerAddress: string;
   suiSpentMist: string;
+  eventTypes: string[];
 }
 
 const steps: ProductionAcceptanceStep[] = [
@@ -294,7 +295,8 @@ async function main() {
           fundSigner: fundSpend.signerLabel,
           fundSignerAddress: fundSpend.signerAddress,
           fundSuiSpentMist: fundSpend.suiSpentMist,
-          fundBalanceChanges: fundSpend.balanceChanges
+          fundBalanceChanges: fundSpend.balanceChanges,
+          fundEventTypes: fundSpend.eventTypes
         } : {})
       }
     });
@@ -431,13 +433,14 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
       const result = await getSuiClient().executeTransactionBlock({
         transactionBlock: toBase64(txBytes),
         signature: composite(await proof(), userSignature),
-        options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true }
+        options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true, showEvents: true }
       });
       if (!Array.isArray(result.balanceChanges)) {
         throw new Error(`Sui transaction ${result.digest} did not include balanceChanges`);
       }
       const balanceChanges = normalizeProductionAcceptanceBalanceChanges(result.balanceChanges);
-      recordAcceptanceTransaction(label, address, result.digest, balanceChanges);
+      const events = normalizeAcceptanceEvents(result.events);
+      recordAcceptanceTransaction(label, address, result.digest, balanceChanges, events.map((event) => event.type));
       const createdObjects: Array<{ objectId: string; objectType?: string }> = [];
       const createdObjectIds: string[] = [];
       for (const change of result.objectChanges || []) {
@@ -453,7 +456,8 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
         error: result.effects?.status?.error,
         createdObjectIds,
         createdObjects,
-        balanceChanges
+        balanceChanges,
+        events
       };
     },
     signPersonalMessage: async (message: Uint8Array) => {
@@ -467,14 +471,16 @@ function recordAcceptanceTransaction(
   signerLabel: "buyer" | "agent",
   signerAddress: string,
   digest: string,
-  balanceChanges: ProductionAcceptanceBalanceChange[]
+  balanceChanges: ProductionAcceptanceBalanceChange[],
+  eventTypes: string[]
 ) {
   transactionLedger.set(digest, {
     digest,
     signerLabel,
     signerAddress,
     balanceChanges,
-    suiSpentMist: String(productionAcceptanceSuiSpentMist(balanceChanges, signerAddress))
+    suiSpentMist: String(productionAcceptanceSuiSpentMist(balanceChanges, signerAddress)),
+    eventTypes
   });
 }
 
@@ -485,8 +491,19 @@ function transactionSpendMeta(digest: string): Record<string, unknown> {
     signer: entry.signerLabel,
     signerAddress: entry.signerAddress,
     suiSpentMist: entry.suiSpentMist,
-    balanceChanges: entry.balanceChanges
+    balanceChanges: entry.balanceChanges,
+    eventTypes: entry.eventTypes
   };
+}
+
+function normalizeAcceptanceEvents(raw: unknown): Array<{ type: string; parsedJson?: unknown }> {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((event) => {
+    if (!event || typeof event !== "object") return [];
+    const item = event as Record<string, unknown>;
+    if (typeof item.type !== "string") return [];
+    return [{ type: item.type, parsedJson: item.parsedJson }];
+  });
 }
 
 async function validateBalance(

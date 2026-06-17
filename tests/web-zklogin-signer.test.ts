@@ -96,6 +96,10 @@ describe("web zkLogin signer", () => {
         objectId: "0x" + "33".repeat(32),
         objectType: "0xpackage::access::PlatformMembershipPass"
       }],
+      events: [{
+        type: "0xpackage::access::PlatformMembershipPurchased",
+        parsedJson: { owner: address }
+      }],
       balanceChanges: [{
         owner: { AddressOwner: address },
         coinType: "0x2::sui::SUI",
@@ -121,9 +125,13 @@ describe("web zkLogin signer", () => {
     const result = await signer!.signAndExecuteTransaction(new Uint8Array([1, 2, 3]));
 
     expect(mocks.executeTransactionBlock).toHaveBeenCalledWith(expect.objectContaining({
-      options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true }
+      options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true, showEvents: true }
     }));
     expect(result.balanceChanges).toEqual([{ owner: address, coinType: "0x2::sui::SUI", amount: "-123" }]);
+    expect(result.events).toEqual([{
+      type: "0xpackage::access::PlatformMembershipPurchased",
+      parsedJson: { owner: address }
+    }]);
     expect(result.createdObjects).toEqual([{
       objectId: "0x" + "33".repeat(32),
       objectType: "0xpackage::access::PlatformMembershipPass"

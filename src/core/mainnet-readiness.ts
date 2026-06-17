@@ -82,6 +82,18 @@ const EXECUTE_SIGNER_ROLE: Record<string, "buyer" | "agent"> = {
   "buyer.complete_delegation": "buyer"
 };
 
+const EXECUTE_STEP_EVENTS: Record<string, string[]> = {
+  "agent.publish_encrypted_report": ["ResearchReportPublished"],
+  "buyer.buy_platform_membership": ["PlatformMembershipPurchased", "PlatformMembershipPaid"],
+  "buyer.record_access_receipt": ["AccessReceiptRecorded"],
+  "buyer.buy_agent_subscription": ["AgentSubscriptionPurchased", "AgentSubscriptionPaid"],
+  "platform.settle_membership_receipt": ["MembershipReportSettled"],
+  "agent.claim_membership_earnings": ["AgentEarningsClaimed"],
+  "buyer.create_and_fund_delegation": ["DelegationCreated"],
+  "agent.publish_private_result": ["ResearchReportPublished", "DelegationResultSubmitted"],
+  "buyer.complete_delegation": ["DelegationCompleted"]
+};
+
 const KNOWN_TESTNET_VALUES = new Set([
   "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e",
   "0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4",
@@ -306,6 +318,14 @@ function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: Re
     `${expectation.label} execute signer evidence does not match the expected buyer/agent roles`,
     expectation.required,
     { buyerAddress: receipt.buyerAddress, agentAddress: receipt.agentAddress }
+  ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.move_events`,
+    [...EXECUTE_DIGEST_STEPS].every((name) => stepHasExpectedEvents(receipt, name)) &&
+      delegationFundHasExpectedEvents(receipt),
+    `${expectation.label} execute records expected Move event evidence for every transaction`,
+    `${expectation.label} execute is missing expected Move event evidence for one or more transactions`,
+    expectation.required
   ));
   return checks;
 }
@@ -543,6 +563,25 @@ function stepSignerMatchesRole(receipt: ProductionAcceptanceReceipt, name: strin
 function delegationFundSignerMatchesBuyer(receipt: ProductionAcceptanceReceipt): boolean {
   const fundSignerAddress = receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundSignerAddress;
   return sameSuiAddress(fundSignerAddress, receipt.buyerAddress);
+}
+
+function stepHasExpectedEvents(receipt: ProductionAcceptanceReceipt, name: string): boolean {
+  const expected = EXECUTE_STEP_EVENTS[name];
+  if (!expected?.length) return false;
+  return hasExpectedEventTypes(receipt.steps.find((step) => step.name === name)?.meta?.eventTypes, expected);
+}
+
+function delegationFundHasExpectedEvents(receipt: ProductionAcceptanceReceipt): boolean {
+  return hasExpectedEventTypes(
+    receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundEventTypes,
+    ["DelegationFunded"]
+  );
+}
+
+function hasExpectedEventTypes(value: unknown, expected: string[]): boolean {
+  if (!Array.isArray(value)) return false;
+  const eventTypes = value.filter((item): item is string => typeof item === "string");
+  return expected.every((eventName) => eventTypes.some((type) => type.endsWith(`::${eventName}`)));
 }
 
 function sameSuiAddress(left: unknown, right: unknown): boolean {

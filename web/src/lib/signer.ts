@@ -12,7 +12,7 @@
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { getZkLoginSignature } from "@mysten/sui/zklogin";
 import { getSuiClient } from "./sui-client";
-import type { M3BalanceChange, M3Signer } from "./clients";
+import type { M3BalanceChange, M3Event, M3Signer } from "./clients";
 import { readSession } from "./storage";
 import { toBase64, toBytesUtf8 } from "./crypto";
 
@@ -103,7 +103,7 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
     const result = await suiClient.executeTransactionBlock({
       transactionBlock: toBase64(txBytes),
       signature: compositeSig,
-      options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true }
+      options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true, showEvents: true }
     });
 
     const created: string[] = [];
@@ -124,7 +124,8 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
       error: result.effects?.status?.error,
       createdObjectIds: createdObjects.map((obj) => obj.objectId).concat(created),
       createdObjects,
-      balanceChanges: normalizeBalanceChanges(result.balanceChanges)
+      balanceChanges: normalizeBalanceChanges(result.balanceChanges),
+      events: normalizeEvents(result.events)
     };
   }
 
@@ -165,6 +166,16 @@ function balanceChangeOwner(owner: unknown): string | undefined {
   if (typeof record.address === "string") return record.address;
   if (typeof record.owner === "string") return record.owner;
   return undefined;
+}
+
+function normalizeEvents(raw: unknown): M3Event[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((event) => {
+    if (!event || typeof event !== "object") return [];
+    const item = event as Record<string, unknown>;
+    if (typeof item.type !== "string") return [];
+    return [{ type: item.type, parsedJson: item.parsedJson }];
+  });
 }
 
 void toBytesUtf8;

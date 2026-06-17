@@ -186,6 +186,20 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".execute.signer_roles") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts missing expected Move event evidence", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "buyer.buy_agent_subscription"
+          ? { ...step, meta: { ...(step.meta ?? {}), eventTypes: ["0xpkg::access::AgentSubscriptionPurchased"] } }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".execute.move_events") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects execute receipts whose transaction spend metadata does not match balanceChanges", () => {
     const receipt = makeExecuteReceipt({
       steps: executeSteps().map((step) =>
@@ -381,7 +395,8 @@ function executeSteps(): ProductionAcceptanceStep[] {
         fundDigest: digestFor("fund"),
         fundSignerAddress: "0x" + "aa".repeat(32),
         fundSuiSpentMist: "2000000",
-        fundBalanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-2000000" }]
+        fundBalanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-2000000" }],
+        fundEventTypes: eventTypesFor("buyer.fund_delegation")
       };
     }
     if (name === "agent.publish_encrypted_report" || name === "agent.publish_private_result") {
@@ -469,15 +484,45 @@ function decryptMeta(accessPath: string): Record<string, string | number | boole
   };
 }
 
-function spendMeta(name: string): Record<string, string | Array<Record<string, string | undefined>>> {
+function spendMeta(name: string): Record<string, unknown> {
   const signerAddress = name.startsWith("agent.") ? "0x" + "bb".repeat(32) : "0x" + "aa".repeat(32);
   const suiSpentMist = name.startsWith("agent.") ? "1500000" : "5000000";
   return {
     signer: name.startsWith("agent.") ? "agent" : "buyer",
     signerAddress,
     suiSpentMist,
-    balanceChanges: [{ owner: signerAddress, coinType: "0x2::sui::SUI", amount: `-${suiSpentMist}` }]
+    balanceChanges: [{ owner: signerAddress, coinType: "0x2::sui::SUI", amount: `-${suiSpentMist}` }],
+    eventTypes: eventTypesFor(name)
   };
+}
+
+function eventTypesFor(name: string): string[] {
+  const pkg = "0x" + "11".repeat(32);
+  const map: Record<string, string[]> = {
+    "agent.publish_encrypted_report": [`${pkg}::report::ResearchReportPublished`],
+    "buyer.buy_platform_membership": [
+      `${pkg}::access::PlatformMembershipPurchased`,
+      `${pkg}::settlement::PlatformMembershipPaid`
+    ],
+    "buyer.record_access_receipt": [`${pkg}::access::AccessReceiptRecorded`],
+    "buyer.buy_agent_subscription": [
+      `${pkg}::access::AgentSubscriptionPurchased`,
+      `${pkg}::settlement::AgentSubscriptionPaid`
+    ],
+    "platform.settle_membership_receipt": [
+      `${pkg}::settlement::MembershipSettlementCreated`,
+      `${pkg}::settlement::MembershipReportSettled`
+    ],
+    "agent.claim_membership_earnings": [`${pkg}::settlement::AgentEarningsClaimed`],
+    "buyer.create_and_fund_delegation": [`${pkg}::delegation::DelegationCreated`],
+    "buyer.fund_delegation": [`${pkg}::delegation::DelegationFunded`],
+    "agent.publish_private_result": [
+      `${pkg}::delegation::DelegationResultSubmitted`,
+      `${pkg}::report::ResearchReportPublished`
+    ],
+    "buyer.complete_delegation": [`${pkg}::delegation::DelegationCompleted`]
+  };
+  return map[name] ?? [];
 }
 
 function spendSummary() {
