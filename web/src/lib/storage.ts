@@ -11,7 +11,7 @@ import type {
   WorkbenchIndex,
   WorkbenchState,
   ZkLoginSession
-} from "./types";
+} from "./types.js";
 
 export function readJson<T>(key: string, fallback: T): T {
   try {

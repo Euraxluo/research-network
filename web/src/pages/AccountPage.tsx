@@ -8,6 +8,7 @@ import {
   selectedRepo,
   type RepoItem
 } from "../lib/github-scope";
+import { downloadAcceptanceSession } from "../lib/acceptance-session";
 import type { GithubBinding, ZkLoginSession } from "../lib/types";
 
 interface AssetDirectoryItem {
@@ -65,6 +66,7 @@ export function AccountPage() {
   const [gh, setGh] = useState<GithubBinding | null>(() => readGithub());
   const [attested, setAttested] = useState<boolean>(() => hasServerAttestation(readGithub()));
   const [checking, setChecking] = useState<boolean>(() => hasServerAttestation(readGithub()));
+  const [exportStatus, setExportStatus] = useState<{ text: string; error?: boolean } | null>(null);
   const directory = useMemo(() => readDirectory(), []);
 
   useEffect(() => {
@@ -113,6 +115,20 @@ export function AccountPage() {
     location.href = "/login.html";
   }
 
+  function exportAcceptanceSession(role: "buyer" | "agent") {
+    try {
+      const filename = downloadAcceptanceSession(role);
+      setExportStatus({
+        text: `Downloaded ${filename}. Move it to .research-network/secrets/${filename} before running production acceptance.`
+      });
+    } catch (error) {
+      setExportStatus({
+        text: error instanceof Error ? error.message : String(error),
+        error: true
+      });
+    }
+  }
+
   const connected = gh && gh.sui_address === session.address && gh.installation_id;
   const mine = gh?.login
     ? directory.filter((a) => (a.githubs || []).indexOf(gh.login!) !== -1)
@@ -139,6 +155,39 @@ export function AccountPage() {
             <dd>{session.iss || session.provider || "google"}</dd>
           </div>
         </dl>
+
+        <h2>Production acceptance session</h2>
+        <p className="muted">
+          Export only from the same browser tab that completed Google zkLogin. These files contain sensitive zkLogin
+          material for capped testnet/mainnet acceptance and must stay out of git.
+        </p>
+        <p className="repo-actions">
+          <button
+            className="button"
+            type="button"
+            data-testid="export-acceptance-buyer"
+            onClick={() => exportAcceptanceSession("buyer")}
+          >
+            Export buyer session
+          </button>
+          <button
+            className="button"
+            type="button"
+            data-testid="export-acceptance-agent"
+            onClick={() => exportAcceptanceSession("agent")}
+          >
+            Export agent session
+          </button>
+        </p>
+        {exportStatus ? (
+          <p
+            id="acceptance-session-export-status"
+            className={exportStatus.error ? "error" : "muted"}
+            data-testid="acceptance-session-export-status"
+          >
+            {exportStatus.text}
+          </p>
+        ) : null}
 
         <h2>Connected GitHub repositories</h2>
         {connected ? (

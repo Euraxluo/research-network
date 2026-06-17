@@ -167,6 +167,8 @@ npm run acceptance:production -- --network testnet --receipt .research-network/a
 
 Preflight 会读取两个不同 zkLogin 会话文件，检查地址、当前 epoch、余额和 prover，不会发交易、不花钱：
 
+两个会话文件可在 `/account.html` 从完成 Google zkLogin 的同一浏览器 tab 导出：buyer 账号点击 **Export buyer session**，agent 账号重新登录后点击 **Export agent session**，再分别移动到 `.research-network/secrets/acceptance-buyer.json` 和 `.research-network/secrets/acceptance-agent.json`。这些文件含 ephemeral zkLogin 材料，严禁提交。
+
 ```bash
 ZKLOGIN_PROVER_URL=https://<prover> \
 npm run acceptance:production -- --network testnet --preflight \
@@ -208,6 +210,7 @@ Web/Vercel 生产配置防护：
 
 ## 修订记录
 
+- 2026-06-17：Account 页新增 production acceptance session 导出入口，可从真实同 tab Google zkLogin 状态生成 buyer/agent session JSON；新增纯函数与 UI 集成测试覆盖成功导出和缺失 ephemeral key 时失败闭合。
 - 2026-06-17：补生产配置防误用 guard。Web/Vite config、Vercel Walrus proxy、auth shell 与 production acceptance 均拒绝 mainnet 混入已知 testnet object ids/endpoints；acceptance 会校验 zkLogin session 中可选 `address` 必须等于 `idToken + salt` 派生地址。
 - 2026-06-17：新增 `npm run readiness:mainnet` 可执行门禁，检查 testnet/mainnet acceptance receipts、mainnet env/Web/Vercel/Auth/prover 配置和可选链上 object 存在性，防止把 dry-run 或缺失凭据误判为 mainnet ready。
 - 2026-06-15：Seal Access 协议重构。删除 `license.move` / license tests；新增 `report.move`、`access.move`、`delegation.move`、`settlement.move`；schema/API/CLI/SDK/indexer/web 从 licenses 改为 reports/access/membership/subscriptions/delegations；新增 Move 和 TS 测试；testnet 重发包留待单独决策。

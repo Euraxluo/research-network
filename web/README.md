@@ -52,6 +52,13 @@ package `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`, wh
 `settled_receipts` replay protection and has passed a real Walrus + Seal + Sui author decrypt
 round-trip. The next gate is two-account zkLogin preflight, then capped acceptance:
 
+Export the two session files from `/account.html` after completing Google zkLogin in the same
+browser tab. Use **Export buyer session** for the funded buyer account, then sign out/sign in with
+the agent account and use **Export agent session**. Move the downloaded files to
+`.research-network/secrets/acceptance-buyer.json` and
+`.research-network/secrets/acceptance-agent.json`; they contain ephemeral zkLogin material and must
+never be committed.
+
 ```bash
 npm run acceptance:production -- --network testnet --receipt .research-network/acceptance/dry-run.json
 ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network testnet --preflight \
