@@ -58,6 +58,7 @@ interface ReceiptSet {
 interface ReceiptTransactionEvidence {
   digest: string;
   expectedEventTypes: string[];
+  expectedSenderAddress?: string;
 }
 
 interface ChainObjectExpectation {
@@ -626,23 +627,33 @@ async function chainReceiptTransactionChecks(
   const startedMs = receiptTimestampMs(receipt?.startedAt);
   const finishedMs = receiptTimestampMs(receipt?.finishedAt);
   try {
-    const responses = await suiRpc<Array<{ digest?: string; timestampMs?: string; effects?: { status?: { status?: string; error?: string } }; events?: Array<{ type?: string }>; error?: unknown } | null>>(
+    const responses = await suiRpc<Array<{
+      digest?: string;
+      timestampMs?: string;
+      transaction?: { data?: { sender?: string } };
+      effects?: { status?: { status?: string; error?: string } };
+      events?: Array<{ type?: string }>;
+      error?: unknown;
+    } | null>>(
       rpcUrl,
       "sui_multiGetTransactionBlocks",
       [
         digests,
-        { showEffects: true, showEvents: true }
+        { showEffects: true, showEvents: true, showInput: true }
       ]
     );
     return digests.map((digest, index) => {
       const response = responses[index];
       const status = response?.effects?.status?.status;
+      const chainSenderAddress = response?.transaction?.data?.sender;
+      const expectedSenderAddress = evidence[index]?.expectedSenderAddress;
       const timestampMs = integerMs(response?.timestampMs);
       const chainEventTypes = Array.isArray(response?.events)
         ? response.events.map((event) => event.type).filter((type): type is string => typeof type === "string")
         : [];
       const expectedEventTypes = evidence[index]?.expectedEventTypes ?? [];
       const eventsMatch = expectedEventTypes.every((type) => chainEventTypes.includes(type));
+      const senderMatches = sameSuiAddress(chainSenderAddress, expectedSenderAddress);
       const timestampMatches = timestampMs !== undefined &&
         startedMs !== undefined &&
         finishedMs !== undefined &&
@@ -650,14 +661,16 @@ async function chainReceiptTransactionChecks(
         timestampMs <= finishedMs;
       return checkBoolean(
         `chain.mainnet.transaction.${index + 1}`,
-        response?.digest === digest && status === "success" && eventsMatch && timestampMatches,
-        `Mainnet receipt transaction ${digest} exists, succeeded, emitted receipt events, and falls within the receipt window`,
-        `Mainnet receipt transaction ${digest} was not found, did not succeed, emitted different events, or falls outside the receipt window`,
+        response?.digest === digest && status === "success" && senderMatches && eventsMatch && timestampMatches,
+        `Mainnet receipt transaction ${digest} exists, succeeded, sender matches the receipt role, emitted receipt events, and falls within the receipt window`,
+        `Mainnet receipt transaction ${digest} was not found, did not succeed, sender did not match the receipt role, emitted different events, or falls outside the receipt window`,
         true,
         {
           digest,
           returnedDigest: response?.digest,
           status,
+          expectedSenderAddress,
+          chainSenderAddress,
           expectedEventTypes,
           chainEventTypes,
           timestampMs,
@@ -676,11 +689,21 @@ function receiptTransactionEvidence(receipt: ProductionAcceptanceReceipt): Recei
   const evidence = new Map<string, ReceiptTransactionEvidence>();
   for (const step of receipt.steps) {
     if (typeof step.digest === "string") {
-      mergeReceiptTransactionEvidence(evidence, step.digest, stringArray(step.meta?.eventTypes));
+      mergeReceiptTransactionEvidence(
+        evidence,
+        step.digest,
+        stringArray(step.meta?.eventTypes),
+        stringValue(step.meta?.signerAddress)
+      );
     }
     const fundDigest = step.meta?.fundDigest;
     if (typeof fundDigest === "string") {
-      mergeReceiptTransactionEvidence(evidence, fundDigest, stringArray(step.meta?.fundEventTypes));
+      mergeReceiptTransactionEvidence(
+        evidence,
+        fundDigest,
+        stringArray(step.meta?.fundEventTypes),
+        stringValue(step.meta?.fundSignerAddress)
+      );
     }
   }
   return [...evidence.values()];
@@ -689,11 +712,19 @@ function receiptTransactionEvidence(receipt: ProductionAcceptanceReceipt): Recei
 function mergeReceiptTransactionEvidence(
   evidence: Map<string, ReceiptTransactionEvidence>,
   digest: string,
-  eventTypes: string[]
+  eventTypes: string[],
+  expectedSenderAddress: string | undefined
 ) {
   const item = evidence.get(digest) ?? { digest, expectedEventTypes: [] };
   for (const type of eventTypes) {
     if (!item.expectedEventTypes.includes(type)) item.expectedEventTypes.push(type);
+  }
+  if (expectedSenderAddress) {
+    if (item.expectedSenderAddress && !sameSuiAddress(item.expectedSenderAddress, expectedSenderAddress)) {
+      item.expectedSenderAddress = "receipt-signer-conflict";
+    } else {
+      item.expectedSenderAddress = expectedSenderAddress;
+    }
   }
   evidence.set(digest, item);
 }
@@ -712,6 +743,16 @@ function integerMs(value: unknown): number | undefined {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function sameSuiAddress(left: unknown, right: unknown): boolean {
+  return typeof left === "string" &&
+    typeof right === "string" &&
+    normalizeSuiAddress(left) === normalizeSuiAddress(right);
 }
 
 async function suiRpc<T>(rpcUrl: string, method: string, params: unknown[]): Promise<T> {
@@ -784,6 +825,12 @@ function normalizeConfigValue(value: string | undefined): string | undefined {
 
 function normalizeSuiObjectId(value: string | undefined): string | undefined {
   return normalizeConfigValue(value);
+}
+
+function normalizeSuiAddress(value: string): string {
+  const normalized = normalizeConfigValue(value) ?? "";
+  if (!normalized.startsWith("0x")) return normalized;
+  return `0x${normalized.slice(2).replace(/^0+/, "") || "0"}`;
 }
 
 main().catch((error) => {
