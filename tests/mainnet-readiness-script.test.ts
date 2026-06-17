@@ -525,6 +525,9 @@ function makePreflightReceipt(network: "testnet" | "mainnet" = "testnet"): Produ
             }
           };
         }
+        if (name === "balances.validate") {
+          return { name, status: "passed", meta: balanceMeta() };
+        }
         return { name, status: "passed" };
       }
       return { name, status: "skipped", meta: { reason: "preflight_no_transactions" } };
@@ -609,6 +612,15 @@ function executeSteps(): ProductionAcceptanceStep[] {
     }
     return step;
   });
+}
+
+function balanceMeta(): Record<string, string> {
+  return {
+    buyerBalanceMist: "110000000",
+    buyerMinimumMist: "53800000",
+    agentBalanceMist: "60000000",
+    agentMinimumMist: "50000000"
+  };
 }
 
 function proofMeta(): Record<string, boolean> {

@@ -208,12 +208,21 @@ function checkPreflightSteps(receipt: ProductionAcceptanceReceipt, expectation: 
   const passedCore = ["config.validate", "accounts.validate", "balances.validate"];
   const transactionSteps = ACCEPTANCE_STEPS.filter((name) => !passedCore.includes(name));
   const accountMeta = receipt.steps.find((step) => step.name === "accounts.validate")?.meta;
+  const balanceMeta = receipt.steps.find((step) => step.name === "balances.validate")?.meta;
   checks.push(checkBoolean(
     `receipt.${expectation.label}.preflight.core_steps`,
     passedCore.every((name) => stepStatus(receipt, name) === "passed"),
     `${expectation.label} preflight validated config, accounts, and balances`,
     `${expectation.label} preflight must pass config, account, and balance checks`,
     expectation.required
+  ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.preflight.balance_evidence`,
+    hasAcceptanceBalanceEvidence(balanceMeta),
+    `${expectation.label} preflight records buyer/agent balances covering required minimums`,
+    `${expectation.label} preflight is missing buyer/agent balance evidence covering required minimums`,
+    expectation.required,
+    { balances: balanceMeta }
   ));
   checks.push(checkBoolean(
     `receipt.${expectation.label}.preflight.no_transactions`,
@@ -584,6 +593,26 @@ function hasSpendSummary(value: unknown): boolean {
     typeof spend.transactionCount === "number" &&
     Number.isInteger(spend.transactionCount) &&
     spend.transactionCount > 0;
+}
+
+function hasAcceptanceBalanceEvidence(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const balances = value as Record<string, unknown>;
+  const buyerBalance = parseNonNegativeIntegerString(balances.buyerBalanceMist);
+  const buyerMinimum = parseNonNegativeIntegerString(balances.buyerMinimumMist);
+  const agentBalance = parseNonNegativeIntegerString(balances.agentBalanceMist);
+  const agentMinimum = parseNonNegativeIntegerString(balances.agentMinimumMist);
+  return buyerBalance !== undefined &&
+    buyerMinimum !== undefined &&
+    agentBalance !== undefined &&
+    agentMinimum !== undefined &&
+    buyerBalance >= buyerMinimum &&
+    agentBalance >= agentMinimum;
+}
+
+function parseNonNegativeIntegerString(value: unknown): bigint | undefined {
+  if (!isNonNegativeIntegerString(value)) return undefined;
+  return BigInt(value);
 }
 
 function receiptTransactionDigestCount(receipt: ProductionAcceptanceReceipt): number {

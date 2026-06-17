@@ -95,7 +95,7 @@ npm run readiness:mainnet -- --stage mainnet-final \
 ```
 
 `ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, missing or inverted receipt timestamps, stale or future-dated final mainnet receipt, known testnet id/endpoint in mainnet evidence, missing prover/mainnet env, mismatch between acceptance/Web/Vercel/Auth mainnet values, stale mainnet receipt config, or over-large mainnet acceptance spend cap keeps the report red. Without `--skip-chain`, the gate also checks configured mainnet package/shared objects via RPC and validates the settlement shared-object type suffixes. `mainnet-final` always requires live chain checks and fresh mainnet preflight/execute receipts; `--skip-chain` is only accepted for earlier config/preflight review. The default final receipt freshness window is 24 hours and can be changed with `RN_MAINNET_RECEIPT_MAX_AGE_MS` or `--mainnet-receipt-max-age-ms`.
-Preflight receipts also record non-sensitive prover evidence (`configured: true` and a SHA-256 URL fingerprint) so readiness can verify a real prover was configured without storing the prover endpoint or proof material.
+Preflight receipts also record non-sensitive prover evidence (`configured: true` and a SHA-256 URL fingerprint) and buyer/agent balance evidence so readiness can verify a real prover was configured and both zkLogin accounts covered their required minimums without storing the prover endpoint or proof material.
 
 Production config guards:
 

@@ -285,6 +285,27 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".preflight.zkproof_evidence") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects preflight receipts whose balance evidence does not cover required minimums", () => {
+    const expectation: ReceiptExpectation = {
+      label: "testnet-preflight",
+      network: "testnet",
+      execute: false,
+      preflight: true,
+      required: true
+    };
+    const receipt = makePreflightReceipt({
+      steps: preflightSteps().map((step) =>
+        step.name === "balances.validate"
+          ? { ...step, meta: { ...balanceMeta(), buyerBalanceMist: "1" } }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, expectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".preflight.balance_evidence") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects mainnet receipts that still contain testnet-looking config", () => {
     const expectation: ReceiptExpectation = {
       label: "mainnet-execute",
@@ -514,10 +535,22 @@ function preflightSteps(): ProductionAcceptanceStep[] {
           }
         };
       }
+      if (name === "balances.validate") {
+        return { name, status: "passed", meta: balanceMeta() };
+      }
       return { name, status: "passed" };
     }
     return { name, status: "skipped", meta: { reason: "preflight_no_transactions" } };
   });
+}
+
+function balanceMeta(): Record<string, string> {
+  return {
+    buyerBalanceMist: "110000000",
+    buyerMinimumMist: "53800000",
+    agentBalanceMist: "60000000",
+    agentMinimumMist: "50000000"
+  };
 }
 
 function proofMeta(): Record<string, boolean> {
