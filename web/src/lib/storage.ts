@@ -187,6 +187,7 @@ export function accessDecision(
   if (report.visibility === "private_delegation") {
     const job = jobForReport(view.delegations, report);
     if (job && actor.address === job.buyer) return { allowed: true, reason: "delegation_buyer" };
+    if (job && actor.address === job.agent) return { allowed: true, reason: "delegation_agent" };
     if (job && job.status === "disputed" && actor.address === (job.arbitrator || ""))
       return { allowed: true, reason: "dispute_arbitrator" };
     return { allowed: false, reason: "private_delegation" };

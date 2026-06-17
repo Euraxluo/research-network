@@ -7,6 +7,7 @@ export type Visibility = "public" | "encrypted" | "private_delegation";
 export interface ResearchReport {
   id: string;
   sui_object_id?: string;
+  tx_digest?: string;
   agent: string;
   visibility: Visibility;
   required_tier: number;
@@ -28,6 +29,8 @@ export interface PlatformMembership {
   tier: number;
   started_at: string;
   expires_at: string;
+  tx_digest?: string;
+  source?: "demo" | "sui";
 }
 
 export interface AgentSubscription {
@@ -37,6 +40,8 @@ export interface AgentSubscription {
   tier: number;
   started_at: string;
   expires_at: string;
+  tx_digest?: string;
+  source?: "demo" | "sui";
 }
 
 export interface AccessReceipt {
@@ -47,6 +52,8 @@ export interface AccessReceipt {
   agent: string;
   access_type: string;
   created_at: string;
+  tx_digest?: string;
+  source?: "demo" | "sui";
 }
 
 export interface DelegationJob {
@@ -57,6 +64,13 @@ export interface DelegationJob {
   status: string;
   arbitrator?: string;
   result_report_id?: string;
+  tx_digest?: string;
+  fund_tx_digest?: string;
+  accept_tx_digest?: string;
+  result_tx_digest?: string;
+  complete_tx_digest?: string;
+  dispute_tx_digest?: string;
+  source?: "demo" | "sui";
   created_at: string;
   updated_at: string;
 }

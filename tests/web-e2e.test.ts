@@ -374,6 +374,16 @@ describe("static web E2E", () => {
     arbitratorAfterDispute!.click();
     expect(doc.body.textContent).toContain("dispute_arbitrator");
 
+    selectValue(dom, "#actor-select", "buyer");
+    testId(dom, "create-delegation").click();
+    testId(dom, "submit-private-result").click();
+    testId(dom, "complete-delegation").click();
+    expect(doc.body.textContent).toContain("Delegation completed (demo).");
+    testId(dom, "settle-membership-receipt").click();
+    expect(doc.body.textContent).toContain("Settlement requires an on-chain signer.");
+    testId(dom, "claim-agent-earnings").click();
+    expect(doc.body.textContent).toContain("Claim requires an on-chain signer.");
+
     dom.window.close();
   });
 

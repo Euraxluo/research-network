@@ -9,6 +9,7 @@ import {
   accessDecision,
   activeActor,
   emptyWorkbenchState,
+  jobForReport,
   mergeById,
   readGithub,
   readSession,
@@ -18,7 +19,23 @@ import {
   writeJson,
   hash
 } from "./storage";
-import { publishReportDemo, submitPrivateResultDemo, publishReport } from "./clients";
+import {
+  buyAgentSubscriptionOnChain,
+  buyPlatformMembershipOnChain,
+  claimAgentEarningsOnChain,
+  completeDelegationJobOnChain,
+  createDelegationJobOnChain,
+  decryptReport as decryptReportOnChain,
+  fundDelegationJobOnChain,
+  openDisputeOnChain,
+  publishPrivateResultOnChain,
+  publishReport,
+  publishReportDemo,
+  recordPlatformAccessReceiptOnChain,
+  settleMembershipReportOnChain,
+  submitPrivateResultDemo
+} from "./clients";
+import { loadM3Config } from "./config";
 import type { M3Signer } from "./clients";
 import type {
   AccessReceipt,
@@ -74,6 +91,9 @@ interface WorkbenchStore extends WorkbenchState {
   createDelegation: () => void;
   submitPrivateResult: () => void;
   openDispute: () => void;
+  completeDelegation: () => void;
+  settleLatestMembershipReceipt: () => void;
+  claimAgentEarnings: () => void;
   decryptReport: (id: string) => void;
   seedDemo: () => void;
 }
@@ -94,6 +114,22 @@ function isDemoMode(): boolean {
 function currentPeriod(): number {
   const d = new Date();
   return d.getUTCFullYear() * 100 + d.getUTCMonth() + 1;
+}
+
+function sameAddress(left?: string, right?: string): boolean {
+  return Boolean(left && right && left.toLowerCase() === right.toLowerCase());
+}
+
+function isSuiId(value?: string): boolean {
+  return Boolean(value && /^0x[0-9a-fA-F]{64}$/.test(value));
+}
+
+function signerMatchesActor(signer: M3Signer, actor: ReturnType<typeof activeActor>): boolean {
+  return sameAddress(actor.address, signer.address);
+}
+
+function expiresAtFromNow(durationMs: number): string {
+  return new Date(Date.now() + durationMs).toISOString();
 }
 
 export const useWorkbench = create<WorkbenchStore>((set, get) => ({
@@ -117,7 +153,14 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     };
   },
 
-  activeActor: () => activeActor(get(), get().session?.address),
+  activeActor: () => {
+    const s = get();
+    const actor = activeActor(s, s.session?.address);
+    if (s.signer && actor.id !== "outsider") {
+      return { ...actor, address: s.signer.address };
+    }
+    return actor;
+  },
 
   reload: () => {
     const state = readWorkbench();
@@ -206,8 +249,36 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     );
   },
 
-  buyMembership: () => {
+  buyMembership: async () => {
     const actor = get().activeActor();
+    const signer = get().signer;
+    const config = loadM3Config();
+    if (signer) {
+      if (!signerMatchesActor(signer, actor)) {
+        get().setStatus("Select the current zkLogin signer before buying a real membership.", true);
+        return;
+      }
+      try {
+        get().setStatus("Buying platform membership on Sui...");
+        const result = await buyPlatformMembershipOnChain({ signer, tier: 1 });
+        const next = readWorkbench();
+        next.platform_memberships.push({
+          pass_id: result.objectId,
+          owner_address: signer.address,
+          tier: 1,
+          started_at: nowIso(),
+          expires_at: expiresAtFromNow(config.accessDurationMs),
+          tx_digest: result.digest,
+          source: "sui"
+        });
+        saveWorkbench(next);
+        get().reload();
+        get().setStatus("Platform membership active on-chain for " + actor.label + ".");
+      } catch (err) {
+        get().setStatus("Membership purchase failed: " + String((err as Error)?.message || err), true);
+      }
+      return;
+    }
     const next = readWorkbench();
     const id = "pm:" + hash(actor.address + ":" + Date.now());
     next.platform_memberships.push({
@@ -215,18 +286,52 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       owner_address: actor.address,
       tier: 1,
       started_at: nowIso(),
-      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      expires_at: expiresAtFromNow(config.accessDurationMs),
+      source: "demo"
     });
     saveWorkbench(next);
     get().reload();
     get().setStatus("Platform membership active for " + actor.label + ".");
   },
 
-  subscribeAgent: () => {
+  subscribeAgent: async () => {
     const v = get().view();
     const actor = get().activeActor();
     const selected = v.reports.find((r) => r.id === get().selected_report_id) || v.reports[0];
     const agent = selected?.agent || get().session?.address || "0xAGENT";
+    const signer = get().signer;
+    const config = loadM3Config();
+    if (signer) {
+      if (!signerMatchesActor(signer, actor)) {
+        get().setStatus("Select the current zkLogin signer before buying a real agent subscription.", true);
+        return;
+      }
+      if (!isSuiId(agent)) {
+        get().setStatus("Select a report with a real Sui agent address before subscribing on-chain.", true);
+        return;
+      }
+      try {
+        get().setStatus("Buying agent subscription on Sui...");
+        const result = await buyAgentSubscriptionOnChain({ signer, agent, tier: 1 });
+        const next = readWorkbench();
+        next.agent_subscriptions.push({
+          pass_id: result.objectId,
+          owner_address: signer.address,
+          agent,
+          tier: 1,
+          started_at: nowIso(),
+          expires_at: expiresAtFromNow(config.accessDurationMs),
+          tx_digest: result.digest,
+          source: "sui"
+        });
+        saveWorkbench(next);
+        get().reload();
+        get().setStatus("Agent subscription active on-chain for " + actor.label + ".");
+      } catch (err) {
+        get().setStatus("Agent subscription failed: " + String((err as Error)?.message || err), true);
+      }
+      return;
+    }
     const next = readWorkbench();
     const id = "sub:" + hash(actor.address + ":" + agent + ":" + Date.now());
     next.agent_subscriptions.push({
@@ -235,14 +340,60 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       agent,
       tier: 1,
       started_at: nowIso(),
-      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      expires_at: expiresAtFromNow(config.accessDurationMs),
+      source: "demo"
     });
     saveWorkbench(next);
     get().reload();
     get().setStatus("Agent subscription active for " + actor.label + ".");
   },
 
-  createDelegation: () => {
+  createDelegation: async () => {
+    const signer = get().signer;
+    const actor = get().activeActor();
+    const v = get().view();
+    const selected = v.reports.find((r) => r.id === get().selected_report_id) || v.reports[0];
+    const config = loadM3Config();
+    if (signer) {
+      if (!signerMatchesActor(signer, actor)) {
+        get().setStatus("Select the current zkLogin signer before creating a real delegation.", true);
+        return;
+      }
+      if (!selected || !isSuiId(selected.agent)) {
+        get().setStatus("Select a report from the target real Sui agent before creating an on-chain delegation.", true);
+        return;
+      }
+      const agent = selected.agent;
+      try {
+        get().setStatus("Creating and funding delegation on Sui...");
+        const created = await createDelegationJobOnChain({
+          signer,
+          agent,
+          question: selected?.title ? "Private research request for " + selected.title : "Private research request",
+          sourceArtifact: selected?.source_repo || selected?.id || "workbench"
+        });
+        const fundDigest = await fundDelegationJobOnChain({ signer, jobObjectId: created.objectId });
+        const next = readWorkbench();
+        next.delegations.push({
+          id: created.objectId,
+          buyer: signer.address,
+          agent,
+          budget: Number(config.delegationBudgetMist),
+          status: "funded",
+          tx_digest: created.digest,
+          fund_tx_digest: fundDigest,
+          source: "sui",
+          created_at: nowIso(),
+          updated_at: nowIso()
+        });
+        saveWorkbench(next);
+        get().reload();
+        get().setStatus("Private delegation job created and funded on-chain.");
+      } catch (err) {
+        get().setStatus("Delegation creation failed: " + String((err as Error)?.message || err), true);
+      }
+      return;
+    }
     const agent = get().session?.address || "0xAGENT";
     const next = readWorkbench();
     const id = "job:" + hash("delegation:" + Date.now());
@@ -252,6 +403,7 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       agent,
       budget: 1200,
       status: "open",
+      source: "demo",
       created_at: nowIso(),
       updated_at: nowIso()
     });
@@ -260,8 +412,68 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     get().setStatus("Private delegation job created.");
   },
 
-  submitPrivateResult: () => {
+  submitPrivateResult: async () => {
     const v = get().view();
+    const signer = get().signer;
+    if (signer) {
+      const actor = get().activeActor();
+      if (!signerMatchesActor(signer, actor)) {
+        get().setStatus("Select the current zkLogin signer before submitting a real private result.", true);
+        return;
+      }
+      const job =
+        v.delegations.find((j) => isSuiId(j.id) && (j.status === "funded" || j.status === "accepted")) ||
+        v.delegations.find((j) => isSuiId(j.id));
+      if (!job) {
+        get().setStatus("Create and fund a real delegation job first.", true);
+        return;
+      }
+      if (!sameAddress(signer.address, job.agent)) {
+        get().setStatus("Only the delegated agent can submit the real private result.", true);
+        return;
+      }
+      if (!(job.status === "funded" || job.status === "accepted")) {
+        get().setStatus("The delegation must be funded or accepted before submitting a real result.", true);
+        return;
+      }
+      try {
+        get().setStatus("Publishing private delegation result with Walrus + Seal + Sui...");
+        const selectedRepo = get().github?.selected_repo || "private-delegation";
+        const result = await publishPrivateResultOnChain({
+          signer,
+          jobObjectId: job.id,
+          title: "Private result for " + job.id,
+          freePreview: "Private delegation result metadata only.",
+          plaintext: "Private delegation research result. Buyer and agent can decrypt by default.",
+          sourceRepo: selectedRepo
+        });
+        const next = readWorkbench();
+        const localJob = next.delegations.find((j) => j.id === job.id);
+        if (localJob) {
+          localJob.status = "submitted";
+          localJob.result_report_id = result.report.id;
+          localJob.result_tx_digest = result.txDigest;
+          localJob.updated_at = nowIso();
+        } else {
+          next.delegations.push({
+            ...job,
+            status: "submitted",
+            result_report_id: result.report.id,
+            result_tx_digest: result.txDigest,
+            updated_at: nowIso()
+          });
+        }
+        next.reports.push(result.report);
+        next.plaintexts[result.report.id] = result.plaintext;
+        next.selected_report_id = result.report.id;
+        saveWorkbench(next);
+        get().reload();
+        get().setStatus("Private result submitted on-chain with Seal access.");
+      } catch (err) {
+        get().setStatus("Private result submission failed: " + String((err as Error)?.message || err), true);
+      }
+      return;
+    }
     const job =
       v.delegations.find((j) => j.status === "open" || j.status === "accepted" || j.status === "funded") ||
       v.delegations[v.delegations.length - 1];
@@ -288,8 +500,63 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     get().setStatus("Private result submitted with Seal access.");
   },
 
-  openDispute: () => {
+  openDispute: async () => {
     const v = get().view();
+    const signer = get().signer;
+    if (signer) {
+      const actor = get().activeActor();
+      if (!signerMatchesActor(signer, actor)) {
+        get().setStatus("Select the current zkLogin signer before opening a real dispute.", true);
+        return;
+      }
+      const job =
+        v.delegations.find((j) => isSuiId(j.id) && (j.status === "submitted" || j.status === "funded")) ||
+        v.delegations.find((j) => isSuiId(j.id));
+      if (!job) {
+        get().setStatus("Create a real delegation job first.", true);
+        return;
+      }
+      if (!sameAddress(signer.address, job.buyer) && !sameAddress(signer.address, job.agent)) {
+        get().setStatus("Only the buyer or agent can open a real delegation dispute.", true);
+        return;
+      }
+      if (!(job.status === "submitted" || job.status === "funded")) {
+        get().setStatus("The delegation must be funded or submitted before opening a dispute.", true);
+        return;
+      }
+      try {
+        const arbitrator = loadM3Config().defaultArbitratorAddress || signer.address;
+        get().setStatus("Opening delegation dispute on Sui...");
+        const digest = await openDisputeOnChain({
+          signer,
+          jobObjectId: job.id,
+          arbitrator,
+          reason: "Workbench dispute request"
+        });
+        const next = readWorkbench();
+        const localJob = next.delegations.find((j) => j.id === job.id);
+        if (localJob) {
+          localJob.status = "disputed";
+          localJob.arbitrator = arbitrator;
+          localJob.dispute_tx_digest = digest;
+          localJob.updated_at = nowIso();
+        } else {
+          next.delegations.push({
+            ...job,
+            status: "disputed",
+            arbitrator,
+            dispute_tx_digest: digest,
+            updated_at: nowIso()
+          });
+        }
+        saveWorkbench(next);
+        get().reload();
+        get().setStatus("Dispute opened on-chain; configured arbitrator has Seal access.");
+      } catch (err) {
+        get().setStatus("Dispute failed: " + String((err as Error)?.message || err), true);
+      }
+      return;
+    }
     const job = v.delegations.find((j) => j.result_report_id) || v.delegations[0];
     if (!job) {
       get().setStatus("Create a delegation job first.", true);
@@ -309,7 +576,107 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     get().setStatus("Dispute opened; arbitrator has temporary Seal access.");
   },
 
-  decryptReport: (id) => {
+  completeDelegation: async () => {
+    const v = get().view();
+    const signer = get().signer;
+    if (signer) {
+      const actor = get().activeActor();
+      if (!signerMatchesActor(signer, actor)) {
+        get().setStatus("Select the current zkLogin signer before completing a real delegation.", true);
+        return;
+      }
+      const job = v.delegations.find((j) => isSuiId(j.id) && j.status === "submitted");
+      if (!job) {
+        get().setStatus("Submit a real delegation result before completing the job.", true);
+        return;
+      }
+      if (!sameAddress(signer.address, job.buyer)) {
+        get().setStatus("Only the buyer can complete and release a real delegation escrow.", true);
+        return;
+      }
+      try {
+        get().setStatus("Completing delegation and releasing escrow on Sui...");
+        const digest = await completeDelegationJobOnChain({ signer, jobObjectId: job.id });
+        const next = readWorkbench();
+        const localJob = next.delegations.find((j) => j.id === job.id);
+        if (localJob) {
+          localJob.status = "completed";
+          localJob.complete_tx_digest = digest;
+          localJob.updated_at = nowIso();
+        }
+        saveWorkbench(next);
+        get().reload();
+        get().setStatus("Delegation completed on-chain; escrow released to the agent.");
+      } catch (err) {
+        get().setStatus("Delegation completion failed: " + String((err as Error)?.message || err), true);
+      }
+      return;
+    }
+    const job = v.delegations.find((j) => j.status === "submitted");
+    if (!job) {
+      get().setStatus("Submit a delegation result before completing the job.", true);
+      return;
+    }
+    const next = readWorkbench();
+    const localJob = next.delegations.find((j) => j.id === job.id);
+    if (localJob) {
+      localJob.status = "completed";
+      localJob.updated_at = nowIso();
+    }
+    saveWorkbench(next);
+    get().reload();
+    get().setStatus("Delegation completed (demo).");
+  },
+
+  settleLatestMembershipReceipt: async () => {
+    const signer = get().signer;
+    if (!signer) {
+      get().setStatus("Settlement requires an on-chain signer.", true);
+      return;
+    }
+    const actor = get().activeActor();
+    if (!signerMatchesActor(signer, actor)) {
+      get().setStatus("Select the current zkLogin signer before settling a membership receipt.", true);
+      return;
+    }
+    const receipt = get()
+      .view()
+      .access_receipts.filter((item) => item.access_type === "platform_member" && isSuiId(item.id))
+      .reverse()[0];
+    if (!receipt) {
+      get().setStatus("Record a real platform membership access receipt before settlement.", true);
+      return;
+    }
+    try {
+      get().setStatus("Settling membership receipt into agent earnings on Sui...");
+      const digest = await settleMembershipReportOnChain({ signer, receiptObjectId: receipt.id });
+      get().setStatus("Membership receipt settled on-chain: " + digest + ".");
+    } catch (err) {
+      get().setStatus("Settlement failed: " + String((err as Error)?.message || err), true);
+    }
+  },
+
+  claimAgentEarnings: async () => {
+    const signer = get().signer;
+    if (!signer) {
+      get().setStatus("Claim requires an on-chain signer.", true);
+      return;
+    }
+    const actor = get().activeActor();
+    if (!signerMatchesActor(signer, actor)) {
+      get().setStatus("Select the current zkLogin signer before claiming real earnings.", true);
+      return;
+    }
+    try {
+      get().setStatus("Claiming agent earnings on Sui...");
+      const digest = await claimAgentEarningsOnChain({ signer });
+      get().setStatus("Agent earnings claimed on-chain: " + digest + ".");
+    } catch (err) {
+      get().setStatus("Claim failed: " + String((err as Error)?.message || err), true);
+    }
+  },
+
+  decryptReport: async (id) => {
     const v = get().view();
     const actor = get().activeActor();
     const report = v.reports.find((r) => r.id === id);
@@ -319,6 +686,122 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       get().setStatus("Seal denied access: " + decision.reason + ".", true);
       return;
     }
+    const signer = get().signer;
+    const reportObjectId = report.sui_object_id || report.id;
+    const canUseRealDecrypt =
+      signer &&
+      report.visibility !== "public" &&
+      isSuiId(reportObjectId) &&
+      isSuiId(report.seal_id) &&
+      Boolean(report.walrus_blob_id);
+
+    if (canUseRealDecrypt) {
+      if (!signerMatchesActor(signer, actor)) {
+        get().setStatus("Select the current zkLogin signer before decrypting a real report.", true);
+        return;
+      }
+
+      let moduleFn:
+        | "seal_approve_report_author"
+        | "seal_approve_report_with_platform_membership"
+        | "seal_approve_report_with_agent_subscription"
+        | "seal_approve_private_result";
+      let passObjectId: string | undefined;
+      let delegationJobId: string | undefined;
+
+      if (decision.reason === "author") {
+        moduleFn = "seal_approve_report_author";
+      } else if (decision.reason === "platform_member") {
+        const pass = v.platform_memberships.find(
+          (item) =>
+            sameAddress(item.owner_address, signer.address) &&
+            Number(item.tier || 0) >= Number(report.required_tier || 0) &&
+            isSuiId(item.pass_id)
+        );
+        if (!pass) {
+          get().setStatus("A real platform membership pass is required for on-chain decrypt.", true);
+          return;
+        }
+        moduleFn = "seal_approve_report_with_platform_membership";
+        passObjectId = pass.pass_id;
+      } else if (decision.reason === "agent_subscription") {
+        const pass = v.agent_subscriptions.find(
+          (item) =>
+            sameAddress(item.owner_address, signer.address) &&
+            sameAddress(item.agent, report.agent) &&
+            Number(item.tier || 0) >= Number(report.required_tier || 0) &&
+            isSuiId(item.pass_id)
+        );
+        if (!pass) {
+          get().setStatus("A real agent subscription pass is required for on-chain decrypt.", true);
+          return;
+        }
+        moduleFn = "seal_approve_report_with_agent_subscription";
+        passObjectId = pass.pass_id;
+      } else {
+        const job = jobForReport(v.delegations, report);
+        if (!job || !isSuiId(job.id)) {
+          get().setStatus("A real delegation job is required for private result decrypt.", true);
+          return;
+        }
+        moduleFn = "seal_approve_private_result";
+        delegationJobId = job.id;
+      }
+
+      try {
+        get().setStatus("Decrypting with Seal key servers...");
+        const plaintext = await decryptReportOnChain(report, moduleFn, signer, passObjectId, delegationJobId);
+        if (!plaintext) {
+          get().setStatus("Seal decrypt returned no plaintext.", true);
+          return;
+        }
+        const next = readWorkbench();
+        if (decision.reason === "platform_member" && passObjectId) {
+          const period = currentPeriod();
+          const exists = next.access_receipts.some(
+            (receipt) =>
+              receipt.period_id === period &&
+              sameAddress(receipt.user, signer.address) &&
+              receipt.report_id === report.id &&
+              receipt.access_type === "platform_member"
+          );
+          if (!exists) {
+            const receipt = await recordPlatformAccessReceiptOnChain({
+              signer,
+              passObjectId,
+              reportObjectId,
+              periodId: period
+            });
+            next.access_receipts.push({
+              id: receipt.objectId,
+              period_id: period,
+              user: signer.address,
+              report_id: report.id,
+              agent: report.agent,
+              access_type: "platform_member",
+              created_at: nowIso(),
+              tx_digest: receipt.digest,
+              source: "sui"
+            });
+          }
+        }
+        next.plaintexts[report.id] = plaintext;
+        next.unlocked[actor.address + ":" + report.id] = true;
+        next.selected_report_id = report.id;
+        saveWorkbench(next);
+        get().reload();
+        get().setStatus("Seal decrypt authorized on-chain for " + actor.label + " via " + decision.reason + ".");
+      } catch (err) {
+        get().setStatus("Decrypt failed: " + String((err as Error)?.message || err), true);
+      }
+      return;
+    }
+
+    if (signer && report.visibility !== "public" && (isSuiId(reportObjectId) || isSuiId(report.seal_id))) {
+      get().setStatus("This report is missing the real Walrus/Seal metadata required for on-chain decrypt.", true);
+      return;
+    }
+
     const next = readWorkbench();
     if (decision.receiptType) {
       const period = currentPeriod();
@@ -332,7 +815,8 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
           report_id: report.id,
           agent: report.agent,
           access_type: decision.receiptType,
-          created_at: nowIso()
+          created_at: nowIso(),
+          source: "demo"
         });
       }
     }

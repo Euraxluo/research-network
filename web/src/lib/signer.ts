@@ -93,15 +93,22 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
     const result = await suiClient.executeTransactionBlock({
       transactionBlock: toBase64(txBytes),
       signature: compositeSig,
-      options: { showEffects: true }
+      options: { showEffects: true, showObjectChanges: true }
     });
 
     const created: string[] = [];
+    const createdObjects: Array<{ objectId: string; objectType?: string }> = [];
+    for (const change of result.objectChanges || []) {
+      const item = change as { type?: string; objectId?: string; objectType?: string };
+      if (item.type === "created" && item.objectId) {
+        createdObjects.push({ objectId: item.objectId, objectType: item.objectType });
+      }
+    }
     for (const change of result.effects?.created || []) {
       const oid = (change as { reference?: { objectId?: string } }).reference?.objectId;
       if (oid) created.push(oid);
     }
-    return { digest: result.digest, createdObjectIds: created };
+    return { digest: result.digest, createdObjectIds: createdObjects.map((obj) => obj.objectId).concat(created), createdObjects };
   }
 
   async function signPersonalMessage(msg: Uint8Array) {

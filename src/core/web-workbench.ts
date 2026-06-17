@@ -51,6 +51,7 @@ export const WORKBENCH_JS = `
   var indexed = window.__WORKBENCH_INDEX__ || {};
   var now = function () { return new Date().toISOString(); };
   var demoMode = false;
+  var lastStatus = { text: "", isError: false };
   try {
     var params = new URLSearchParams(window.location.search);
     demoMode = params.has("rn_demo") || localStorage.getItem("rn_workbench_demo") === "1";
@@ -485,9 +486,10 @@ export const WORKBENCH_JS = `
     render();
   }
   function setStatus(text, isError) {
+    lastStatus = { text: text || "", isError: !!isError };
     var status = document.getElementById("workbench-status");
     if (status) {
-      status.textContent = text || "";
+      status.textContent = lastStatus.text;
       status.className = isError ? "notice error" : "notice success";
     }
   }
@@ -613,6 +615,31 @@ export const WORKBENCH_JS = `
     setStatus("Dispute opened; arbitrator has temporary Seal access.");
     render();
   }
+  function completeDelegation() {
+    var view = stateView();
+    var state = view.state;
+    var job = view.delegations.filter(function (item) { return item.status === "submitted"; })[0];
+    if (!job) {
+      setStatus("Submit a delegation result before completing the job.", true);
+      return;
+    }
+    job.status = "completed";
+    job.updated_at = now();
+    var localJob = state.delegations.filter(function (item) { return item.id === job.id; })[0];
+    if (localJob) {
+      localJob.status = job.status;
+      localJob.updated_at = job.updated_at;
+    }
+    saveWorkbench(state);
+    setStatus("Delegation completed (demo).");
+    render();
+  }
+  function claimAgentEarnings() {
+    setStatus("Claim requires an on-chain signer.", true);
+  }
+  function settleLatestMembershipReceipt() {
+    setStatus("Settlement requires an on-chain signer.", true);
+  }
   function decryptReport(id) {
     var session = readSession();
     var view = stateView();
@@ -713,10 +740,11 @@ export const WORKBENCH_JS = `
         reportCards(view, state, actor) +
       '</section>' +
       '<section class="workbench-panel"><h2>Private Delegation</h2>' +
-        '<p class="workbench-actions"><button class="button" id="create-delegation" type="button" data-testid="create-delegation">Create delegation</button><button class="button" id="submit-private-result" type="button" data-testid="submit-private-result">Submit private result</button><button class="button" id="open-dispute" type="button" data-testid="open-dispute">Open dispute</button></p>' +
+        '<p class="workbench-actions"><button class="button" id="create-delegation" type="button" data-testid="create-delegation">Create delegation</button><button class="button" id="submit-private-result" type="button" data-testid="submit-private-result">Submit private result</button><button class="button" id="open-dispute" type="button" data-testid="open-dispute">Open dispute</button><button class="button" id="complete-delegation" type="button" data-testid="complete-delegation">Complete delegation</button></p>' +
         delegationRows(view.delegations) +
       '</section>' +
-      '<section class="workbench-panel"><h2>Access Receipts</h2>' + receiptRows(view.access_receipts) + '</section>';
+      '<section class="workbench-panel"><h2>Access Receipts</h2><p class="workbench-actions"><button class="button" id="settle-membership-receipt" type="button" data-testid="settle-membership-receipt">Settle latest receipt</button><button class="button" id="claim-agent-earnings" type="button" data-testid="claim-agent-earnings">Claim earnings</button></p>' + receiptRows(view.access_receipts) + '</section>';
+    if (lastStatus.text) setStatus(lastStatus.text, lastStatus.isError);
 
     var seed = document.getElementById("seed-demo");
     if (seed) seed.addEventListener("click", seedDemo);
@@ -763,6 +791,12 @@ export const WORKBENCH_JS = `
     if (submitResult) submitResult.addEventListener("click", submitDelegationResult);
     var dispute = document.getElementById("open-dispute");
     if (dispute) dispute.addEventListener("click", openDispute);
+    var completeJob = document.getElementById("complete-delegation");
+    if (completeJob) completeJob.addEventListener("click", completeDelegation);
+    var settleReceipt = document.getElementById("settle-membership-receipt");
+    if (settleReceipt) settleReceipt.addEventListener("click", settleLatestMembershipReceipt);
+    var claim = document.getElementById("claim-agent-earnings");
+    if (claim) claim.addEventListener("click", claimAgentEarnings);
     Array.prototype.forEach.call(document.querySelectorAll(".decrypt-report"), function (button) {
       button.addEventListener("click", function () { decryptReport(button.getAttribute("data-report-id")); });
     });

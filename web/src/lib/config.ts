@@ -20,6 +20,13 @@ export interface M3Config {
   sealKeyServers: { objectId: string; weight: number; aggregatorUrl?: string }[];
   /** Threshold (sum of weights) of key servers that must respond to decrypt. */
   sealThreshold: number;
+  /** Default production/testnet transaction amounts in MIST. Override per deployment. */
+  platformMembershipPriceMist: string;
+  agentSubscriptionPriceMist: string;
+  delegationBudgetMist: string;
+  membershipSettlementShareMist: string;
+  accessDurationMs: number;
+  defaultArbitratorAddress?: string;
 }
 
 export const DEFAULT_M3_CONFIG: M3Config = {
@@ -43,7 +50,13 @@ export const DEFAULT_M3_CONFIG: M3Config = {
       aggregatorUrl: "https://seal-aggregator-testnet.mystenlabs.com"
     }
   ],
-  sealThreshold: 1
+  sealThreshold: 1,
+  platformMembershipPriceMist: "1000000",
+  agentSubscriptionPriceMist: "1000000",
+  delegationBudgetMist: "1000000",
+  membershipSettlementShareMist: "800000",
+  accessDurationMs: 30 * 24 * 60 * 60 * 1000,
+  defaultArbitratorAddress: undefined
 };
 
 export function loadM3Config(): M3Config {

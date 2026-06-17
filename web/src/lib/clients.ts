@@ -15,7 +15,22 @@ import { hash } from "./storage";
 import { sha256, toBytesUtf8, toBase64, randomBytes } from "./crypto";
 import { uploadBlob, readBlob, blobIdToBytes } from "./walrus";
 import { sealEncrypt, sealDecrypt, bytesToObjectId } from "./seal-client";
-import { buildPublishPublicReport, buildPublishEncryptedReport, getSuiClient } from "./sui-client";
+import {
+  buildAcceptDelegationJob,
+  buildBuyAgentSubscription,
+  buildBuyPlatformMembership,
+  buildClaimAgentEarnings,
+  buildCompleteDelegationJob,
+  buildCreateDelegationJob,
+  buildFundDelegationJob,
+  buildOpenDispute,
+  buildPublishPrivateResult,
+  buildPublishPublicReport,
+  buildPublishEncryptedReport,
+  buildRecordPlatformAccessReceipt,
+  buildSettleMembershipReport,
+  getSuiClient
+} from "./sui-client";
 import { loadM3Config } from "./config";
 import type { AccessDecision, Actor, ResearchReport, Visibility } from "./types";
 
@@ -32,13 +47,23 @@ export interface PublishReportInput {
 export interface PublishResult {
   report: ResearchReport;
   plaintext: string;
+  txDigest?: string;
+}
+
+export interface ChainObjectResult {
+  digest: string;
+  objectId: string;
 }
 
 // ---- Signer abstraction. The workbench store injects a real zkLogin signer
 //      (ephemeral keypair from zklogin-browser.js) when available. ----
 export interface M3Signer {
   address: string;
-  signAndExecuteTransaction: (txBytes: Uint8Array) => Promise<{ digest: string; createdObjectIds: string[] }>;
+  signAndExecuteTransaction: (txBytes: Uint8Array) => Promise<{
+    digest: string;
+    createdObjectIds: string[];
+    createdObjects?: Array<{ objectId: string; objectType?: string }>;
+  }>;
   signPersonalMessage: (msg: Uint8Array) => Promise<string>;
 }
 
@@ -46,10 +71,18 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function createdReportObjectId(result: { digest: string; createdObjectIds: string[] }): string {
+function createdObjectId(
+  result: { digest: string; createdObjectIds: string[]; createdObjects?: Array<{ objectId: string; objectType?: string }> },
+  typeHint: string
+): string {
+  const typed = result.createdObjects?.find((obj) => String(obj.objectType || "").includes(typeHint))?.objectId;
+  if (typed) return typed;
+  if (result.createdObjects?.length) {
+    throw new Error(`Sui transaction succeeded but did not return a typed ${typeHint} object`);
+  }
   const id = result.createdObjectIds[0];
   if (!id) {
-    throw new Error("Sui publish succeeded but did not return a created ResearchReport object id");
+    throw new Error(`Sui transaction succeeded but did not return a created ${typeHint} object id`);
   }
   return id;
 }
@@ -158,11 +191,12 @@ export async function publishReport(
     tx.setSender(signer.address);
     const txBytes = await tx.build({ client: suiClient });
     const result = await signer.signAndExecuteTransaction(txBytes);
-    const reportObjectId = createdReportObjectId(result);
+    const reportObjectId = createdObjectId(result, "ResearchReport");
     return {
       report: {
         id: reportObjectId,
         sui_object_id: reportObjectId,
+        tx_digest: result.digest,
         agent: signer.address,
         visibility: "public",
         required_tier: 0,
@@ -174,7 +208,8 @@ export async function publishReport(
         created_at: nowIso(),
         source_repo: input.sourceRepo
       },
-      plaintext: ""
+      plaintext: "",
+      txDigest: result.digest
     };
   }
 
@@ -205,12 +240,13 @@ export async function publishReport(
   tx.setSender(signer.address);
   const txBytes = await tx.build({ client: suiClient });
   const result = await signer.signAndExecuteTransaction(txBytes);
-  const reportObjectId = createdReportObjectId(result);
+  const reportObjectId = createdObjectId(result, "ResearchReport");
 
   return {
     report: {
       id: reportObjectId,
       sui_object_id: reportObjectId,
+      tx_digest: result.digest,
       agent: signer.address,
       visibility: input.visibility,
       required_tier: input.requiredTier,
@@ -223,8 +259,227 @@ export async function publishReport(
       created_at: nowIso(),
       source_repo: input.sourceRepo
     },
-    plaintext: input.plaintext || ""
+    plaintext: input.plaintext || "",
+    txDigest: result.digest
   };
+}
+
+export async function buyPlatformMembershipOnChain(input: {
+  signer: M3Signer;
+  tier?: number;
+  paymentMist?: string | number | bigint;
+  durationMs?: number;
+}): Promise<ChainObjectResult> {
+  const config = loadM3Config();
+  const tx = buildBuyPlatformMembership({
+    configObjectId: config.settlementConfigId,
+    paymentMist: input.paymentMist ?? config.platformMembershipPriceMist,
+    tier: input.tier ?? 1,
+    durationMs: input.durationMs ?? config.accessDurationMs,
+    packageId: config.packageId
+  });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  return { digest: result.digest, objectId: createdObjectId(result, "PlatformMembershipPass") };
+}
+
+export async function buyAgentSubscriptionOnChain(input: {
+  signer: M3Signer;
+  agent: string;
+  tier?: number;
+  paymentMist?: string | number | bigint;
+  durationMs?: number;
+}): Promise<ChainObjectResult> {
+  const config = loadM3Config();
+  const tx = buildBuyAgentSubscription({
+    configObjectId: config.settlementConfigId,
+    earningsObjectId: config.agentEarningsId,
+    agent: input.agent,
+    paymentMist: input.paymentMist ?? config.agentSubscriptionPriceMist,
+    tier: input.tier ?? 1,
+    durationMs: input.durationMs ?? config.accessDurationMs,
+    packageId: config.packageId
+  });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  return { digest: result.digest, objectId: createdObjectId(result, "AgentSubscriptionPass") };
+}
+
+export async function createDelegationJobOnChain(input: {
+  signer: M3Signer;
+  agent: string;
+  question: string;
+  sourceArtifact: string;
+  budgetMist?: string | number | bigint;
+  deadlineMs?: number;
+}): Promise<ChainObjectResult> {
+  const config = loadM3Config();
+  const tx = buildCreateDelegationJob({
+    agent: input.agent,
+    questionHash: await sha256(toBytesUtf8(input.question)),
+    sourceArtifactHash: await sha256(toBytesUtf8(input.sourceArtifact)),
+    budgetMist: input.budgetMist ?? config.delegationBudgetMist,
+    deadlineMs: input.deadlineMs ?? Date.now() + 7 * 24 * 60 * 60 * 1000,
+    packageId: config.packageId
+  });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  return { digest: result.digest, objectId: createdObjectId(result, "DelegationJob") };
+}
+
+export async function acceptDelegationJobOnChain(input: { signer: M3Signer; jobObjectId: string }): Promise<string> {
+  const config = loadM3Config();
+  const tx = buildAcceptDelegationJob({ jobObjectId: input.jobObjectId, packageId: config.packageId });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+}
+
+export async function fundDelegationJobOnChain(input: {
+  signer: M3Signer;
+  jobObjectId: string;
+  budgetMist?: string | number | bigint;
+}): Promise<string> {
+  const config = loadM3Config();
+  const tx = buildFundDelegationJob({
+    jobObjectId: input.jobObjectId,
+    budgetMist: input.budgetMist ?? config.delegationBudgetMist,
+    packageId: config.packageId
+  });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+}
+
+export async function completeDelegationJobOnChain(input: { signer: M3Signer; jobObjectId: string }): Promise<string> {
+  const config = loadM3Config();
+  const tx = buildCompleteDelegationJob({ jobObjectId: input.jobObjectId, packageId: config.packageId });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+}
+
+export async function openDisputeOnChain(input: {
+  signer: M3Signer;
+  jobObjectId: string;
+  arbitrator: string;
+  reason: string;
+}): Promise<string> {
+  const config = loadM3Config();
+  const tx = buildOpenDispute({
+    jobObjectId: input.jobObjectId,
+    arbitrator: input.arbitrator,
+    reasonHash: await sha256(toBytesUtf8(input.reason)),
+    packageId: config.packageId
+  });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+}
+
+export async function publishPrivateResultOnChain(input: {
+  signer: M3Signer;
+  jobObjectId: string;
+  title: string;
+  freePreview: string;
+  plaintext: string;
+  sourceRepo: string;
+}): Promise<PublishResult> {
+  const config = loadM3Config();
+  const previewBytes = toBytesUtf8(input.freePreview || input.title);
+  const plaintextBytes = toBytesUtf8(input.plaintext || input.freePreview || input.title);
+  const plaintextCommitment = await sha256(plaintextBytes);
+  const freePreviewHash = await sha256(previewBytes);
+  const sealIdBytes = await randomBytes(32);
+  const sealIdHex = bytesToObjectId(sealIdBytes);
+  const { ciphertext } = await sealEncrypt(plaintextBytes, sealIdHex);
+  const ciphertextHash = await sha256(ciphertext);
+  const { blobId } = await uploadBlob(ciphertext);
+  const tx = buildPublishPrivateResult({
+    jobObjectId: input.jobObjectId,
+    walrusBlobId: blobIdToBytes(blobId),
+    sealId: sealIdBytes,
+    ciphertextHash,
+    plaintextCommitment,
+    freePreviewHash,
+    packageId: config.packageId
+  });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  const reportObjectId = createdObjectId(result, "ResearchReport");
+  return {
+    report: {
+      id: reportObjectId,
+      sui_object_id: reportObjectId,
+      tx_digest: result.digest,
+      agent: input.signer.address,
+      visibility: "private_delegation",
+      required_tier: 0,
+      walrus_blob_id: blobId,
+      seal_id: sealIdHex,
+      ciphertext_hash: "sha256:" + toBase64(ciphertextHash),
+      plaintext_commitment: "sha256:" + toBase64(plaintextCommitment),
+      free_preview_hash: "sha256:" + toBase64(freePreviewHash),
+      delegation_job_id: input.jobObjectId,
+      title: input.title,
+      free_preview: input.freePreview || "Private delegation result metadata only.",
+      created_at: nowIso(),
+      source_repo: input.sourceRepo
+    },
+    plaintext: input.plaintext,
+    txDigest: result.digest
+  };
+}
+
+export async function recordPlatformAccessReceiptOnChain(input: {
+  signer: M3Signer;
+  passObjectId: string;
+  reportObjectId: string;
+  periodId: number;
+}): Promise<ChainObjectResult> {
+  const config = loadM3Config();
+  const tx = buildRecordPlatformAccessReceipt({
+    registryObjectId: config.membershipReceiptRegistryId,
+    passObjectId: input.passObjectId,
+    reportObjectId: input.reportObjectId,
+    periodId: input.periodId,
+    packageId: config.packageId
+  });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  return { digest: result.digest, objectId: createdObjectId(result, "AccessReceipt") };
+}
+
+export async function settleMembershipReportOnChain(input: {
+  signer: M3Signer;
+  receiptObjectId: string;
+  amountMist?: string | number | bigint;
+  reportCount?: number;
+}): Promise<string> {
+  const config = loadM3Config();
+  const tx = buildSettleMembershipReport({
+    earningsObjectId: config.agentEarningsId,
+    receiptObjectId: input.receiptObjectId,
+    amountMist: input.amountMist ?? config.membershipSettlementShareMist,
+    reportCount: input.reportCount ?? 1,
+    packageId: config.packageId
+  });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+}
+
+export async function claimAgentEarningsOnChain(input: { signer: M3Signer }): Promise<string> {
+  const config = loadM3Config();
+  const tx = buildClaimAgentEarnings({ earningsObjectId: config.agentEarningsId, packageId: config.packageId });
+  tx.setSender(input.signer.address);
+  const txBytes = await tx.build({ client: getSuiClient() });
+  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
 }
 
 /** Decrypt a report: fetch ciphertext from Walrus (via aggregator) then Seal

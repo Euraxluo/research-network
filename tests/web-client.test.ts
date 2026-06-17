@@ -13,7 +13,18 @@ const mocks = vi.hoisted(() => {
     uploadBlob: vi.fn(),
     sealEncrypt: vi.fn(),
     buildPublishEncryptedReport: vi.fn(),
-    buildPublishPublicReport: vi.fn()
+    buildPublishPublicReport: vi.fn(),
+    buildAcceptDelegationJob: vi.fn(),
+    buildBuyAgentSubscription: vi.fn(),
+    buildBuyPlatformMembership: vi.fn(),
+    buildClaimAgentEarnings: vi.fn(),
+    buildCompleteDelegationJob: vi.fn(),
+    buildCreateDelegationJob: vi.fn(),
+    buildFundDelegationJob: vi.fn(),
+    buildOpenDispute: vi.fn(),
+    buildPublishPrivateResult: vi.fn(),
+    buildRecordPlatformAccessReceipt: vi.fn(),
+    buildSettleMembershipReport: vi.fn()
   };
 });
 
@@ -36,7 +47,12 @@ vi.mock("../web/src/lib/config.ts", () => ({
     walrusAggregatorUrl: "http://127.0.0.1:9002",
     walrusEpochs: 1,
     sealKeyServers: [],
-    sealThreshold: 1
+    sealThreshold: 1,
+    platformMembershipPriceMist: "1000000",
+    agentSubscriptionPriceMist: "1000000",
+    delegationBudgetMist: "1000000",
+    membershipSettlementShareMist: "800000",
+    accessDurationMs: 2592000000
   })
 }));
 
@@ -55,8 +71,19 @@ vi.mock("../web/src/lib/seal-client.ts", () => ({
 
 vi.mock("../web/src/lib/sui-client.ts", () => ({
   getSuiClient: () => mocks.suiClient,
+  buildAcceptDelegationJob: mocks.buildAcceptDelegationJob,
+  buildBuyAgentSubscription: mocks.buildBuyAgentSubscription,
+  buildBuyPlatformMembership: mocks.buildBuyPlatformMembership,
+  buildClaimAgentEarnings: mocks.buildClaimAgentEarnings,
+  buildCompleteDelegationJob: mocks.buildCompleteDelegationJob,
+  buildCreateDelegationJob: mocks.buildCreateDelegationJob,
+  buildFundDelegationJob: mocks.buildFundDelegationJob,
+  buildOpenDispute: mocks.buildOpenDispute,
+  buildPublishPrivateResult: mocks.buildPublishPrivateResult,
   buildPublishPublicReport: mocks.buildPublishPublicReport,
-  buildPublishEncryptedReport: mocks.buildPublishEncryptedReport
+  buildPublishEncryptedReport: mocks.buildPublishEncryptedReport,
+  buildRecordPlatformAccessReceipt: mocks.buildRecordPlatformAccessReceipt,
+  buildSettleMembershipReport: mocks.buildSettleMembershipReport
 }));
 
 describe("web M3/M4 client publish path", () => {
@@ -109,5 +136,133 @@ describe("web M3/M4 client publish path", () => {
 
     const publishArgs = mocks.buildPublishEncryptedReport.mock.calls[0][0] as { sealId: Uint8Array };
     expect(Array.from(publishArgs.sealId)).toEqual(Array.from(hexToBytes(sealIdHex)));
+  });
+
+  it("uses typed created object changes for real commerce and delegation wrappers", async () => {
+    const clientModulePath = "../web/src/lib/clients.ts";
+    const {
+      buyAgentSubscriptionOnChain,
+      buyPlatformMembershipOnChain,
+      claimAgentEarningsOnChain,
+      createDelegationJobOnChain,
+      recordPlatformAccessReceiptOnChain,
+      settleMembershipReportOnChain
+    } = await import(clientModulePath);
+    const txs: Array<{ setSender: ReturnType<typeof vi.fn>; build: ReturnType<typeof vi.fn> }> = [];
+    const fakeTx = () => {
+      const tx = {
+        setSender: vi.fn(),
+        build: vi.fn(async () => new Uint8Array([1, 2, 3]))
+      };
+      txs.push(tx);
+      return tx;
+    };
+    mocks.buildBuyPlatformMembership.mockImplementation(fakeTx);
+    mocks.buildBuyAgentSubscription.mockImplementation(fakeTx);
+    mocks.buildCreateDelegationJob.mockImplementation(fakeTx);
+    mocks.buildRecordPlatformAccessReceipt.mockImplementation(fakeTx);
+    mocks.buildSettleMembershipReport.mockImplementation(fakeTx);
+    mocks.buildClaimAgentEarnings.mockImplementation(fakeTx);
+
+    const ids = {
+      coin: "0x" + "01".repeat(32),
+      membership: "0x" + "02".repeat(32),
+      subscription: "0x" + "03".repeat(32),
+      job: "0x" + "04".repeat(32),
+      receipt: "0x" + "05".repeat(32)
+    };
+    const signer = {
+      address: "0x" + "cd".repeat(32),
+      signAndExecuteTransaction: vi
+        .fn()
+        .mockResolvedValueOnce({
+          digest: "tx-membership",
+          createdObjectIds: [ids.coin, ids.membership],
+          createdObjects: [
+            { objectId: ids.coin, objectType: "0x2::coin::Coin<0x2::sui::SUI>" },
+            { objectId: ids.membership, objectType: "0xpackage::access::PlatformMembershipPass" }
+          ]
+        })
+        .mockResolvedValueOnce({
+          digest: "tx-subscription",
+          createdObjectIds: [ids.coin, ids.subscription],
+          createdObjects: [
+            { objectId: ids.coin, objectType: "0x2::coin::Coin<0x2::sui::SUI>" },
+            { objectId: ids.subscription, objectType: "0xpackage::access::AgentSubscriptionPass" }
+          ]
+        })
+        .mockResolvedValueOnce({
+          digest: "tx-job",
+          createdObjectIds: [ids.job],
+          createdObjects: [{ objectId: ids.job, objectType: "0xpackage::delegation::DelegationJob" }]
+        })
+        .mockResolvedValueOnce({
+          digest: "tx-receipt",
+          createdObjectIds: [ids.receipt],
+          createdObjects: [{ objectId: ids.receipt, objectType: "0xpackage::access::AccessReceipt" }]
+        })
+        .mockResolvedValueOnce({
+          digest: "tx-settle",
+          createdObjectIds: []
+        })
+        .mockResolvedValueOnce({
+          digest: "tx-claim",
+          createdObjectIds: []
+        }),
+      signPersonalMessage: vi.fn()
+    };
+
+    await expect(buyPlatformMembershipOnChain({ signer })).resolves.toEqual({
+      digest: "tx-membership",
+      objectId: ids.membership
+    });
+    await expect(buyAgentSubscriptionOnChain({ signer, agent: "0x" + "aa".repeat(32) })).resolves.toEqual({
+      digest: "tx-subscription",
+      objectId: ids.subscription
+    });
+    await expect(
+      createDelegationJobOnChain({
+        signer,
+        agent: "0x" + "aa".repeat(32),
+        question: "q",
+        sourceArtifact: "artifact"
+      })
+    ).resolves.toEqual({ digest: "tx-job", objectId: ids.job });
+    await expect(
+      recordPlatformAccessReceiptOnChain({
+        signer,
+        passObjectId: ids.membership,
+        reportObjectId: CREATED_REPORT_ID,
+        periodId: 202606
+      })
+    ).resolves.toEqual({ digest: "tx-receipt", objectId: ids.receipt });
+    await expect(settleMembershipReportOnChain({ signer, receiptObjectId: ids.receipt })).resolves.toBe("tx-settle");
+    await expect(claimAgentEarningsOnChain({ signer })).resolves.toBe("tx-claim");
+
+    expect(txs).toHaveLength(6);
+    expect(txs.every((tx) => tx.setSender.mock.calls[0]?.[0] === signer.address)).toBe(true);
+    expect(signer.signAndExecuteTransaction).toHaveBeenCalledTimes(6);
+  });
+
+  it("does not fall back to the first created object when typed object changes omit the expected type", async () => {
+    const clientModulePath = "../web/src/lib/clients.ts";
+    const { buyPlatformMembershipOnChain } = await import(clientModulePath);
+    mocks.buildBuyPlatformMembership.mockImplementation(() => ({
+      setSender: vi.fn(),
+      build: vi.fn(async () => new Uint8Array([1, 2, 3]))
+    }));
+    const signer = {
+      address: "0x" + "cd".repeat(32),
+      signAndExecuteTransaction: vi.fn(async () => ({
+        digest: "tx-wrong-object",
+        createdObjectIds: ["0x" + "01".repeat(32)],
+        createdObjects: [
+          { objectId: "0x" + "01".repeat(32), objectType: "0x2::coin::Coin<0x2::sui::SUI>" }
+        ]
+      })),
+      signPersonalMessage: vi.fn()
+    };
+
+    await expect(buyPlatformMembershipOnChain({ signer })).rejects.toThrow("typed PlatformMembershipPass");
   });
 });

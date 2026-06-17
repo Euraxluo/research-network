@@ -319,12 +319,15 @@ function AccessSimulatorPanel() {
   const reports = useWorkbench((s) => s.view().reports);
   const selectedReportId = useWorkbench((s) => s.selected_report_id);
   const agentAddress = useWorkbench((s) => s.session?.address);
+  const signerAddress = useWorkbench((s) => s.signer?.address);
   const actors = useMemo(
     () =>
-      agentAddress
-        ? ACTORS.map((a) => (a.id === "agent" ? { ...a, address: agentAddress } : a))
+      signerAddress
+        ? ACTORS.map((a) => (a.id === "outsider" ? a : { ...a, address: signerAddress }))
+        : agentAddress
+          ? ACTORS.map((a) => (a.id === "agent" ? { ...a, address: agentAddress } : a))
         : ACTORS,
-    [agentAddress]
+    [agentAddress, signerAddress]
   );
 
   return (
@@ -366,6 +369,7 @@ function DelegationPanel() {
   const createDelegation = useWorkbench((s) => s.createDelegation);
   const submitPrivateResult = useWorkbench((s) => s.submitPrivateResult);
   const openDispute = useWorkbench((s) => s.openDispute);
+  const completeDelegation = useWorkbench((s) => s.completeDelegation);
   const delegations = useWorkbench((s) => s.view().delegations);
   return (
     <section className="workbench-panel">
@@ -379,6 +383,9 @@ function DelegationPanel() {
         </button>
         <button className="button" type="button" data-testid="open-dispute" onClick={openDispute}>
           Open dispute
+        </button>
+        <button className="button" type="button" data-testid="complete-delegation" onClick={completeDelegation}>
+          Complete delegation
         </button>
       </p>
       {delegations.length === 0 ? (
@@ -407,9 +414,19 @@ function DelegationPanel() {
 
 function ReceiptsPanel() {
   const receipts = useWorkbench((s) => s.view().access_receipts);
+  const settleLatestMembershipReceipt = useWorkbench((s) => s.settleLatestMembershipReceipt);
+  const claimAgentEarnings = useWorkbench((s) => s.claimAgentEarnings);
   return (
     <section className="workbench-panel">
       <h2>Access Receipts</h2>
+      <p className="workbench-actions">
+        <button className="button" type="button" data-testid="settle-membership-receipt" onClick={settleLatestMembershipReceipt}>
+          Settle latest receipt
+        </button>
+        <button className="button" type="button" data-testid="claim-agent-earnings" onClick={claimAgentEarnings}>
+          Claim earnings
+        </button>
+      </p>
       {receipts.length === 0 ? (
         <p className="muted">No access receipts recorded.</p>
       ) : (
@@ -441,11 +458,11 @@ export function WorkbenchPage() {
       <StatusBanner />
       {hasSigner ? (
         <p className="notice success" data-testid="m3-active">
-          On-chain mode: publish/decrypt use real Walrus + Seal + Sui.
+          On-chain mode: signer-backed actions use real Walrus + Seal + Sui when the selected actor matches the signer.
         </p>
       ) : (
         <p className="notice muted" data-testid="m3-demo">
-          Demo mode: re-run Google sign-in in this tab to enable on-chain publish.
+          Demo mode: re-run Google sign-in in this tab to enable signer-backed on-chain actions.
         </p>
       )}
       <IdentityPanel />
