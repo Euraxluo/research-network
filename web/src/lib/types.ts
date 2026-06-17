@@ -12,6 +12,9 @@ export interface ResearchReport {
   visibility: Visibility;
   required_tier: number;
   walrus_blob_id?: string;
+  walrus_readback_verified?: boolean;
+  walrus_readback_bytes?: number;
+  walrus_readback_hash?: string;
   seal_id?: string;
   ciphertext_hash?: string;
   plaintext_commitment?: string;

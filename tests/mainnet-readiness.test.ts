@@ -264,6 +264,20 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".decrypt_evidence") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts missing verified Walrus readback evidence for published encrypted blobs", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "agent.publish_private_result"
+          ? { ...step, meta: { ...(step.meta ?? {}), walrusReadbackVerified: false } }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".execute.walrus_readback") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects receipts without a valid completed run window", () => {
     const missingFinishedAt = makeExecuteReceipt({ finishedAt: undefined });
     const missingChecks = checkProductionAcceptanceReceipt(missingFinishedAt, executeExpectation);
@@ -643,12 +657,15 @@ function proverMeta(): Record<string, string | boolean> {
   };
 }
 
-function reportMeta(name: string): Record<string, string> {
+function reportMeta(name: string): Record<string, string | number | boolean> {
   return {
     reportObjectId: "0x" + "cc".repeat(32),
     txDigest: digestFor(name),
     sealId: "0x" + "dd".repeat(32),
     walrusBlobId: "walrus-blob",
+    walrusReadbackVerified: true,
+    walrusReadbackBytes: 3,
+    walrusReadbackHash: "sha256:abc123",
     ciphertextHash: "sha256:cipher",
     plaintextCommitment: "sha256:plain",
     visibility: name === "agent.publish_private_result" ? "private_delegation" : "encrypted"

@@ -306,6 +306,16 @@ function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: Re
     expectation.required
   ));
   checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.walrus_readback`,
+    ["agent.publish_encrypted_report", "agent.publish_private_result"].every((name) => {
+      const meta = receipt.steps.find((step) => step.name === name)?.meta;
+      return hasWalrusReadbackEvidence(meta);
+    }),
+    `${expectation.label} execute records verified Walrus readback evidence for encrypted publish blobs`,
+    `${expectation.label} execute is missing verified Walrus readback evidence for encrypted publish blobs`,
+    expectation.required
+  ));
+  checks.push(checkBoolean(
     `receipt.${expectation.label}.execute.decrypt_evidence`,
     ["buyer.decrypt_report", "buyer.decrypt_report_with_subscription", "buyer.decrypt_private_result"].every((name) => {
       const meta = receipt.steps.find((step) => step.name === name)?.meta;
@@ -619,6 +629,18 @@ function hasSpendSummary(value: unknown): boolean {
     typeof spend.transactionCount === "number" &&
     Number.isInteger(spend.transactionCount) &&
     spend.transactionCount > 0;
+}
+
+function hasWalrusReadbackEvidence(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const meta = value as Record<string, unknown>;
+  return meta.walrusReadbackVerified === true &&
+    hasPositiveNumber(meta, "walrusReadbackBytes") &&
+    hasSha256Evidence(meta.walrusReadbackHash);
+}
+
+function hasSha256Evidence(value: unknown): boolean {
+  return typeof value === "string" && /^sha256:[A-Za-z0-9+/=_-]+$/.test(value);
 }
 
 function hasAcceptanceBalanceEvidence(value: unknown): boolean {

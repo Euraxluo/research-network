@@ -591,6 +591,9 @@ function reportEvidence(report: {
   tx_digest?: string;
   seal_id?: string;
   walrus_blob_id?: string;
+  walrus_readback_verified?: boolean;
+  walrus_readback_bytes?: number;
+  walrus_readback_hash?: string;
   ciphertext_hash?: string;
   plaintext_commitment?: string;
   visibility?: string;
@@ -600,6 +603,9 @@ function reportEvidence(report: {
     txDigest: report.tx_digest,
     sealId: report.seal_id,
     walrusBlobId: report.walrus_blob_id,
+    walrusReadbackVerified: report.walrus_readback_verified,
+    walrusReadbackBytes: report.walrus_readback_bytes,
+    walrusReadbackHash: report.walrus_readback_hash,
     ciphertextHash: report.ciphertext_hash,
     plaintextCommitment: report.plaintext_commitment,
     visibility: report.visibility

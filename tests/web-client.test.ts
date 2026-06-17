@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => {
   return {
     suiClient,
     uploadBlob: vi.fn(),
+    readBlob: vi.fn(),
     sealEncrypt: vi.fn(),
     buildPublishEncryptedReport: vi.fn(),
     buildPublishPublicReport: vi.fn(),
@@ -58,7 +59,7 @@ vi.mock("../web/src/lib/config.ts", () => ({
 
 vi.mock("../web/src/lib/walrus.ts", () => ({
   uploadBlob: mocks.uploadBlob,
-  readBlob: vi.fn(),
+  readBlob: mocks.readBlob,
   blobIdToBytes: (blobId: string) => new TextEncoder().encode(blobId)
 }));
 
@@ -90,6 +91,7 @@ describe("web M3/M4 client publish path", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.uploadBlob.mockResolvedValue({ blobId: "blob-testnet-1" });
+    mocks.readBlob.mockResolvedValue(new Uint8Array([7, 8, 9]));
     mocks.sealEncrypt.mockResolvedValue({ ciphertext: new Uint8Array([7, 8, 9]), symmetricKey: new Uint8Array([1]) });
     mocks.buildPublishEncryptedReport.mockImplementation(() => ({
       setSender: vi.fn(),
@@ -126,6 +128,7 @@ describe("web M3/M4 client publish path", () => {
 
     expect(mocks.suiClient.devInspectTransactionBlock).not.toHaveBeenCalled();
     expect(mocks.sealEncrypt).toHaveBeenCalledTimes(1);
+    expect(mocks.readBlob).toHaveBeenCalledWith("blob-testnet-1");
     expect(mocks.buildPublishEncryptedReport).toHaveBeenCalledTimes(1);
     expect(signer.signAndExecuteTransaction).toHaveBeenCalledTimes(1);
 
@@ -135,9 +138,44 @@ describe("web M3/M4 client publish path", () => {
     expect(result.report.sui_object_id).toBe(CREATED_REPORT_ID);
     expect(result.report.seal_id).toBe(sealIdHex);
     expect(result.report.seal_id).not.toBe(result.report.id);
+    expect(result.report.walrus_readback_verified).toBe(true);
+    expect(result.report.walrus_readback_bytes).toBe(3);
+    expect(result.report.walrus_readback_hash).toMatch(/^sha256:/);
 
     const publishArgs = mocks.buildPublishEncryptedReport.mock.calls[0][0] as { sealId: Uint8Array };
     expect(Array.from(publishArgs.sealId)).toEqual(Array.from(hexToBytes(sealIdHex)));
+  });
+
+  it("rejects encrypted publish before signing when Walrus readback differs from uploaded ciphertext", async () => {
+    const clientModulePath = "../web/src/lib/clients.ts";
+    const { publishReport } = await import(clientModulePath);
+    mocks.readBlob.mockResolvedValue(new Uint8Array([9, 8, 7]));
+    const signer = {
+      address: "0x" + "cd".repeat(32),
+      signAndExecuteTransaction: vi.fn(async () => ({
+        digest: "tx-should-not-execute",
+        status: "success",
+        createdObjectIds: [CREATED_REPORT_ID],
+        createdObjects: [{ objectId: CREATED_REPORT_ID, objectType: "0xpackage::report::ResearchReport" }]
+      })),
+      signPersonalMessage: vi.fn()
+    };
+
+    await expect(publishReport(
+      {
+        title: "Walrus readback mismatch",
+        visibility: "encrypted",
+        requiredTier: 1,
+        freePreview: "preview",
+        plaintext: "private body",
+        agent: signer.address,
+        sourceRepo: "owner/repo"
+      },
+      signer
+    )).rejects.toThrow(/Walrus encrypted report blob .* readback did not match uploaded bytes/);
+
+    expect(mocks.buildPublishEncryptedReport).not.toHaveBeenCalled();
+    expect(signer.signAndExecuteTransaction).not.toHaveBeenCalled();
   });
 
   it("requires typed created object changes for published reports", async () => {

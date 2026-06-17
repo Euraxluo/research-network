@@ -66,6 +66,12 @@ export interface M3Event {
   parsedJson?: unknown;
 }
 
+interface WalrusReadbackEvidence {
+  walrus_readback_verified: true;
+  walrus_readback_bytes: number;
+  walrus_readback_hash: string;
+}
+
 // ---- Signer abstraction. The workbench store injects a real zkLogin signer
 //      (ephemeral keypair from zklogin-browser.js) when available. ----
 export interface M3Signer {
@@ -105,6 +111,34 @@ function assertSuiTransactionSuccess(result: { digest: string; status: string; e
     const suffix = result.error ? `: ${result.error}` : "";
     throw new Error(`Sui transaction ${result.digest} failed${suffix}`);
   }
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+async function verifyWalrusUploadReadback(
+  blobId: string,
+  expectedBytes: Uint8Array,
+  label: string
+): Promise<WalrusReadbackEvidence> {
+  const readback = await readBlob(blobId);
+  if (!readback) {
+    throw new Error(`Walrus ${label} blob ${blobId} was not readable after upload`);
+  }
+  if (!bytesEqual(readback, expectedBytes)) {
+    throw new Error(`Walrus ${label} blob ${blobId} readback did not match uploaded bytes`);
+  }
+  const readbackHash = await sha256(readback);
+  return {
+    walrus_readback_verified: true,
+    walrus_readback_bytes: readback.length,
+    walrus_readback_hash: "sha256:" + toBase64(readbackHash)
+  };
 }
 
 // ============ M2 demo path (offline fallback) ============
@@ -201,6 +235,7 @@ export async function publishReport(
   if (input.visibility === "public") {
     // Public: upload plaintext to Walrus, publish on-chain, no Seal.
     const { blobId } = await uploadBlob(plaintextBytes);
+    const walrusReadback = await verifyWalrusUploadReadback(blobId, plaintextBytes, "public report");
     const walrusBlobId = blobIdToBytes(blobId);
     const tx = buildPublishPublicReport({
       walrusBlobId,
@@ -222,6 +257,7 @@ export async function publishReport(
         visibility: "public",
         required_tier: 0,
         walrus_blob_id: blobId,
+        ...walrusReadback,
         plaintext_commitment: "sha256:" + toBase64(plaintextCommitment),
         free_preview_hash: "sha256:" + toBase64(freePreviewHash),
         title: input.title,
@@ -245,6 +281,7 @@ export async function publishReport(
 
   // Upload ciphertext to Walrus.
   const { blobId } = await uploadBlob(ciphertext);
+  const walrusReadback = await verifyWalrusUploadReadback(blobId, ciphertext, "encrypted report");
   const walrusBlobId = blobIdToBytes(blobId);
 
   // Publish the real encrypted report with the exact seal_id embedded in the
@@ -273,6 +310,7 @@ export async function publishReport(
       visibility: input.visibility,
       required_tier: input.requiredTier,
       walrus_blob_id: blobId,
+      ...walrusReadback,
       seal_id: sealIdHex,
       ciphertext_hash: "sha256:" + toBase64(ciphertextHash),
       plaintext_commitment: "sha256:" + toBase64(plaintextCommitment),
@@ -431,6 +469,7 @@ export async function publishPrivateResultOnChain(input: {
   const { ciphertext } = await sealEncrypt(plaintextBytes, sealIdHex);
   const ciphertextHash = await sha256(ciphertext);
   const { blobId } = await uploadBlob(ciphertext);
+  const walrusReadback = await verifyWalrusUploadReadback(blobId, ciphertext, "private delegation result");
   const tx = buildPublishPrivateResult({
     jobObjectId: input.jobObjectId,
     walrusBlobId: blobIdToBytes(blobId),
@@ -454,6 +493,7 @@ export async function publishPrivateResultOnChain(input: {
       visibility: "private_delegation",
       required_tier: 0,
       walrus_blob_id: blobId,
+      ...walrusReadback,
       seal_id: sealIdHex,
       ciphertext_hash: "sha256:" + toBase64(ciphertextHash),
       plaintext_commitment: "sha256:" + toBase64(plaintextCommitment),

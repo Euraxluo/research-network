@@ -1238,12 +1238,15 @@ function proverMeta(): Record<string, string | boolean> {
   };
 }
 
-function reportMeta(name: string): Record<string, string> {
+function reportMeta(name: string): Record<string, string | number | boolean> {
   return {
     reportObjectId: "0x" + "cc".repeat(32),
     txDigest: digestFor(name),
     sealId: "0x" + "dd".repeat(32),
     walrusBlobId: "walrus-blob",
+    walrusReadbackVerified: true,
+    walrusReadbackBytes: 3,
+    walrusReadbackHash: "sha256:abc123",
     ciphertextHash: "sha256:cipher",
     plaintextCommitment: "sha256:plain",
     visibility: name === "agent.publish_private_result" ? "private_delegation" : "encrypted"
