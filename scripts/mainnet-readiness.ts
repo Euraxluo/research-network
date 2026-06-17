@@ -98,6 +98,7 @@ async function main() {
   const checks: ReadinessCheck[] = [];
   const receipts = await readReceipts(args);
   checks.push(...receiptChecks(args, receipts));
+  checks.push(...receiptPairConfigChecks(args.stage, receipts));
   const configResult = configChecks(process.env, args.stage);
   checks.push(...configResult.checks);
   checks.push(...receiptConfigChecks(args.stage, receipts, configResult.acceptance));
@@ -215,6 +216,66 @@ function receiptChecks(args: ReadinessArgs, receipts: ReceiptSet): ReadinessChec
     }));
   }
   return checks;
+}
+
+function receiptPairConfigChecks(stage: MainnetReadinessStage, receipts: ReceiptSet): ReadinessCheck[] {
+  const checks: ReadinessCheck[] = [];
+  if (stage === "testnet" || stage === "mainnet-config" || stage === "mainnet-final") {
+    checks.push(...checkReceiptConfigPairMatches(
+      receipts.testnetPreflight,
+      "testnet-preflight",
+      receipts.testnetExecute,
+      "testnet-execute",
+      true
+    ));
+  }
+  if (stage === "mainnet-final") {
+    checks.push(...checkReceiptConfigPairMatches(
+      receipts.mainnetPreflight,
+      "mainnet-preflight",
+      receipts.mainnetExecute,
+      "mainnet-execute",
+      true
+    ));
+  }
+  return checks;
+}
+
+function checkReceiptConfigPairMatches(
+  leftReceipt: ProductionAcceptanceReceipt | undefined,
+  leftLabel: string,
+  rightReceipt: ProductionAcceptanceReceipt | undefined,
+  rightLabel: string,
+  required: boolean
+): ReadinessCheck[] {
+  if (!leftReceipt || !rightReceipt) return [];
+  const pairLabel = `${leftLabel}.${rightLabel}`;
+  const fields: Array<[string, string | undefined, string | undefined]> = [
+    ["sui_rpc", leftReceipt.config.suiRpcUrl, rightReceipt.config.suiRpcUrl],
+    ["package_id", leftReceipt.config.packageId, rightReceipt.config.packageId],
+    ["settlement_config_id", leftReceipt.config.settlementConfigId, rightReceipt.config.settlementConfigId],
+    ["agent_earnings_id", leftReceipt.config.agentEarningsId, rightReceipt.config.agentEarningsId],
+    ["receipt_registry_id", leftReceipt.config.membershipReceiptRegistryId, rightReceipt.config.membershipReceiptRegistryId],
+    ["walrus_publisher", leftReceipt.config.walrusPublisherUrl, rightReceipt.config.walrusPublisherUrl],
+    ["walrus_aggregator", leftReceipt.config.walrusAggregatorUrl, rightReceipt.config.walrusAggregatorUrl],
+    ["walrus_epochs", stringifyConfigValue(leftReceipt.config.walrusEpochs), stringifyConfigValue(rightReceipt.config.walrusEpochs)],
+    ["seal_key_server", leftReceipt.config.sealKeyServerObjectId, rightReceipt.config.sealKeyServerObjectId],
+    ["seal_aggregator", leftReceipt.config.sealKeyServerAggregatorUrl, rightReceipt.config.sealKeyServerAggregatorUrl],
+    ["seal_threshold", stringifyConfigValue(leftReceipt.config.sealThreshold), stringifyConfigValue(rightReceipt.config.sealThreshold)],
+    ["platform_membership_price", leftReceipt.config.platformMembershipPriceMist, rightReceipt.config.platformMembershipPriceMist],
+    ["agent_subscription_price", leftReceipt.config.agentSubscriptionPriceMist, rightReceipt.config.agentSubscriptionPriceMist],
+    ["delegation_budget", leftReceipt.config.delegationBudgetMist, rightReceipt.config.delegationBudgetMist],
+    ["membership_settlement_share", leftReceipt.config.membershipSettlementShareMist, rightReceipt.config.membershipSettlementShareMist],
+    ["access_duration", stringifyConfigValue(leftReceipt.config.accessDurationMs), stringifyConfigValue(rightReceipt.config.accessDurationMs)]
+  ];
+  return fields.map(([field, left, right]) => checkBoolean(
+    `receipt.${pairLabel}.config.${field}`,
+    normalizeConfigValue(left) === normalizeConfigValue(right) && normalizeConfigValue(left) !== undefined,
+    `${leftLabel} and ${rightLabel} receipt ${field} match`,
+    `${leftLabel} and ${rightLabel} receipt ${field} do not match`,
+    required,
+    { left, right }
+  ));
 }
 
 function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): {
@@ -894,6 +955,10 @@ function normalizeConfigValue(value: string | undefined): string | undefined {
     return trimmed.toLowerCase();
   }
   return trimmed;
+}
+
+function stringifyConfigValue(value: string | number | undefined): string | undefined {
+  return value === undefined ? undefined : String(value);
 }
 
 function normalizeSuiObjectId(value: string | undefined): string | undefined {

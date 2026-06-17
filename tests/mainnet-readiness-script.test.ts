@@ -122,6 +122,54 @@ describe("mainnet readiness script", () => {
     }
   });
 
+  it("fails when testnet preflight and execute receipts use different protocol config", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
+    let stdout = "";
+    let stderr = "";
+    try {
+      const preflightPath = path.join(dir, "testnet-preflight.json");
+      const executePath = path.join(dir, "testnet-execute.json");
+      await fs.writeFile(preflightPath, JSON.stringify(makePreflightReceipt(), null, 2), "utf8");
+      await fs.writeFile(executePath, JSON.stringify(makeExecuteReceipt("testnet", {
+        config: {
+          ...testnetConfig(),
+          packageId: "0x" + "99".repeat(32)
+        }
+      }), null, 2), "utf8");
+
+      try {
+        await execFileAsync("npx", [
+          "tsx",
+          "scripts/mainnet-readiness.ts",
+          "--stage", "mainnet-config",
+          "--testnet-preflight-receipt", preflightPath,
+          "--testnet-execute-receipt", executePath,
+          "--skip-chain",
+          "--json"
+        ], {
+          cwd: process.cwd(),
+          env: readinessEnv()
+        });
+      } catch (error) {
+        const failure = error as { stdout?: string; stderr?: string; code?: number };
+        stdout = failure.stdout ?? "";
+        stderr = failure.stderr ?? "";
+        expect(failure.code).toBe(1);
+      }
+
+      expect(stderr).toBe("");
+      const report = JSON.parse(stdout) as { ready: boolean; checks: Array<{ name: string; status: string; message: string }> };
+      expect(report.ready).toBe(false);
+      expect(report.checks.some((check) =>
+        check.name === "receipt.testnet-preflight.testnet-execute.config.package_id" &&
+        check.status === "failed" &&
+        /do not match/.test(check.message)
+      )).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails when acceptance and Web mainnet economic parameters diverge", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
     let stdout = "";
