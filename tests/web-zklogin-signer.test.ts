@@ -78,6 +78,57 @@ describe("web zkLogin signer", () => {
     expect(mocks.getZkLoginSignature).toHaveBeenCalledTimes(1);
     expect(globalThis.fetch).toHaveBeenCalledWith("/api/zklogin-prove", expect.objectContaining({ method: "POST" }));
   });
+
+  it("executes zkLogin transactions with balanceChanges requested and returned", async () => {
+    const { Ed25519Keypair } = await import("@mysten/sui/keypairs/ed25519");
+    const signerModulePath = "../web/src/lib/signer.ts";
+    const { buildZkLoginSigner } = await import(signerModulePath);
+    const keypair = Ed25519Keypair.generate();
+    const address = "0x" + "11".repeat(32);
+    mocks.executeTransactionBlock.mockResolvedValue({
+      digest: "tx-with-balance-changes",
+      effects: {
+        status: { status: "success" },
+        created: [{ reference: { objectId: "0x" + "22".repeat(32) } }]
+      },
+      objectChanges: [{
+        type: "created",
+        objectId: "0x" + "33".repeat(32),
+        objectType: "0xpackage::access::PlatformMembershipPass"
+      }],
+      balanceChanges: [{
+        owner: { AddressOwner: address },
+        coinType: "0x2::sui::SUI",
+        amount: "-123"
+      }]
+    });
+
+    localStorage.setItem("rn_session", JSON.stringify({ address }));
+    sessionStorage.setItem("rn_zk_eph", JSON.stringify({
+      secret: keypair.getSecretKey(),
+      randomness: "9",
+      maxEpoch: 100,
+      nonce: "nonce"
+    }));
+    sessionStorage.setItem("rn_zk_session", JSON.stringify({
+      id_token: "header.payload.signature",
+      salt: "123",
+      maxEpoch: 100,
+      randomness: "9"
+    }));
+
+    const signer = await buildZkLoginSigner();
+    const result = await signer!.signAndExecuteTransaction(new Uint8Array([1, 2, 3]));
+
+    expect(mocks.executeTransactionBlock).toHaveBeenCalledWith(expect.objectContaining({
+      options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true }
+    }));
+    expect(result.balanceChanges).toEqual([{ owner: address, coinType: "0x2::sui::SUI", amount: "-123" }]);
+    expect(result.createdObjects).toEqual([{
+      objectId: "0x" + "33".repeat(32),
+      objectType: "0xpackage::access::PlatformMembershipPass"
+    }]);
+  });
 });
 
 function storageFromMap(values: Map<string, string>) {

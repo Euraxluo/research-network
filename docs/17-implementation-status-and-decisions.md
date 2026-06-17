@@ -28,7 +28,7 @@ docs/01-16 可能保留历史设计脉络；本篇给出当前代码与产品语
 | zkLogin | 🔶 真实地址派生 + salt service + CLI login + Web signer | `src/core/zklogin.ts`、`web-auth.ts`、`api/zklogin-salt.ts`、`web/src/lib/signer.ts` | Web signer 已对交易和 Seal personal message 组装 zkLogin composite signature；真实验收仍需要两个浏览器 zkLogin 会话文件和 prover |
 | GitHub App 仓库接入 | 🔶 真实流程已实现 + 测试 + 生产配置已补齐 | `src/core/github.ts`、`github-binding.ts`、`api/github-oauth.ts` | 站内 repo 下拉、server-signed binding attestation、server-side account store V1 已实现 |
 | Indexer 事件投影 | 🔶 全量本地目录 + Sui RPC poller V1 | `src/core/indexer.ts`、`sui-events.ts` | 新增 report/membership/subscription/receipt/delegation/settlement/earnings 投影；剩生产常驻调度和实时 Walrus fetcher |
-| Seal Access 交易闭环 | 🔶 Web 真实路径已接入；两账号生产验收待跑 | `web/src/lib/`、`scripts/production-acceptance.ts` | Web 已接真实 Walrus + Seal + Sui publish/decrypt/purchase/delegation/claim；新增带资金上限的 production acceptance runner。Web/Vite config、Vercel Walrus proxy、auth shell 和 acceptance 均会拒绝 mainnet 混入已知 testnet 值。仍需两个真实 zkLogin 账号完成 `--preflight`/`--execute` 验收 |
+| Seal Access 交易闭环 | 🔶 Web 真实路径已接入；两账号生产验收待跑 | `web/src/lib/`、`scripts/production-acceptance.ts` | Web 已接真实 Walrus + Seal + Sui publish/decrypt/purchase/delegation/claim；production acceptance runner 会记录每笔 Sui 交易的 `balanceChanges` 并生成实际 SUI 扣款汇总。Web/Vite config、Vercel Walrus proxy、auth shell 和 acceptance 均会拒绝 mainnet 混入已知 testnet 值。仍需两个真实 zkLogin 账号完成 `--preflight`/`--execute` 验收 |
 | 跨链支付 CCTP / Wormhole | 🔶 合约入口历史实现；真实 VAA 待接 | `move/sources/payment.move`、docs/09 | payment intent 已改为 access intent；真实 relayer/prover 仍未完成 |
 | Token / 声誉 / 治理 / 仲裁 | ❌ 仅设计 / 局部事件骨架 | docs/08、docs/12 | 仲裁在 private delegation dispute 中有最小授权语义；完整治理仍未实现 |
 
@@ -188,7 +188,7 @@ npm run acceptance:production -- --network testnet --execute \
   --receipt .research-network/acceptance/testnet-production.json
 ```
 
-会话文件必须来自真实 Google zkLogin 登录，放在 `.research-network/secrets/`，包含 `address`、`ephemeralSecretKey`、`idToken`、`salt`、`maxEpoch`、`randomness`，也可以使用浏览器 storage 形状的 `rn_zk_eph` / `rn_zk_session`。脚本覆盖 encrypted report 发布、平台会员购买、Seal 解密、receipt 记录、agent subscription 购买与解密、会员 receipt 结算、agent claim、私有委托创建/资金托管/结果提交/买家解密/完成放款。receipt 会记录非敏感证据：当前 epoch/session freshness、余额与最低要求、prover 响应 shape、交易 digest/object id、Walrus blob id、Seal id、ciphertext/plaintext commitment hash、解密路径与 plaintext match。`--execute` 会真实花费 testnet/mainnet SUI，预算由 `--max-spend-mist` 硬限制；`--network mainnet` 会拒绝已知 testnet object ids 和 testnet endpoints。
+会话文件必须来自真实 Google zkLogin 登录，放在 `.research-network/secrets/`，包含 `address`、`ephemeralSecretKey`、`idToken`、`salt`、`maxEpoch`、`randomness`，也可以使用浏览器 storage 形状的 `rn_zk_eph` / `rn_zk_session`。脚本覆盖 encrypted report 发布、平台会员购买、Seal 解密、receipt 记录、agent subscription 购买与解密、会员 receipt 结算、agent claim、私有委托创建/资金托管/结果提交/买家解密/完成放款。receipt 会记录非敏感证据：当前 epoch/session freshness、余额与最低要求、prover 响应 shape、交易 digest/object id、每笔交易的 Sui `balanceChanges`、Walrus blob id、Seal id、ciphertext/plaintext commitment hash、解密路径与 plaintext match。`--execute` 会真实花费 testnet/mainnet SUI，预算由 `--max-spend-mist` 硬限制；验收结束前会按 buyer/agent 地址汇总实际负向 SUI 余额变化到 `receipt.spend.totalSpentMist`，超过 cap 会失败。`--network mainnet` 会拒绝已知 testnet object ids 和 testnet endpoints。
 
 Mainnet readiness gate 用来汇总“是否可上 mainnet/注入真实资金”的证据，默认不花钱：
 
@@ -199,7 +199,7 @@ npm run readiness:mainnet -- --stage mainnet-config \
   --skip-chain
 ```
 
-`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，并且 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在、无 testnet 泄漏、关键 RPC/object/endpoint 在各部署面之间一致。`--stage mainnet-final` 还要求 mainnet preflight + 小额 capped execute receipt 通过、mainnet receipt 中的配置与当前 acceptance env 完全一致；不加 `--skip-chain` 时还会查询 mainnet RPC，确认 package/shared objects 存在，且 settlement shared objects 类型匹配预期。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
+`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，并且 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在、无 testnet 泄漏、关键 RPC/object/endpoint 在各部署面之间一致。execute receipt 必须包含 `receipt.spend` 和每个交易步骤的 `suiSpentMist`，证明实际链上扣款没有超过显式 cap。`--stage mainnet-final` 还要求 mainnet preflight + 小额 capped execute receipt 通过、mainnet receipt 中的配置与当前 acceptance env 完全一致；不加 `--skip-chain` 时还会查询 mainnet RPC，确认 package/shared objects 存在，且 settlement shared objects 类型匹配预期。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
 
 Web/Vercel 生产配置防护：
 
@@ -211,6 +211,7 @@ Web/Vercel 生产配置防护：
 ## 修订记录
 
 - 2026-06-17：Account 页新增 production acceptance session 导出入口，可从真实同 tab Google zkLogin 状态生成 buyer/agent session JSON；新增纯函数与 UI 集成测试覆盖成功导出和缺失 ephemeral key 时失败闭合。
+- 2026-06-17：production acceptance 新增真实 balance-change spend evidence。脚本现在要求 Sui RPC 返回 `balanceChanges`，按 buyer/agent 地址汇总实际 SUI 扣款到 `receipt.spend`，并在 readiness 中拒绝缺少实际扣款证据或超过 cap 的 execute receipt。
 - 2026-06-17：增强 production acceptance receipt 证据。preflight/execute receipt 现在记录 epoch freshness、余额阈值、prover shape、Walrus/Seal/hash 元数据和 decrypt plaintext match；readiness 会拒绝缺少这些证据的 receipt。
 - 2026-06-17：加硬 mainnet readiness gate。mainnet receipts 现在会拒绝已知 testnet object ids、超过小额 acceptance cap 的 execute receipt、与当前 mainnet acceptance env 不一致的 receipt 配置；链上 object 检查会额外验证 settlement shared object 类型后缀。
 - 2026-06-17：补生产配置防误用 guard。Web/Vite config、Vercel Walrus proxy、auth shell 与 production acceptance 均拒绝 mainnet 混入已知 testnet object ids/endpoints；acceptance 会校验 zkLogin session 中可选 `address` 必须等于 `idToken + salt` 派生地址。

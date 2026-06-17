@@ -37,12 +37,17 @@ import {
   assertProductionAcceptanceSessionAddress,
   assertProductionAcceptanceSessionFresh,
   createProductionAcceptanceReceipt,
+  normalizeProductionAcceptanceBalanceChanges,
   normalizeProductionAcceptanceSession,
   parseProductionAcceptanceArgs,
   productionAcceptanceFreshnessEvidence,
+  productionAcceptanceSuiSpentMist,
+  summarizeProductionAcceptanceSpend,
   writeProductionAcceptanceReceipt,
   zkProofEvidence,
+  type ProductionAcceptanceBalanceChange,
   type ProductionAcceptanceConfig,
+  type ProductionAcceptanceTransactionSpendEvidence,
   type ProductionAcceptanceSessionInput,
   type ProductionAcceptanceReceipt,
   type ProductionAcceptanceStep
@@ -72,6 +77,12 @@ interface AcceptanceSigner extends M3Signer {
   proof: () => Promise<Record<string, unknown>>;
 }
 
+interface AcceptanceTransactionLedgerEntry extends ProductionAcceptanceTransactionSpendEvidence {
+  signerLabel: "buyer" | "agent";
+  signerAddress: string;
+  suiSpentMist: string;
+}
+
 const steps: ProductionAcceptanceStep[] = [
   { name: "config.validate", status: "pending" },
   { name: "accounts.validate", status: "pending" },
@@ -87,8 +98,11 @@ const steps: ProductionAcceptanceStep[] = [
   { name: "buyer.create_and_fund_delegation", status: "pending" },
   { name: "agent.publish_private_result", status: "pending" },
   { name: "buyer.decrypt_private_result", status: "pending" },
-  { name: "buyer.complete_delegation", status: "pending" }
+  { name: "buyer.complete_delegation", status: "pending" },
+  { name: "budget.actual_spend_cap", status: "pending" }
 ];
+
+const transactionLedger = new Map<string, AcceptanceTransactionLedgerEntry>();
 
 async function main() {
   const config = parseProductionAcceptanceArgs(process.argv.slice(2));
@@ -265,10 +279,19 @@ async function main() {
       jobObjectId: job.objectId,
       budgetMist: config.delegationBudgetMist
     });
+    const fundSpend = transactionLedger.get(fundDigest);
     pass("buyer.create_and_fund_delegation", {
       digest: job.digest,
       objectId: job.objectId,
-      meta: { fundDigest }
+      meta: {
+        fundDigest,
+        ...(fundSpend ? {
+          fundSigner: fundSpend.signerLabel,
+          fundSignerAddress: fundSpend.signerAddress,
+          fundSuiSpentMist: fundSpend.suiSpentMist,
+          fundBalanceChanges: fundSpend.balanceChanges
+        } : {})
+      }
     });
 
     const privateResult = await publishPrivateResultOnChain({
@@ -302,6 +325,19 @@ async function main() {
     const completeDigest = await completeDelegationJobOnChain({ signer: buyer, jobObjectId: job.objectId });
     pass("buyer.complete_delegation", { digest: completeDigest });
 
+    receipt.spend = summarizeProductionAcceptanceSpend({
+      transactions: [...transactionLedger.values()].map(({ digest, balanceChanges }) => ({ digest, balanceChanges })),
+      buyerAddress: buyer.address,
+      agentAddress: agent.address,
+      maxSpendMist: config.maxSpendMist
+    });
+    if (!receipt.spend.withinCap) {
+      throw new Error(
+        `actual SUI spend ${receipt.spend.totalSpentMist} MIST exceeds max-spend-mist ${receipt.spend.maxSpendMist}`
+      );
+    }
+    pass("budget.actual_spend_cap", { meta: receipt.spend });
+
     receipt.conclusion = "passed";
   } catch (error) {
     const pending = receipt.steps.find((step) => step.status === "pending");
@@ -322,12 +358,23 @@ function pass(name: string, result?: { digest?: string; objectId?: string; meta?
   const step = steps.find((item) => item.name === name);
   if (!step) throw new Error(`unknown acceptance step ${name}`);
   step.status = "passed";
-  if (result && "digest" in result && typeof result.digest === "string") step.digest = result.digest;
+  const digest = result && "digest" in result && typeof result.digest === "string" ? result.digest : undefined;
+  if (digest) step.digest = digest;
   if (result && "objectId" in result && typeof result.objectId === "string") step.objectId = result.objectId;
+  let meta: Record<string, unknown> | undefined;
   if (result && "meta" in result && typeof result.meta === "object") {
-    step.meta = result.meta as Record<string, unknown>;
+    meta = result.meta as Record<string, unknown>;
   } else if (result) {
-    step.meta = result as Record<string, unknown>;
+    meta = result as Record<string, unknown>;
+  }
+  if (digest) {
+    meta = {
+      ...(meta ?? {}),
+      ...transactionSpendMeta(digest)
+    };
+  }
+  if (meta && Object.keys(meta).length) {
+    step.meta = meta;
   }
 }
 
@@ -376,6 +423,11 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
         signature: composite(await proof(), userSignature),
         options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true }
       });
+      if (!Array.isArray(result.balanceChanges)) {
+        throw new Error(`Sui transaction ${result.digest} did not include balanceChanges`);
+      }
+      const balanceChanges = normalizeProductionAcceptanceBalanceChanges(result.balanceChanges);
+      recordAcceptanceTransaction(label, address, result.digest, balanceChanges);
       const createdObjects: Array<{ objectId: string; objectType?: string }> = [];
       const createdObjectIds: string[] = [];
       for (const change of result.objectChanges || []) {
@@ -390,13 +442,40 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
         status: result.effects?.status?.status ?? "unknown",
         error: result.effects?.status?.error,
         createdObjectIds,
-        createdObjects
+        createdObjects,
+        balanceChanges
       };
     },
     signPersonalMessage: async (message: Uint8Array) => {
       const { signature: userSignature } = await keypair.signPersonalMessage(message);
       return composite(await proof(), userSignature);
     }
+  };
+}
+
+function recordAcceptanceTransaction(
+  signerLabel: "buyer" | "agent",
+  signerAddress: string,
+  digest: string,
+  balanceChanges: ProductionAcceptanceBalanceChange[]
+) {
+  transactionLedger.set(digest, {
+    digest,
+    signerLabel,
+    signerAddress,
+    balanceChanges,
+    suiSpentMist: String(productionAcceptanceSuiSpentMist(balanceChanges, signerAddress))
+  });
+}
+
+function transactionSpendMeta(digest: string): Record<string, unknown> {
+  const entry = transactionLedger.get(digest);
+  if (!entry) return {};
+  return {
+    signer: entry.signerLabel,
+    signerAddress: entry.signerAddress,
+    suiSpentMist: entry.suiSpentMist,
+    balanceChanges: entry.balanceChanges
   };
 }
 

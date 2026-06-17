@@ -21,7 +21,8 @@ const ALL_STEPS = [
   "buyer.create_and_fund_delegation",
   "agent.publish_private_result",
   "buyer.decrypt_private_result",
-  "buyer.complete_delegation"
+  "buyer.complete_delegation",
+  "budget.actual_spend_cap"
 ];
 
 const executeExpectation: ReceiptExpectation = {
@@ -66,6 +67,56 @@ describe("mainnet readiness receipt checks", () => {
 
     expect(hasBlockingReadinessFailures(checks)).toBe(true);
     expect(checks.some((check) => check.name.endsWith(".digests") && check.status === "failed")).toBe(true);
+  });
+
+  it("rejects execute receipts missing actual balance-change spend evidence", () => {
+    const receipt = makeExecuteReceipt({ spend: undefined });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".spend.present") && check.status === "failed")).toBe(true);
+  });
+
+  it("rejects execute receipts whose actual SUI spend exceeds the cap", () => {
+    const receipt = makeExecuteReceipt({
+      spend: {
+        ...spendSummary(),
+        totalSpentMist: "111000000",
+        withinCap: false
+      }
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".spend.actual_cap") && check.status === "failed")).toBe(true);
+  });
+
+  it("rejects execute receipts missing per-transaction spend metadata", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "agent.claim_membership_earnings"
+          ? { ...step, meta: { ...(step.meta ?? {}), suiSpentMist: undefined } }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".transaction_spend_metadata") && check.status === "failed")).toBe(true);
+  });
+
+  it("rejects execute receipts missing balanceChanges behind spend metadata", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "buyer.buy_platform_membership"
+          ? { ...step, meta: { ...(step.meta ?? {}), balanceChanges: undefined } }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".transaction_spend_metadata") && check.status === "failed")).toBe(true);
   });
 
   it("rejects execute receipts missing Walrus/Seal/decrypt evidence", () => {
@@ -185,6 +236,7 @@ function makeExecuteReceipt(overrides: Partial<ProductionAcceptanceReceipt> = {}
       maxSpendMist: "110000000"
     },
     config: baseConfig(network),
+    spend: spendSummary(),
     steps: executeSteps(),
     conclusion: "passed",
     ...overrides
@@ -210,6 +262,7 @@ function makePreflightReceipt(overrides: Partial<ProductionAcceptanceReceipt> = 
       maxSpendMist: "0"
     },
     config: baseConfig(network),
+    spend: undefined,
     steps: preflightSteps(),
     conclusion: "passed",
     ...overrides
@@ -243,7 +296,11 @@ function executeSteps(): ProductionAcceptanceStep[] {
       step.objectId = "0x" + "cc".repeat(32);
     }
     if (name === "buyer.create_and_fund_delegation") {
-      step.meta = { fundDigest: "tx-fund" };
+      step.meta = {
+        fundDigest: "tx-fund",
+        fundSuiSpentMist: "2000000",
+        fundBalanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-2000000" }]
+      };
     }
     if (name === "agent.publish_encrypted_report" || name === "agent.publish_private_result") {
       step.meta = reportMeta(name);
@@ -256,6 +313,12 @@ function executeSteps(): ProductionAcceptanceStep[] {
     }
     if (name === "buyer.decrypt_private_result") {
       step.meta = decryptMeta("private_delegation");
+    }
+    if (step.digest) {
+      step.meta = { ...(step.meta ?? {}), ...spendMeta(name) };
+    }
+    if (name === "budget.actual_spend_cap") {
+      step.meta = spendSummary();
     }
     return step;
   });
@@ -309,6 +372,27 @@ function decryptMeta(accessPath: string): Record<string, string | number | boole
     accessPath,
     plaintextBytes: 42,
     plaintextMatched: true
+  };
+}
+
+function spendMeta(name: string): Record<string, string | Array<Record<string, string | undefined>>> {
+  const signerAddress = name.startsWith("agent.") ? "0x" + "bb".repeat(32) : "0x" + "aa".repeat(32);
+  return {
+    signer: name.startsWith("agent.") ? "agent" : "buyer",
+    signerAddress,
+    suiSpentMist: name.startsWith("agent.") ? "1500000" : "5000000",
+    balanceChanges: [{ owner: signerAddress, coinType: "0x2::sui::SUI", amount: "-1" }]
+  };
+}
+
+function spendSummary() {
+  return {
+    buyerSpentMist: "50000000",
+    agentSpentMist: "10000000",
+    totalSpentMist: "60000000",
+    maxSpendMist: "110000000",
+    withinCap: true,
+    transactionCount: 10
   };
 }
 

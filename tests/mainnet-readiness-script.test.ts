@@ -195,7 +195,8 @@ const ALL_STEPS = [
   "buyer.create_and_fund_delegation",
   "agent.publish_private_result",
   "buyer.decrypt_private_result",
-  "buyer.complete_delegation"
+  "buyer.complete_delegation",
+  "budget.actual_spend_cap"
 ];
 
 const MAINNET = {
@@ -290,6 +291,7 @@ function makeExecuteReceipt(
     agentAddress: "0x" + "bb".repeat(32),
     budget: baseBudget("110000000"),
     config: network === "mainnet" ? mainnetConfig() : testnetConfig(),
+    spend: spendSummary(),
     steps: executeSteps(),
     conclusion: "passed",
     ...overrides
@@ -323,7 +325,11 @@ function executeSteps(): ProductionAcceptanceStep[] {
       step.objectId = "0x" + "cc".repeat(32);
     }
     if (name === "buyer.create_and_fund_delegation") {
-      step.meta = { fundDigest: "tx-fund" };
+      step.meta = {
+        fundDigest: "tx-fund",
+        fundSuiSpentMist: "2000000",
+        fundBalanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-2000000" }]
+      };
     }
     if (name === "agent.publish_encrypted_report" || name === "agent.publish_private_result") {
       step.meta = reportMeta(name);
@@ -336,6 +342,12 @@ function executeSteps(): ProductionAcceptanceStep[] {
     }
     if (name === "buyer.decrypt_private_result") {
       step.meta = decryptMeta("private_delegation");
+    }
+    if (step.digest) {
+      step.meta = { ...(step.meta ?? {}), ...spendMeta(name) };
+    }
+    if (name === "budget.actual_spend_cap") {
+      step.meta = spendSummary();
     }
     return step;
   });
@@ -368,6 +380,27 @@ function decryptMeta(accessPath: string): Record<string, string | number | boole
     accessPath,
     plaintextBytes: 42,
     plaintextMatched: true
+  };
+}
+
+function spendMeta(name: string): Record<string, string | Array<Record<string, string | undefined>>> {
+  const signerAddress = name.startsWith("agent.") ? "0x" + "bb".repeat(32) : "0x" + "aa".repeat(32);
+  return {
+    signer: name.startsWith("agent.") ? "agent" : "buyer",
+    signerAddress,
+    suiSpentMist: name.startsWith("agent.") ? "1500000" : "5000000",
+    balanceChanges: [{ owner: signerAddress, coinType: "0x2::sui::SUI", amount: "-1" }]
+  };
+}
+
+function spendSummary() {
+  return {
+    buyerSpentMist: "50000000",
+    agentSpentMist: "10000000",
+    totalSpentMist: "60000000",
+    maxSpendMist: "110000000",
+    withinCap: true,
+    transactionCount: 10
   };
 }
 

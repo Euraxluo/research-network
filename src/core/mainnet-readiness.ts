@@ -43,7 +43,8 @@ const ACCEPTANCE_STEPS = [
   "buyer.create_and_fund_delegation",
   "agent.publish_private_result",
   "buyer.decrypt_private_result",
-  "buyer.complete_delegation"
+  "buyer.complete_delegation",
+  "budget.actual_spend_cap"
 ] as const;
 
 const EXECUTE_DIGEST_STEPS = new Set([
@@ -256,6 +257,23 @@ function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: Re
     `${expectation.label} execute is missing successful Seal decrypt evidence`,
     expectation.required
   ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.transaction_spend_metadata`,
+    [...EXECUTE_DIGEST_STEPS].every((name) => {
+      const meta = receipt.steps.find((step) => step.name === name)?.meta;
+      if (!meta || !isNonNegativeIntegerString(meta.suiSpentMist)) return false;
+      if (!hasBalanceChanges(meta.balanceChanges)) return false;
+      if (name === "buyer.create_and_fund_delegation") {
+        return hasString(meta.fundDigest) &&
+          isNonNegativeIntegerString(meta.fundSuiSpentMist) &&
+          hasBalanceChanges(meta.fundBalanceChanges);
+      }
+      return true;
+    }),
+    `${expectation.label} execute records balance-change SUI spend metadata for every transaction step`,
+    `${expectation.label} execute is missing per-transaction SUI spend metadata`,
+    expectation.required
+  ));
   return checks;
 }
 
@@ -268,6 +286,12 @@ function checkExecuteBudget(receipt: ProductionAcceptanceReceipt, expectation: R
   } catch {
     return [fail(`receipt.${expectation.label}.budget`, `${expectation.label} receipt has malformed budget strings`, expectation.required)];
   }
+  const actualTotalSpend = isNonNegativeIntegerString(receipt.spend?.totalSpentMist)
+    ? BigInt(receipt.spend.totalSpentMist)
+    : undefined;
+  const receiptSpendMax = isNonNegativeIntegerString(receipt.spend?.maxSpendMist)
+    ? BigInt(receipt.spend.maxSpendMist)
+    : undefined;
   const checks = [
     checkBoolean(
       `receipt.${expectation.label}.budget.cap`,
@@ -276,6 +300,30 @@ function checkExecuteBudget(receipt: ProductionAcceptanceReceipt, expectation: R
       `${expectation.label} execute budget exceeds or omits the explicit spend cap`,
       expectation.required,
       { totalBudgetMist: String(totalBudget), maxSpendMist: String(maxSpend) }
+    ),
+    checkBoolean(
+      `receipt.${expectation.label}.spend.present`,
+      hasSpendSummary(receipt.spend),
+      `${expectation.label} execute records actual balance-change spend evidence`,
+      `${expectation.label} execute is missing actual balance-change spend evidence`,
+      expectation.required,
+      { spend: receipt.spend }
+    ),
+    checkBoolean(
+      `receipt.${expectation.label}.spend.cap_match`,
+      receiptSpendMax === maxSpend,
+      `${expectation.label} actual spend evidence uses the same explicit spend cap as the receipt budget`,
+      `${expectation.label} actual spend evidence cap does not match the receipt budget cap`,
+      expectation.required,
+      { budgetMaxSpendMist: String(maxSpend), spendMaxSpendMist: receipt.spend?.maxSpendMist }
+    ),
+    checkBoolean(
+      `receipt.${expectation.label}.spend.actual_cap`,
+      receipt.spend?.withinCap === true && actualTotalSpend !== undefined && actualTotalSpend <= maxSpend,
+      `${expectation.label} actual SUI spend stayed within the explicit cap`,
+      `${expectation.label} actual SUI spend exceeds or omits the explicit cap`,
+      expectation.required,
+      { totalSpentMist: receipt.spend?.totalSpentMist, maxSpendMist: String(maxSpend), spend: receipt.spend }
     )
   ];
   if (expectation.network === "mainnet") {
@@ -392,6 +440,38 @@ function hasPositiveNumber(value: unknown, key: string): boolean {
   if (!value || typeof value !== "object") return false;
   const raw = (value as Record<string, unknown>)[key];
   return typeof raw === "number" && Number.isFinite(raw) && raw > 0;
+}
+
+function hasSpendSummary(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const spend = value as Record<string, unknown>;
+  return isNonNegativeIntegerString(spend.buyerSpentMist) &&
+    isNonNegativeIntegerString(spend.agentSpentMist) &&
+    isNonNegativeIntegerString(spend.totalSpentMist) &&
+    isNonNegativeIntegerString(spend.maxSpendMist) &&
+    spend.withinCap === true &&
+    typeof spend.transactionCount === "number" &&
+    Number.isInteger(spend.transactionCount) &&
+    spend.transactionCount > 0;
+}
+
+function hasBalanceChanges(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  return value.every((change) => {
+    if (!change || typeof change !== "object") return false;
+    const item = change as Record<string, unknown>;
+    return typeof item.coinType === "string" &&
+      isIntegerString(item.amount) &&
+      (item.owner === undefined || typeof item.owner === "string");
+  });
+}
+
+function isNonNegativeIntegerString(value: unknown): value is string {
+  return typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value);
+}
+
+function isIntegerString(value: unknown): value is string {
+  return typeof value === "string" && /^-?(0|[1-9][0-9]*)$/.test(value);
 }
 
 export function pass(

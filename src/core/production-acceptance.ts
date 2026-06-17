@@ -70,6 +70,26 @@ export interface ProductionAcceptanceStep {
   meta?: Record<string, unknown>;
 }
 
+export interface ProductionAcceptanceBalanceChange {
+  owner?: string;
+  coinType: string;
+  amount: string;
+}
+
+export interface ProductionAcceptanceTransactionSpendEvidence {
+  digest: string;
+  balanceChanges: ProductionAcceptanceBalanceChange[];
+}
+
+export interface ProductionAcceptanceSpendSummary {
+  buyerSpentMist: string;
+  agentSpentMist: string;
+  totalSpentMist: string;
+  maxSpendMist: string;
+  withinCap: boolean;
+  transactionCount: number;
+}
+
 export interface ProductionAcceptanceReceipt {
   network: ProductionAcceptanceNetwork;
   execute: boolean;
@@ -99,6 +119,7 @@ export interface ProductionAcceptanceReceipt {
     sealKeyServerAggregatorUrl?: string;
     sealThreshold?: number;
   };
+  spend?: ProductionAcceptanceSpendSummary;
   steps: ProductionAcceptanceStep[];
   conclusion: "not_run" | "passed" | "failed";
 }
@@ -329,6 +350,81 @@ export function zkProofEvidence(proof: Record<string, unknown>): ProductionAccep
   };
 }
 
+export function normalizeProductionAcceptanceBalanceChanges(raw: unknown): ProductionAcceptanceBalanceChange[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((change) => {
+    if (!change || typeof change !== "object") return [];
+    const item = change as Record<string, unknown>;
+    const coinType = item.coinType;
+    const amount = item.amount;
+    if (typeof coinType !== "string" || typeof amount !== "string") return [];
+    return [{
+      owner: productionAcceptanceBalanceChangeOwner(item.owner ?? item.address),
+      coinType,
+      amount
+    }];
+  });
+}
+
+export function productionAcceptanceBalanceChangeOwner(owner: unknown): string | undefined {
+  if (typeof owner === "string") return owner;
+  if (!owner || typeof owner !== "object") return undefined;
+  const record = owner as Record<string, unknown>;
+  if (typeof record.AddressOwner === "string") return record.AddressOwner;
+  if (typeof record.ObjectOwner === "string") return record.ObjectOwner;
+  if (record.ConsensusAddressOwner && typeof record.ConsensusAddressOwner === "object") {
+    const consensus = record.ConsensusAddressOwner as Record<string, unknown>;
+    if (typeof consensus.owner === "string") return consensus.owner;
+  }
+  if (typeof record.address === "string") return record.address;
+  if (typeof record.owner === "string") return record.owner;
+  return undefined;
+}
+
+export function isProductionAcceptanceSuiCoinType(coinType: string): boolean {
+  const parts = coinType.split("::");
+  if (parts.length !== 3) return false;
+  const [address, moduleName, typeName] = parts;
+  return normalizeSuiTypeAddress(address) === "0x2" &&
+    moduleName.toLowerCase() === "sui" &&
+    typeName.toLowerCase() === "sui";
+}
+
+export function productionAcceptanceSuiSpentMist(
+  balanceChanges: ProductionAcceptanceBalanceChange[],
+  address: string
+): bigint {
+  let spent = 0n;
+  const normalizedAddress = normalizeSuiTypeAddress(address);
+  for (const change of balanceChanges) {
+    if (!change.owner || normalizeSuiTypeAddress(change.owner) !== normalizedAddress) continue;
+    if (!isProductionAcceptanceSuiCoinType(change.coinType)) continue;
+    const amount = BigInt(change.amount);
+    if (amount < 0n) spent += -amount;
+  }
+  return spent;
+}
+
+export function summarizeProductionAcceptanceSpend(input: {
+  transactions: ProductionAcceptanceTransactionSpendEvidence[];
+  buyerAddress: string;
+  agentAddress: string;
+  maxSpendMist: bigint;
+}): ProductionAcceptanceSpendSummary {
+  const balanceChanges = input.transactions.flatMap((transaction) => transaction.balanceChanges);
+  const buyerSpentMist = productionAcceptanceSuiSpentMist(balanceChanges, input.buyerAddress);
+  const agentSpentMist = productionAcceptanceSuiSpentMist(balanceChanges, input.agentAddress);
+  const totalSpentMist = buyerSpentMist + agentSpentMist;
+  return {
+    buyerSpentMist: String(buyerSpentMist),
+    agentSpentMist: String(agentSpentMist),
+    totalSpentMist: String(totalSpentMist),
+    maxSpendMist: String(input.maxSpendMist),
+    withinCap: totalSpentMist <= input.maxSpendMist,
+    transactionCount: input.transactions.length
+  };
+}
+
 function mainnetTestnetLeaks(config: ProductionAcceptanceConfig): string[] {
   const checks = [
     ["sui-rpc-url", config.suiRpcUrl],
@@ -351,6 +447,13 @@ function isKnownTestnetValue(value: string): boolean {
   if (!normalized) return false;
   if (KNOWN_TESTNET_IDS.has(normalized)) return true;
   return normalized.includes("testnet") || normalized.includes("sui-testnet-rpc.publicnode.com");
+}
+
+function normalizeSuiTypeAddress(value: string): string {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed.startsWith("0x")) return trimmed;
+  const hex = trimmed.slice(2).replace(/^0+/, "") || "0";
+  return `0x${hex}`;
 }
 
 export function createProductionAcceptanceReceipt(

@@ -4,9 +4,12 @@ import {
   assertProductionAcceptanceSessionFresh,
   assertProductionAcceptanceCanExecute,
   calculateProductionAcceptanceBudget,
+  normalizeProductionAcceptanceBalanceChanges,
   normalizeProductionAcceptanceSession,
   parseProductionAcceptanceArgs,
   productionAcceptanceFreshnessEvidence,
+  productionAcceptanceSuiSpentMist,
+  summarizeProductionAcceptanceSpend,
   zkProofEvidence
 } from "../src/core/production-acceptance.js";
 
@@ -197,6 +200,68 @@ describe("production acceptance guardrails", () => {
       hasIssBase64Details: true,
       hasHeaderBase64: true,
       hasAddressSeed: true
+    });
+  });
+
+  it("normalizes Sui balanceChanges and computes actual sender spend from negative SUI amounts", () => {
+    const buyer = "0x" + "00".repeat(31) + "aa";
+    const agent = "0x" + "bb".repeat(32);
+    const changes = normalizeProductionAcceptanceBalanceChanges([
+      { owner: { AddressOwner: buyer }, coinType: "0x2::sui::SUI", amount: "-1000" },
+      {
+        owner: { AddressOwner: buyer },
+        coinType: "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI",
+        amount: "250"
+      },
+      { owner: { AddressOwner: agent }, coinType: "0x2::sui::SUI", amount: "-7" },
+      { owner: { AddressOwner: buyer }, coinType: "0x3::other::COIN", amount: "-999" },
+      { owner: "Immutable", coinType: "0x2::sui::SUI", amount: "-123" }
+    ]);
+
+    expect(changes).toEqual([
+      { owner: buyer, coinType: "0x2::sui::SUI", amount: "-1000" },
+      {
+        owner: buyer,
+        coinType: "0x0000000000000000000000000000000000000000000000000000000000000002::sui::SUI",
+        amount: "250"
+      },
+      { owner: agent, coinType: "0x2::sui::SUI", amount: "-7" },
+      { owner: buyer, coinType: "0x3::other::COIN", amount: "-999" },
+      { owner: "Immutable", coinType: "0x2::sui::SUI", amount: "-123" }
+    ]);
+    expect(productionAcceptanceSuiSpentMist(changes, buyer)).toBe(1000n);
+    expect(productionAcceptanceSuiSpentMist(changes, agent)).toBe(7n);
+  });
+
+  it("summarizes actual acceptance spend against the explicit cap", () => {
+    const buyer = "0x" + "aa".repeat(32);
+    const agent = "0x" + "bb".repeat(32);
+    const summary = summarizeProductionAcceptanceSpend({
+      buyerAddress: buyer,
+      agentAddress: agent,
+      maxSpendMist: 1200n,
+      transactions: [
+        {
+          digest: "tx-buyer",
+          balanceChanges: [
+            { owner: buyer, coinType: "0x2::sui::SUI", amount: "-1000" },
+            { owner: buyer, coinType: "0x2::sui::SUI", amount: "10" }
+          ]
+        },
+        {
+          digest: "tx-agent",
+          balanceChanges: [{ owner: agent, coinType: "0x2::sui::SUI", amount: "-250" }]
+        }
+      ]
+    });
+
+    expect(summary).toEqual({
+      buyerSpentMist: "1000",
+      agentSpentMist: "250",
+      totalSpentMist: "1250",
+      maxSpendMist: "1200",
+      withinCap: false,
+      transactionCount: 2
     });
   });
 });

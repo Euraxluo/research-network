@@ -12,7 +12,7 @@
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { getZkLoginSignature } from "@mysten/sui/zklogin";
 import { getSuiClient } from "./sui-client";
-import type { M3Signer } from "./clients";
+import type { M3BalanceChange, M3Signer } from "./clients";
 import { readSession } from "./storage";
 import { toBase64, toBytesUtf8 } from "./crypto";
 
@@ -103,7 +103,7 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
     const result = await suiClient.executeTransactionBlock({
       transactionBlock: toBase64(txBytes),
       signature: compositeSig,
-      options: { showEffects: true, showObjectChanges: true }
+      options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true }
     });
 
     const created: string[] = [];
@@ -123,7 +123,8 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
       status: result.effects?.status?.status ?? "unknown",
       error: result.effects?.status?.error,
       createdObjectIds: createdObjects.map((obj) => obj.objectId).concat(created),
-      createdObjects
+      createdObjects,
+      balanceChanges: normalizeBalanceChanges(result.balanceChanges)
     };
   }
 
@@ -133,6 +134,37 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
   }
 
   return { address, signAndExecuteTransaction, signPersonalMessage };
+}
+
+function normalizeBalanceChanges(raw: unknown): M3BalanceChange[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((change) => {
+    if (!change || typeof change !== "object") return [];
+    const item = change as Record<string, unknown>;
+    const coinType = item.coinType;
+    const amount = item.amount;
+    if (typeof coinType !== "string" || typeof amount !== "string") return [];
+    return [{
+      owner: balanceChangeOwner(item.owner ?? item.address),
+      coinType,
+      amount
+    }];
+  });
+}
+
+function balanceChangeOwner(owner: unknown): string | undefined {
+  if (typeof owner === "string") return owner;
+  if (!owner || typeof owner !== "object") return undefined;
+  const record = owner as Record<string, unknown>;
+  if (typeof record.AddressOwner === "string") return record.AddressOwner;
+  if (typeof record.ObjectOwner === "string") return record.ObjectOwner;
+  if (record.ConsensusAddressOwner && typeof record.ConsensusAddressOwner === "object") {
+    const consensus = record.ConsensusAddressOwner as Record<string, unknown>;
+    if (typeof consensus.owner === "string") return consensus.owner;
+  }
+  if (typeof record.address === "string") return record.address;
+  if (typeof record.owner === "string") return record.owner;
+  return undefined;
 }
 
 void toBytesUtf8;

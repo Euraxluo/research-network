@@ -55,6 +55,12 @@ export interface ChainObjectResult {
   objectId: string;
 }
 
+export interface M3BalanceChange {
+  owner?: string;
+  coinType: string;
+  amount: string;
+}
+
 // ---- Signer abstraction. The workbench store injects a real zkLogin signer
 //      (ephemeral keypair from zklogin-browser.js) when available. ----
 export interface M3Signer {
@@ -65,6 +71,7 @@ export interface M3Signer {
     error?: string;
     createdObjectIds: string[];
     createdObjects?: Array<{ objectId: string; objectType?: string }>;
+    balanceChanges?: M3BalanceChange[];
   }>;
   signPersonalMessage: (msg: Uint8Array) => Promise<string>;
 }
