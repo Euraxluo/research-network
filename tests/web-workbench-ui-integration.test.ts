@@ -459,14 +459,26 @@ describe("Workbench UI production-flow integration", () => {
     });
 
     await clickByTestId("settle-membership-receipt");
+    expect(mocks.settleMembershipReportOnChain).not.toHaveBeenCalled();
+    expect(statusText()).toContain("Sign in as the platform member");
+
+    await act(async () => {
+      useWorkbench.getState().setSigner(buyerSigner);
+    });
+    await selectActor("buyer");
+    await clickByTestId("settle-membership-receipt");
     expect(mocks.settleMembershipReportOnChain).toHaveBeenCalledWith(
       expect.objectContaining({
-        signer: expect.objectContaining({ address: AGENT }),
+        signer: expect.objectContaining({ address: BUYER }),
         receiptObjectId: RECEIPT_ID
       })
     );
     expect(persistedState().access_receipts[0].settlement_tx_digest).toBe("tx-settle-receipt");
 
+    await act(async () => {
+      useWorkbench.getState().setSigner(agentSigner);
+    });
+    await selectActor("agent");
     await clickByTestId("claim-agent-earnings");
     expect(mocks.claimAgentEarningsOnChain).toHaveBeenCalledWith({
       signer: expect.objectContaining({ address: AGENT })

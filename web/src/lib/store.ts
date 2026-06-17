@@ -680,10 +680,16 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     }
     const receipt = get()
       .view()
-      .access_receipts.filter((item) => item.access_type === "platform_member" && isSuiId(item.id) && !item.settlement_tx_digest)
+      .access_receipts.filter(
+        (item) =>
+          item.access_type === "platform_member" &&
+          isSuiId(item.id) &&
+          !item.settlement_tx_digest &&
+          sameAddress(item.user, signer.address)
+      )
       .reverse()[0];
     if (!receipt) {
-      get().setStatus("Record a real platform membership access receipt before settlement.", true);
+      get().setStatus("Sign in as the platform member who owns a real access receipt before settlement.", true);
       return;
     }
     try {
