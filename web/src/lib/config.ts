@@ -60,8 +60,8 @@ export const DEFAULT_M3_CONFIG: M3Config = {
 };
 
 export function loadM3Config(): M3Config {
-  const w = window as unknown as { __RN_M3_CONFIG__?: Partial<M3Config> };
-  const overrides = w.__RN_M3_CONFIG__ || {};
+  const g = globalThis as unknown as { __RN_M3_CONFIG__?: Partial<M3Config> };
+  const overrides = g.__RN_M3_CONFIG__ || {};
   // Merge arrays/objects shallowly; scalar overrides win.
   return { ...DEFAULT_M3_CONFIG, ...overrides } as M3Config;
 }

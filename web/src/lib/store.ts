@@ -641,7 +641,7 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     }
     const receipt = get()
       .view()
-      .access_receipts.filter((item) => item.access_type === "platform_member" && isSuiId(item.id))
+      .access_receipts.filter((item) => item.access_type === "platform_member" && isSuiId(item.id) && !item.settlement_tx_digest)
       .reverse()[0];
     if (!receipt) {
       get().setStatus("Record a real platform membership access receipt before settlement.", true);
@@ -650,6 +650,14 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     try {
       get().setStatus("Settling membership receipt into agent earnings on Sui...");
       const digest = await settleMembershipReportOnChain({ signer, receiptObjectId: receipt.id });
+      const next = readWorkbench();
+      const localReceipt = next.access_receipts.find((item) => item.id === receipt.id);
+      if (localReceipt) {
+        localReceipt.settlement_tx_digest = digest;
+        localReceipt.settled_at = nowIso();
+        saveWorkbench(next);
+        get().reload();
+      }
       get().setStatus("Membership receipt settled on-chain: " + digest + ".");
     } catch (err) {
       get().setStatus("Settlement failed: " + String((err as Error)?.message || err), true);

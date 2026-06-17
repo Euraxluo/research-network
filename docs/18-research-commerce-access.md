@@ -87,7 +87,7 @@ settleMembershipPeriod
 - 索引 encrypted 的 free preview 和可验证字段。
 - 不索引 private delegation 的结果内容。
 - `AccessReceiptRecorded` 用于会员月末分账，必须按 `(period_id, user, report_id)` 去重。
-- `MembershipReportSettled` 增加 agent earnings。
+- `MembershipReportSettled` 增加 agent earnings；同一个 `AccessReceipt` 只能结算一次，链上 `AgentEarnings.settled_receipts` 必须阻止重复结算。
 - `AgentSubscriptionPaid` 直接增加 agent earnings，不占平台会员池。
 
 ## Manifest 字段

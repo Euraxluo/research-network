@@ -25,7 +25,7 @@ root; `auth/*` + `zklogin-browser.js` are emitted separately by `buildVercelAuth
 - `walrus.ts` — `uploadBlob` / `readBlob` via `@mysten/walrus`.
 - `seal-client.ts` — `sealEncrypt` / `sealDecrypt` via `@mysten/seal` (SessionKey + PTB).
 - `clients.ts` — orchestrates publish (Walrus upload → Seal encrypt → Sui publish) and decrypt
-  (Walrus read → Seal decrypt). Falls back to demo hash-ids when no signer is wired.
+  (Walrus read → Seal decrypt → optional Sui access receipt). Falls back to demo hash-ids when no signer is wired.
 - `store.ts` — Zustand store. `setSigner()` switches publish/decrypt to the real M3 path.
 
 ## M3 e2e status
@@ -38,12 +38,26 @@ All three pieces are wired:
    has the ephemeral key (`sessionStorage.rn_zk_eph`) + ZK session (from the
    same-tab Google flow), `publish()` uses the real Walrus+Seal+Sui path.
    Otherwise it shows "demo mode" and falls back to synthetic hash ids.
-3. **id = report object id**: M3-0 decision, implemented in `seal-client.ts`.
+3. **id = publisher-chosen seal_id**: M4-2 decision. The client chooses stable 32 bytes before publish, Seal encrypts under that id, and `report.move` stores the same `seal_id`. `access.move` asserts `id == report::seal_id(report)`.
 
-### Remaining for a true live publish/decrypt
-- The server-side prover endpoint (`/api/zklogin-prove` or `RN_AUTH_CONFIG.proverPath`)
-  must return a composite zkLogin signature. The current signer assembles it but the
-  prover response shape (`composite_signature`) is assumed — verify against the real
-  prover. If absent, publish stays in demo mode (graceful fallback).
-- A single live publish+decrypt round-trip should be exercised on testnet to confirm
-  the full chain (this is M4 e2e).
+## Production acceptance status
+
+The Web client now has real wrappers for encrypted publish/decrypt, platform membership,
+agent subscription, private delegation, receipt settlement, and agent earnings claim. The
+zkLogin signer builds composite signatures for both transaction bytes and Seal personal
+messages.
+
+Mainnet is not approved yet. Current source adds `settled_receipts` replay protection after
+the recorded M4-2 testnet deployment, so the Move package must be republished to testnet first.
+Then run the capped two-account acceptance:
+
+```bash
+npm run acceptance:production -- --network testnet --receipt .research-network/acceptance/dry-run.json
+ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network testnet --execute \
+  --buyer-session .research-network/secrets/acceptance-buyer.json \
+  --agent-session .research-network/secrets/acceptance-agent.json \
+  --max-spend-mist 110000000 \
+  --receipt .research-network/acceptance/testnet-production.json
+```
+
+Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a smaller mainnet cap.

@@ -24,29 +24,36 @@ docs/01-16 可能保留历史设计脉络；本篇给出当前代码与产品语
 | REST API / SDK / CLI | ✅ 已实现（本地后端） | `src/api/`、`src/core/sdk.ts`、`src/cli.ts` | 新增 reports/channels/delegations/access intent；旧 `/licenses` 和 `license:intent` 已移除 |
 | 静态站点生成 + Walrus Sites + Vercel 入口 | ✅ 已实现 | `src/core/web.ts`、`web-auth.ts`、`api/walrus.ts`、`vercel.json` | Web 已从 Licenses 切到 Membership / Delegations；Vercel shell + Walrus proxy 仍按历史部署策略工作 |
 | Move 合约（Seal Access 本地源码） | ✅ 已实现 + Move 测试 | `move/sources/`、`move/tests/` | 新增 report/access/delegation/settlement，删除 license；本地 build/test 通过 |
-| Move 包 testnet 部署 | 🔶 历史包已部署；Seal Access 未默认重发 | `move/Published.toml`、docs/16 | 已部署包记录了历史 revenue/payment 验证；本轮不默认重新部署 Sui package |
-| zkLogin | 🔶 真实地址派生 + salt service + CLI login | `src/core/zklogin.ts`、`web-auth.ts`、`api/zklogin-salt.ts`、`cli-login.ts` | Google Console 已配置；真实交易签名仍需 prover/钱包闭环 |
+| Move 包 testnet 部署 | 🔶 M4-2 包已部署；当前源码需重发 | `move/Published.toml`、docs/16 | `0x7a1e...a283` 已验证 M4-2 Seal id 流程；2026-06-17 新增 receipt 结算幂等保护，必须重新发布 testnet 包后才能做生产验收 |
+| zkLogin | 🔶 真实地址派生 + salt service + CLI login + Web signer | `src/core/zklogin.ts`、`web-auth.ts`、`api/zklogin-salt.ts`、`web/src/lib/signer.ts` | Web signer 已对交易和 Seal personal message 组装 zkLogin composite signature；真实验收仍需要两个浏览器 zkLogin 会话文件和 prover |
 | GitHub App 仓库接入 | 🔶 真实流程已实现 + 测试 + 生产配置已补齐 | `src/core/github.ts`、`github-binding.ts`、`api/github-oauth.ts` | 站内 repo 下拉、server-signed binding attestation、server-side account store V1 已实现 |
 | Indexer 事件投影 | 🔶 全量本地目录 + Sui RPC poller V1 | `src/core/indexer.ts`、`sui-events.ts` | 新增 report/membership/subscription/receipt/delegation/settlement/earnings 投影；剩生产常驻调度和实时 Walrus fetcher |
-| Seal Access 交易闭环 | 🔶 本地协议与测试完成 | `move/sources/`、`src/core/adapters.ts` | 会员购买、订阅、委托、解密 receipt、月末结算的产品语义已在本地投影与 Move 测试覆盖；生产交易 UI/链上部署待后续 |
+| Seal Access 交易闭环 | 🔶 Web 真实路径已接入；生产验收待跑 | `web/src/lib/`、`scripts/production-acceptance.ts` | Web 已接真实 Walrus + Seal + Sui publish/decrypt/purchase/delegation/claim；新增带资金上限的 production acceptance runner。仍需两个真实 zkLogin 账号和重发后的 testnet package 完成验收 |
 | 跨链支付 CCTP / Wormhole | 🔶 合约入口历史实现；真实 VAA 待接 | `move/sources/payment.move`、docs/09 | payment intent 已改为 access intent；真实 relayer/prover 仍未完成 |
 | Token / 声誉 / 治理 / 仲裁 | ❌ 仅设计 / 局部事件骨架 | docs/08、docs/12 | 仲裁在 private delegation dispute 中有最小授权语义；完整治理仍未实现 |
 
 ## 信任边界声明
 
-本轮 Seal Access 重构是**本地协议、schema、indexer、web 和测试**变更。不要对外宣称新的 report/access/delegation/settlement 包已经部署到 Sui testnet，除非之后明确执行并记录部署。
+本轮 Seal Access 重构是**本地协议、schema、indexer、web、生产验收脚手架和测试**变更。不要对外宣称当前源码已经可上 mainnet，除非之后明确执行并记录：
+
+1. 重新发布包含 `settled_receipts` 幂等保护的 Move package 到 testnet。
+2. 使用两个真实 zkLogin 账号运行 `npm run acceptance:production -- --network testnet --execute ...` 并保留 receipt。
+3. 同步 production Web 配置到该 testnet package/shared objects。
+4. 再切换 mainnet package/shared objects/RPC/Walrus/Seal key server 配置并跑小额 mainnet acceptance。
 
 历史部署记录仍有价值：
 
 - v0.1 package `0x03d2...` 是早期骨架，保留为历史记录。
 - v2 revenue/payment package `0x1c8ecc...` 曾完成真实 SUI revenue 入池和领取冒烟验证，详见 docs/16。
-- 这些历史包不等同于本轮 Seal Access 新源码的线上状态。
+- M4-2 package `0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283` 曾完成真实 Walrus + Seal author decrypt 验证，并作为 Web 默认 testnet 配置。
+- 2026-06-17 起当前源码新增 `settlement::AgentEarnings.settled_receipts`，防止同一个 `AccessReceipt` 重复结算；这使 `0x7a1e...a283` 不再代表最新字节码。
 
 对外可说：
 
-- 本地 Seal Access Move 源码和 TS/web/indexer 已实现并测试通过。
-- testnet 是否重发包是单独发布决策。
+- 本地 Seal Access Move 源码、TS/web/indexer 和 production acceptance dry-run 已实现并测试通过。
+- testnet 必须重发最新包后，才能进行“带真实资金的生产验收”。
 - 私有委托内容默认平台不可见，只有 dispute 授权后仲裁者可临时解密。
+- mainnet 还未部署/验收，不允许注入正式资金运行。
 
 ## 规范裁决
 
@@ -149,6 +156,27 @@ sui move test --path move --silence-warnings
 ```
 
 在本 Codex 环境中执行命令需按根目录 AGENTS 指示加 `rtk` 前缀。
+
+## 生产验收命令
+
+Dry-run 只校验配置、预算和步骤，不会花钱：
+
+```bash
+npm run acceptance:production -- --network testnet --receipt .research-network/acceptance/dry-run.json
+```
+
+真实 testnet production acceptance 必须显式传入两个不同 zkLogin 会话文件和资金上限：
+
+```bash
+ZKLOGIN_PROVER_URL=https://<prover> \
+npm run acceptance:production -- --network testnet --execute \
+  --buyer-session .research-network/secrets/acceptance-buyer.json \
+  --agent-session .research-network/secrets/acceptance-agent.json \
+  --max-spend-mist 110000000 \
+  --receipt .research-network/acceptance/testnet-production.json
+```
+
+会话文件必须来自真实 Google zkLogin 登录，放在 `.research-network/secrets/`，包含 `address`、`ephemeralSecretKey`、`idToken`、`salt`、`maxEpoch`、`randomness`。脚本覆盖 encrypted report 发布、平台会员购买、Seal 解密、receipt 记录、agent subscription 购买与解密、会员 receipt 结算、agent claim、私有委托创建/资金托管/结果提交/买家解密/完成放款。`--execute` 会真实花费 testnet/mainnet SUI，预算由 `--max-spend-mist` 硬限制。
 
 ## 修订记录
 

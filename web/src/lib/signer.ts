@@ -30,6 +30,8 @@ interface ZkSession {
   randomness: string;
 }
 
+type ZkProofResponse = Record<string, any>;
+
 /** Try to build an M3Signer from the current zkLogin session. Returns null if
  *  the ephemeral key or ZK session aren't available (e.g. cross-tab redirect). */
 export async function buildZkLoginSigner(): Promise<M3Signer | null> {
@@ -54,11 +56,7 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
   const address = session.address;
   const suiClient = getSuiClient();
 
-  async function signAndExecuteTransaction(txBytes: Uint8Array) {
-    // 1. Sign the transaction bytes with the ephemeral key.
-    const { signature: userSignature } = await keypair.signTransaction(txBytes);
-
-    // 2. Fetch the ZK proof from the server prover (URL kept server-side).
+  async function fetchZkProof(): Promise<ZkProofResponse> {
     const ephemeralPubKeyBase64 = keypair.getPublicKey().toSuiPublicKey();
     const proofRes = await fetch("/api/zklogin-prove", {
       method: "POST",
@@ -75,10 +73,13 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
       const err = await proofRes.text().catch(() => "");
       throw new Error("ZK proof request failed (HTTP " + proofRes.status + "): " + err);
     }
-    const proof = await proofRes.json();
+    return await proofRes.json();
+  }
+
+  function toCompositeSignature(proof: ZkProofResponse, userSignature: string) {
     // Prover returns the full proof inputs object ({ proofPoints, issBase64Details,
     // headerBase64, addressSeed }). Pass it straight to getZkLoginSignature.
-    const compositeSig = getZkLoginSignature({
+    return getZkLoginSignature({
       inputs: {
         proofPoints: proof.proofPoints ?? proof.proof_points,
         issBase64Details: proof.issBase64Details ?? proof.iss_base64_details,
@@ -88,6 +89,15 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
       maxEpoch: zk!.maxEpoch,
       userSignature
     });
+  }
+
+  async function signAndExecuteTransaction(txBytes: Uint8Array) {
+    // 1. Sign the transaction bytes with the ephemeral key.
+    const { signature: userSignature } = await keypair.signTransaction(txBytes);
+
+    // 2. Fetch the ZK proof from the server prover (URL kept server-side), then
+    // combine it with the ephemeral transaction signature.
+    const compositeSig = toCompositeSignature(await fetchZkProof(), userSignature);
 
     // 3. Execute the signed transaction.
     const result = await suiClient.executeTransactionBlock({
@@ -112,8 +122,8 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
   }
 
   async function signPersonalMessage(msg: Uint8Array) {
-    const { signature } = await keypair.signPersonalMessage(msg);
-    return signature;
+    const { signature: userSignature } = await keypair.signPersonalMessage(msg);
+    return toCompositeSignature(await fetchZkProof(), userSignature);
   }
 
   return { address, signAndExecuteTransaction, signPersonalMessage };

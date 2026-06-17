@@ -6,6 +6,13 @@ This deployment used the local `research deploy:testnet` flow against Walrus tes
 
 > **版本说明**：本报告记录历史 testnet 部署。`## Sui Testnet` 是 v0.1 骨架包；`## v2 Deployment` 是 2026-06-12 的 revenue/payment 经济安全包。2026-06-15 的 Seal Access 重构删除了旧 `license.move` 并新增 `report/access/delegation/settlement`，本报告尚未记录该新源码的 testnet 发布。不要把本报告中的历史包当作当前 Seal Access 已上线证明。
 
+> **2026-06-17 更新**：`move/Published.toml` 和 Web 默认配置现在指向 M4-2 Seal Access testnet package
+> `0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283`，该包已验证
+> publisher-chosen `seal_id` 的 Walrus + Seal author decrypt 流程。随后当前源码新增
+> `settlement::AgentEarnings.settled_receipts`，阻止同一个 `AccessReceipt` 重复结算；因此
+> `0x7a1e...a283` 已不是最新源码字节码。下一次真实 production acceptance 前必须重新发布
+> testnet 包、更新 shared object ids，再运行 `npm run acceptance:production -- --network testnet --execute ...`。
+
 ## v2 Deployment（historical economic safety package，2026-06-12）
 
 v2（真实 Coin 托管/分账、历史 paid access 入口、跨链 attestation + `Table` 幂等去重、capability 权限、链上 `Clock`）已发布到 Sui testnet 并完成链上经济冒烟验证。

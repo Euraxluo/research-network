@@ -1,0 +1,415 @@
+/**
+ * Production acceptance runner for capped real Sui + Walrus + Seal flows.
+ *
+ * Dry-run config check:
+ *   npx tsx scripts/production-acceptance.ts --network testnet
+ *
+ * Real testnet run (requires two zkLogin session files and an explicit spend cap):
+ *   npx tsx scripts/production-acceptance.ts --network testnet --execute \
+ *     --buyer-session .research-network/secrets/acceptance-buyer.json \
+ *     --agent-session .research-network/secrets/acceptance-agent.json \
+ *     --max-spend-mist 110000000
+ *
+ * Session file shape:
+ *   {
+ *     "address": "0x...",
+ *     "ephemeralSecretKey": "suiprivkey...",
+ *     "idToken": "<Google id_token>",
+ *     "salt": "<zkLogin salt>",
+ *     "maxEpoch": 123,
+ *     "randomness": "..."
+ *   }
+ *
+ * The file can also use browser storage names (`rn_zk_eph` and
+ * `rn_zk_session`) as object keys. Keep these files under
+ * `.research-network/secrets/` so git ignores them.
+ */
+import { readFile } from "node:fs/promises";
+import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
+import { getZkLoginSignature } from "@mysten/sui/zklogin";
+import {
+  assertProductionAcceptanceCanExecute,
+  createProductionAcceptanceReceipt,
+  parseProductionAcceptanceArgs,
+  writeProductionAcceptanceReceipt,
+  type ProductionAcceptanceConfig,
+  type ProductionAcceptanceReceipt,
+  type ProductionAcceptanceStep
+} from "../src/core/production-acceptance.js";
+import { deriveZkLoginAddress, requestZkProof } from "../src/core/zklogin.js";
+import {
+  buyPlatformMembershipOnChain,
+  claimAgentEarningsOnChain,
+  completeDelegationJobOnChain,
+  createDelegationJobOnChain,
+  decryptReport,
+  fundDelegationJobOnChain,
+  buyAgentSubscriptionOnChain,
+  publishPrivateResultOnChain,
+  publishReport,
+  recordPlatformAccessReceiptOnChain,
+  settleMembershipReportOnChain,
+  type M3Signer
+} from "../web/src/lib/clients.ts";
+import { DEFAULT_M3_CONFIG, type M3Config } from "../web/src/lib/config.ts";
+
+interface SessionFile {
+  address?: string;
+  ephemeralSecretKey?: string;
+  secret?: string;
+  idToken?: string;
+  id_token?: string;
+  salt?: string;
+  maxEpoch?: number;
+  max_epoch?: number;
+  randomness?: string;
+  rn_zk_eph?: { secret?: string; maxEpoch?: number; randomness?: string };
+  rn_zk_session?: { id_token?: string; salt?: string; maxEpoch?: number; randomness?: string };
+}
+
+interface AcceptanceSigner extends M3Signer {
+  label: "buyer" | "agent";
+}
+
+const steps: ProductionAcceptanceStep[] = [
+  { name: "config.validate", status: "pending" },
+  { name: "accounts.validate", status: "pending" },
+  { name: "balances.validate", status: "pending" },
+  { name: "agent.publish_encrypted_report", status: "pending" },
+  { name: "buyer.buy_platform_membership", status: "pending" },
+  { name: "buyer.decrypt_report", status: "pending" },
+  { name: "buyer.record_access_receipt", status: "pending" },
+  { name: "buyer.buy_agent_subscription", status: "pending" },
+  { name: "buyer.decrypt_report_with_subscription", status: "pending" },
+  { name: "platform.settle_membership_receipt", status: "pending" },
+  { name: "agent.claim_membership_earnings", status: "pending" },
+  { name: "buyer.create_and_fund_delegation", status: "pending" },
+  { name: "agent.publish_private_result", status: "pending" },
+  { name: "buyer.decrypt_private_result", status: "pending" },
+  { name: "buyer.complete_delegation", status: "pending" }
+];
+
+async function main() {
+  const config = parseProductionAcceptanceArgs(process.argv.slice(2));
+  const budget = assertProductionAcceptanceCanExecute(config);
+  installRuntimeConfig(config);
+  const receipt = createProductionAcceptanceReceipt(config, budget);
+  receipt.config = {
+    suiRpcUrl: activeConfig().suiRpcUrl,
+    packageId: activeConfig().packageId,
+    settlementConfigId: activeConfig().settlementConfigId,
+    agentEarningsId: activeConfig().agentEarningsId,
+    membershipReceiptRegistryId: activeConfig().membershipReceiptRegistryId,
+    walrusPublisherUrl: activeConfig().walrusPublisherUrl,
+    walrusAggregatorUrl: activeConfig().walrusAggregatorUrl,
+    walrusEpochs: activeConfig().walrusEpochs,
+    sealKeyServerObjectId: activeConfig().sealKeyServers[0]?.objectId,
+    sealKeyServerAggregatorUrl: activeConfig().sealKeyServers[0]?.aggregatorUrl,
+    sealThreshold: activeConfig().sealThreshold
+  };
+  receipt.steps = steps;
+
+  try {
+    pass("config.validate", {
+      network: config.network,
+      execute: config.execute,
+      totalBudgetMist: String(budget.totalBudgetMist),
+      packageId: activeConfig().packageId
+    });
+
+    if (!config.execute) {
+      for (const step of receipt.steps.filter((step) => step.status === "pending")) {
+        step.status = "skipped";
+        step.meta = { reason: "dry_run" };
+      }
+      receipt.conclusion = "not_run";
+      receipt.finishedAt = new Date().toISOString();
+      return;
+    }
+
+    const buyer = await loadAcceptanceSigner("buyer", required(config.buyerSessionPath, "buyer-session"), config);
+    const agent = await loadAcceptanceSigner("agent", required(config.agentSessionPath, "agent-session"), config);
+    if (buyer.address.toLowerCase() === agent.address.toLowerCase()) {
+      throw new Error("buyer and agent zkLogin addresses must be different");
+    }
+    receipt.buyerAddress = buyer.address;
+    receipt.agentAddress = agent.address;
+    pass("accounts.validate", { buyer: buyer.address, agent: agent.address });
+
+    await validateBalance("buyer", buyer.address, budget.buyerMinimumMist);
+    await validateBalance("agent", agent.address, budget.agentMinimumMist);
+    pass("balances.validate");
+
+    const encrypted = await publishReport({
+      title: "Production acceptance encrypted report",
+      visibility: "encrypted",
+      requiredTier: 1,
+      freePreview: "Production acceptance preview.",
+      plaintext: "Production acceptance encrypted plaintext " + new Date().toISOString(),
+      agent: agent.address,
+      sourceRepo: "production-acceptance/test"
+    }, agent);
+    pass("agent.publish_encrypted_report", {
+      digest: encrypted.txDigest,
+      objectId: encrypted.report.sui_object_id,
+      meta: { sealId: encrypted.report.seal_id, walrusBlobId: encrypted.report.walrus_blob_id }
+    });
+
+    const membership = await buyPlatformMembershipOnChain({
+      signer: buyer,
+      paymentMist: config.platformMembershipPriceMist
+    });
+    pass("buyer.buy_platform_membership", membership);
+
+    const memberPlaintext = await decryptReport(
+      encrypted.report,
+      "seal_approve_report_with_platform_membership",
+      buyer,
+      membership.objectId
+    );
+    if (!memberPlaintext || memberPlaintext !== encrypted.plaintext) {
+      throw new Error("buyer platform membership decrypt did not return the encrypted report plaintext");
+    }
+    pass("buyer.decrypt_report");
+
+    const periodId = currentPeriod();
+    const accessReceipt = await recordPlatformAccessReceiptOnChain({
+      signer: buyer,
+      passObjectId: membership.objectId,
+      reportObjectId: encrypted.report.sui_object_id || encrypted.report.id,
+      periodId
+    });
+    pass("buyer.record_access_receipt", accessReceipt);
+
+    const subscription = await buyAgentSubscriptionOnChain({
+      signer: buyer,
+      agent: agent.address,
+      paymentMist: config.agentSubscriptionPriceMist
+    });
+    pass("buyer.buy_agent_subscription", subscription);
+
+    const subscriberPlaintext = await decryptReport(
+      encrypted.report,
+      "seal_approve_report_with_agent_subscription",
+      buyer,
+      subscription.objectId
+    );
+    if (!subscriberPlaintext || subscriberPlaintext !== encrypted.plaintext) {
+      throw new Error("buyer agent subscription decrypt did not return the encrypted report plaintext");
+    }
+    pass("buyer.decrypt_report_with_subscription");
+
+    const settleDigest = await settleMembershipReportOnChain({
+      signer: buyer,
+      receiptObjectId: accessReceipt.objectId,
+      amountMist: config.membershipSettlementShareMist
+    });
+    pass("platform.settle_membership_receipt", { digest: settleDigest });
+
+    const claimDigest = await claimAgentEarningsOnChain({ signer: agent });
+    pass("agent.claim_membership_earnings", { digest: claimDigest });
+
+    const job = await createDelegationJobOnChain({
+      signer: buyer,
+      agent: agent.address,
+      question: "Production acceptance private delegation request",
+      sourceArtifact: encrypted.report.sui_object_id || encrypted.report.id,
+      budgetMist: config.delegationBudgetMist
+    });
+    const fundDigest = await fundDelegationJobOnChain({
+      signer: buyer,
+      jobObjectId: job.objectId,
+      budgetMist: config.delegationBudgetMist
+    });
+    pass("buyer.create_and_fund_delegation", {
+      digest: job.digest,
+      objectId: job.objectId,
+      meta: { fundDigest }
+    });
+
+    const privateResult = await publishPrivateResultOnChain({
+      signer: agent,
+      jobObjectId: job.objectId,
+      title: "Production acceptance private result",
+      freePreview: "Private delegation metadata.",
+      plaintext: "Production acceptance private delegation plaintext " + new Date().toISOString(),
+      sourceRepo: "production-acceptance/test"
+    });
+    pass("agent.publish_private_result", {
+      digest: privateResult.txDigest,
+      objectId: privateResult.report.sui_object_id,
+      meta: { sealId: privateResult.report.seal_id, walrusBlobId: privateResult.report.walrus_blob_id }
+    });
+
+    const privatePlaintext = await decryptReport(
+      privateResult.report,
+      "seal_approve_private_result",
+      buyer,
+      undefined,
+      job.objectId
+    );
+    if (!privatePlaintext || privatePlaintext !== privateResult.plaintext) {
+      throw new Error("buyer private delegation decrypt did not return the private result plaintext");
+    }
+    pass("buyer.decrypt_private_result");
+
+    const completeDigest = await completeDelegationJobOnChain({ signer: buyer, jobObjectId: job.objectId });
+    pass("buyer.complete_delegation", { digest: completeDigest });
+
+    receipt.conclusion = "passed";
+  } catch (error) {
+    const pending = receipt.steps.find((step) => step.status === "pending");
+    if (pending) {
+      pending.status = "failed";
+      pending.error = String((error as Error)?.message || error);
+    }
+    receipt.conclusion = "failed";
+    throw error;
+  } finally {
+    receipt.finishedAt = new Date().toISOString();
+    await writeProductionAcceptanceReceipt(config.receiptPath, receipt);
+    console.log(JSON.stringify(receipt, null, 2));
+  }
+}
+
+function pass(name: string, result?: { digest?: string; objectId?: string; meta?: Record<string, unknown> } | Record<string, unknown>) {
+  const step = steps.find((item) => item.name === name);
+  if (!step) throw new Error(`unknown acceptance step ${name}`);
+  step.status = "passed";
+  if (result && "digest" in result && typeof result.digest === "string") step.digest = result.digest;
+  if (result && "objectId" in result && typeof result.objectId === "string") step.objectId = result.objectId;
+  if (result && "meta" in result && typeof result.meta === "object") {
+    step.meta = result.meta as Record<string, unknown>;
+  } else if (result) {
+    step.meta = result as Record<string, unknown>;
+  }
+}
+
+async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, config: ProductionAcceptanceConfig): Promise<AcceptanceSigner> {
+  const raw = JSON.parse(await readFile(filePath, "utf8")) as SessionFile;
+  const ephSecret = raw.ephemeralSecretKey ?? raw.secret ?? raw.rn_zk_eph?.secret;
+  const idToken = raw.idToken ?? raw.id_token ?? raw.rn_zk_session?.id_token;
+  const salt = raw.salt ?? raw.rn_zk_session?.salt;
+  const maxEpoch = Number(raw.maxEpoch ?? raw.max_epoch ?? raw.rn_zk_session?.maxEpoch ?? raw.rn_zk_eph?.maxEpoch ?? 0);
+  const randomness = raw.randomness ?? raw.rn_zk_session?.randomness ?? raw.rn_zk_eph?.randomness;
+  if (!ephSecret || !idToken || !salt || !maxEpoch || !randomness) {
+    throw new Error(`${label} session is missing ephemeralSecretKey/idToken/salt/maxEpoch/randomness`);
+  }
+  const keypair = Ed25519Keypair.fromSecretKey(ephSecret);
+  const address = raw.address ?? deriveZkLoginAddress(idToken, salt);
+
+  async function proof() {
+    const proverUrl = process.env.ZKLOGIN_PROVER_URL;
+    if (!proverUrl) throw new Error("ZKLOGIN_PROVER_URL is required for --execute");
+    return await requestZkProof(proverUrl, {
+      jwt: idToken,
+      extendedEphemeralPublicKey: keypair.getPublicKey().toSuiPublicKey(),
+      maxEpoch,
+      jwtRandomness: randomness,
+      salt,
+      keyClaimName: "sub"
+    });
+  }
+
+  function composite(proofInputs: Record<string, unknown>, userSignature: string) {
+    return getZkLoginSignature({
+      inputs: {
+        proofPoints: proofInputs.proofPoints ?? proofInputs.proof_points,
+        issBase64Details: proofInputs.issBase64Details ?? proofInputs.iss_base64_details,
+        headerBase64: proofInputs.headerBase64 ?? proofInputs.header_base64,
+        addressSeed: proofInputs.addressSeed ?? proofInputs.address_seed
+      },
+      maxEpoch,
+      userSignature
+    });
+  }
+
+  return {
+    label,
+    address,
+    signAndExecuteTransaction: async (txBytes: Uint8Array) => {
+      const { getSuiClient } = await import("../web/src/lib/sui-client.ts");
+      const { signature: userSignature } = await keypair.signTransaction(txBytes);
+      const result = await getSuiClient().executeTransactionBlock({
+        transactionBlock: toBase64(txBytes),
+        signature: composite(await proof(), userSignature),
+        options: { showEffects: true, showObjectChanges: true, showBalanceChanges: true }
+      });
+      const createdObjects: Array<{ objectId: string; objectType?: string }> = [];
+      const createdObjectIds: string[] = [];
+      for (const change of result.objectChanges || []) {
+        const item = change as { type?: string; objectId?: string; objectType?: string };
+        if (item.type === "created" && item.objectId) {
+          createdObjects.push({ objectId: item.objectId, objectType: item.objectType });
+          createdObjectIds.push(item.objectId);
+        }
+      }
+      return { digest: result.digest, createdObjectIds, createdObjects };
+    },
+    signPersonalMessage: async (message: Uint8Array) => {
+      const { signature: userSignature } = await keypair.signPersonalMessage(message);
+      return composite(await proof(), userSignature);
+    }
+  };
+}
+
+async function validateBalance(label: string, owner: string, minimumMist: bigint) {
+  const { getSuiClient } = await import("../web/src/lib/sui-client.ts");
+  const coins = await getSuiClient().getCoins({ owner });
+  const balance = coins.data.reduce((sum, coin) => sum + BigInt(coin.balance), 0n);
+  if (balance < minimumMist) {
+    throw new Error(`${label} balance ${balance} MIST is below required ${minimumMist} MIST`);
+  }
+}
+
+function installRuntimeConfig(config: ProductionAcceptanceConfig) {
+  const defaults = DEFAULT_M3_CONFIG;
+  const merged: M3Config = {
+    ...defaults,
+    network: config.network,
+    suiRpcUrl: config.suiRpcUrl ?? defaults.suiRpcUrl,
+    packageId: config.packageId ?? defaults.packageId,
+    settlementConfigId: config.settlementConfigId ?? defaults.settlementConfigId,
+    agentEarningsId: config.agentEarningsId ?? defaults.agentEarningsId,
+    membershipReceiptRegistryId: config.membershipReceiptRegistryId ?? defaults.membershipReceiptRegistryId,
+    walrusPublisherUrl: config.walrusPublisherUrl ?? defaults.walrusPublisherUrl,
+    walrusAggregatorUrl: config.walrusAggregatorUrl ?? defaults.walrusAggregatorUrl,
+    walrusEpochs: config.walrusEpochs ?? defaults.walrusEpochs,
+    sealKeyServers: config.sealKeyServerObjectId
+      ? [{
+          objectId: config.sealKeyServerObjectId,
+          weight: 1,
+          aggregatorUrl: config.sealKeyServerAggregatorUrl
+        }]
+      : defaults.sealKeyServers,
+    sealThreshold: config.sealThreshold ?? defaults.sealThreshold,
+    platformMembershipPriceMist: String(config.platformMembershipPriceMist),
+    agentSubscriptionPriceMist: String(config.agentSubscriptionPriceMist),
+    delegationBudgetMist: String(config.delegationBudgetMist),
+    membershipSettlementShareMist: String(config.membershipSettlementShareMist)
+  };
+  (globalThis as unknown as { __RN_M3_CONFIG__: M3Config }).__RN_M3_CONFIG__ = merged;
+}
+
+function activeConfig(): M3Config {
+  return (globalThis as unknown as { __RN_M3_CONFIG__: M3Config }).__RN_M3_CONFIG__;
+}
+
+function currentPeriod(): number {
+  const d = new Date();
+  return d.getUTCFullYear() * 100 + d.getUTCMonth() + 1;
+}
+
+function required(value: string | undefined, name: string): string {
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("base64");
+}
+
+main().catch((error) => {
+  console.error("production acceptance failed:", error);
+  process.exit(1);
+});

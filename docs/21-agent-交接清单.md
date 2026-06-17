@@ -3,7 +3,7 @@
 > 本文档是交给**下一个接手 agent / 开发者**的导航清单。
 > 按"先读什么、各文档作用、必须遵守的约束、当前危险信号"组织。
 >
-> 一句话现状：**协议骨架单元测试全绿，但前端是 TS 内联字符串拼接（非生产架构），且用户要求"可上生产 + 真实数据 + e2e"尚未兑现。HANDOFF.md 顶部声明被纠偏过，勿轻信"修复完成"。**
+> 一句话现状：**Web/Vite 前端与真实 Walrus + Seal + Sui 交易路径已经接入，但 mainnet 仍未放行。当前源码新增 receipt 结算幂等保护后需要重新发布 testnet 包，并用两个真实 zkLogin 账号跑带资金上限的 production acceptance。**
 
 ---
 
@@ -70,7 +70,7 @@
 | **所有 shell 命令前缀 `rtk`** | `~/.codex/RTK.md` | `rtk npm run build` 而非 `npm run build`。RTK 是 token 优化代理。`rtk gain` 看节省统计 |
 | **shell 是 zsh，cwd 是 `/Users/echo/project/research-network`** | session env | 实际工作目录是子目录 `agent_research_asset_protocol_workflow/`（HANDOFF line 23 指明） |
 | **⚠️ 当前 shell 残留 `NODE_ENV=production`** | 实测 | 跑 `npm test` 会误判 4 个 zklogin 测试失败。**用 `env -u NODE_ENV npm test` 跑才全绿**。这不是代码缺陷 |
-| **项目不是 git 仓库** | 实测 | `git log` 无历史。工作区变更无法用 git 追踪，改动前自行备份。**用户 MSG #42 要求"先 commit"，但当前无 git，需先 `git init` 或确认用户的版本管理方式** |
+| **使用现有 git 仓库并按用户要求先 commit checkpoint** | 实测 | 当前工作目录已有 git 历史；不要回退他人改动。最新 checkpoint 前为 `5f3431b feat(web): wire real commerce and delegation flows` |
 
 ---
 
@@ -102,7 +102,7 @@
     │       └── walrus-sites.ts
     ├── schemas/asset.schema.json                  access 字段 (seal_id/walrus_blob_id/visibility)
     ├── web/
-    │   ├── dist/                                  构建产物 (当前由后端 TS 拼出来,非 Vite)
+    │   ├── src/                                   React/Vite workbench/login/account
     │   ├── README.md / design-system.md
     └── docs/                                      编号文档 00~21
 ```
@@ -114,17 +114,18 @@
 ```bash
 cd /Users/echo/project/research-network/agent_research_asset_protocol_workflow
 
-# Move 层 (应全绿: 20 tests)
+# Move 层 (应全绿: 22 tests)
 rtk npm run move:build
 rtk sui move test --path move --silence-warnings
 
-# TS 层 (⚠️ 必须去掉 NODE_ENV 才全绿: 55 tests)
+# TS/Web 层 (⚠️ 必须去掉 NODE_ENV 才全绿)
 rtk npm run build
-env -u NODE_ENV rtk npm test          # ← 注意 env -u
+rtk env -u NODE_ENV npm test
+rtk env -u NODE_ENV npm run web:vite:build
 rtk npm run web:build
 ```
 
-**基线预期**：move 20/20、ts 55/55、build/web:build 通过。这只能证明"协议骨架单元测试绿"，**不能**证明"能上生产/真实数据/e2e"。
+**基线预期**：move 22/22、TS/Vite/web build 通过、vitest 全绿。这只能证明代码和模拟/单元验收绿，**不能**证明"能上 mainnet/可注入正式资金"。
 
 ---
 
@@ -133,8 +134,8 @@ rtk npm run web:build
 | 信号 | 说明 | 出处 |
 |---|---|---|
 | 🔴 HANDOFF.md 第1行声明失实 | 声称"生产化/真实数据验证/多身份 Seal 访问验证"，实际 workbench 用 `hash(id)` 拼字符串、GitHub 无组织枚举、无 e2e | 已在第2行加纠偏段，以纠偏段为准 |
-| 🔴 前端非生产架构 | 3606 行 TS 里大量内联 HTML/JS 字符串，零框架零构建工具，承载不了真实链上交互 | 19/20 号文档 |
-| 🟡 项目非 git 仓库 | 改动无版本追踪，用户却要求 commit（MSG #42） | 实测 |
+| 🔴 mainnet 未验收 | 当前源码需要重新发布 testnet 包并跑两个真实 zkLogin 账号 production acceptance；mainnet object ids/RPC/Walrus/Seal 未切换验收 | docs/17 |
+| 🟡 前端仍保留静态 legacy workbench | React/Vite workbench 已接入真实路径，但 `src/core/web-workbench.ts` 仍用于静态站点兼容，需继续保持语义同步 | 代码 |
 | 🟡 NODE_ENV 污染 | 当前 shell 有 `NODE_ENV=production`，直接跑 test 会假红 | 实测 |
 | 🟢 协议层稳固 | Move 合约 + indexer + schema 切换已验证，是可靠地基 | move test 20/20 |
 

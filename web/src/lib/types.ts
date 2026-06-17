@@ -53,6 +53,8 @@ export interface AccessReceipt {
   access_type: string;
   created_at: string;
   tx_digest?: string;
+  settlement_tx_digest?: string;
+  settled_at?: string;
   source?: "demo" | "sui";
 }
 

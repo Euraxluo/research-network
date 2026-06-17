@@ -33,6 +33,7 @@ module research_protocol::settlement {
         id: UID,
         agent_balances: Table<address, u64>,
         claimed: Table<address, u64>,
+        settled_receipts: Table<ID, bool>,
         balance: Balance<SUI>,
     }
 
@@ -99,6 +100,7 @@ module research_protocol::settlement {
             id: object::new(ctx),
             agent_balances: table::new(ctx),
             claimed: table::new(ctx),
+            settled_receipts: table::new(ctx),
             balance: balance::zero<SUI>(),
         };
         let registry = MembershipReceiptRegistry {
@@ -252,6 +254,9 @@ module research_protocol::settlement {
         assert!(report_count > 0, E_BAD_SETTLEMENT_INPUT);
         let amount = coin::value(&amount_per_report);
         assert!(amount > 0, E_BAD_SETTLEMENT_INPUT);
+        let receipt_id = object::id(receipt);
+        assert!(!table::contains(&earnings.settled_receipts, receipt_id), E_ALREADY_RECORDED);
+        table::add(&mut earnings.settled_receipts, receipt_id, true);
         balance::join(&mut earnings.balance, coin::into_balance(amount_per_report));
         let agent = access::receipt_agent(receipt);
         credit_agent(earnings, agent, amount);
