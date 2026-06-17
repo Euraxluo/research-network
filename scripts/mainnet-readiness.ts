@@ -623,8 +623,10 @@ async function chainReceiptTransactionChecks(
     return [fail("chain.mainnet.transactions", "Cannot query mainnet receipt transactions because no execute receipt digests are available")];
   }
   const digests = evidence.map((item) => item.digest);
+  const startedMs = receiptTimestampMs(receipt?.startedAt);
+  const finishedMs = receiptTimestampMs(receipt?.finishedAt);
   try {
-    const responses = await suiRpc<Array<{ digest?: string; effects?: { status?: { status?: string; error?: string } }; events?: Array<{ type?: string }>; error?: unknown } | null>>(
+    const responses = await suiRpc<Array<{ digest?: string; timestampMs?: string; effects?: { status?: { status?: string; error?: string } }; events?: Array<{ type?: string }>; error?: unknown } | null>>(
       rpcUrl,
       "sui_multiGetTransactionBlocks",
       [
@@ -635,18 +637,34 @@ async function chainReceiptTransactionChecks(
     return digests.map((digest, index) => {
       const response = responses[index];
       const status = response?.effects?.status?.status;
+      const timestampMs = integerMs(response?.timestampMs);
       const chainEventTypes = Array.isArray(response?.events)
         ? response.events.map((event) => event.type).filter((type): type is string => typeof type === "string")
         : [];
       const expectedEventTypes = evidence[index]?.expectedEventTypes ?? [];
       const eventsMatch = expectedEventTypes.every((type) => chainEventTypes.includes(type));
+      const timestampMatches = timestampMs !== undefined &&
+        startedMs !== undefined &&
+        finishedMs !== undefined &&
+        timestampMs >= startedMs &&
+        timestampMs <= finishedMs;
       return checkBoolean(
         `chain.mainnet.transaction.${index + 1}`,
-        response?.digest === digest && status === "success" && eventsMatch,
-        `Mainnet receipt transaction ${digest} exists, succeeded, and emitted receipt events`,
-        `Mainnet receipt transaction ${digest} was not found, did not succeed, or emitted different events`,
+        response?.digest === digest && status === "success" && eventsMatch && timestampMatches,
+        `Mainnet receipt transaction ${digest} exists, succeeded, emitted receipt events, and falls within the receipt window`,
+        `Mainnet receipt transaction ${digest} was not found, did not succeed, emitted different events, or falls outside the receipt window`,
         true,
-        { digest, returnedDigest: response?.digest, status, expectedEventTypes, chainEventTypes, error: response?.effects?.status?.error ?? response?.error }
+        {
+          digest,
+          returnedDigest: response?.digest,
+          status,
+          expectedEventTypes,
+          chainEventTypes,
+          timestampMs,
+          receiptStartedMs: startedMs,
+          receiptFinishedMs: finishedMs,
+          error: response?.effects?.status?.error ?? response?.error
+        }
       );
     });
   } catch (error) {
@@ -678,6 +696,18 @@ function mergeReceiptTransactionEvidence(
     if (!item.expectedEventTypes.includes(type)) item.expectedEventTypes.push(type);
   }
   evidence.set(digest, item);
+}
+
+function receiptTimestampMs(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function integerMs(value: unknown): number | undefined {
+  if (typeof value !== "string" && typeof value !== "number") return undefined;
+  const timestamp = Number(value);
+  return Number.isInteger(timestamp) && timestamp >= 0 ? timestamp : undefined;
 }
 
 function stringArray(value: unknown): string[] {
