@@ -1,11 +1,11 @@
-// On-chain + storage configuration for the M3 client layer.
-// All object ids come from move/Published.toml (published by M3-0).
+// On-chain + storage configuration for the M3/M4 client layer.
+// All object ids come from move/Published.toml.
 // Override at runtime via window.__RN_M3_CONFIG__ for dev/staging swaps.
 
 export interface M3Config {
   suiRpcUrl: string;
   network: "testnet" | "mainnet" | "devnet";
-  /** M3-0 published package: 0x97ea53... (see move/Published.toml) */
+  /** Current testnet package with Seal id == report.seal_id policy. */
   packageId: string;
   /** settlement::init shared objects */
   settlementConfigId: string;

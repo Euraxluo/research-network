@@ -41,8 +41,8 @@ export function buildPublishPublicReport(args: {
   return tx;
 }
 
-/** Build a publish_encrypted_report PTB. sealId = report object id bytes
- *  (the M3-0 id = report object id decision). */
+/** Build a publish_encrypted_report PTB. sealId is the publisher-chosen Seal
+ *  identity stored in the report and embedded in the ciphertext. */
 export function buildPublishEncryptedReport(args: {
   walrusBlobId: Uint8Array;
   sealId: Uint8Array;
@@ -73,6 +73,7 @@ export function buildPublishEncryptedReport(args: {
 export function buildSealApprove(args: {
   packageId: string;
   moduleFn:
+    | "seal_approve_report_author"
     | "seal_approve_report_with_platform_membership"
     | "seal_approve_report_with_agent_subscription"
     | "seal_approve_private_result";
@@ -86,9 +87,16 @@ export function buildSealApprove(args: {
     tx.pure.vector("u8", Array.from(args.id)),
     tx.object(args.reportObjectId)
   ];
-  if (args.passObjectId) callArgs.push(tx.object(args.passObjectId));
-  if (args.delegationJobId) callArgs.push(tx.object(args.delegationJobId));
-  callArgs.push(tx.object("0x6"));
+  if (
+    args.moduleFn === "seal_approve_report_with_platform_membership" ||
+    args.moduleFn === "seal_approve_report_with_agent_subscription"
+  ) {
+    if (!args.passObjectId) throw new Error(`${args.moduleFn} requires passObjectId`);
+    callArgs.push(tx.object(args.passObjectId), tx.object("0x6"));
+  } else if (args.moduleFn === "seal_approve_private_result") {
+    if (!args.delegationJobId) throw new Error("seal_approve_private_result requires delegationJobId");
+    callArgs.push(tx.object(args.delegationJobId));
+  }
   tx.moveCall({
     target: `${args.packageId}::access::${args.moduleFn}`,
     arguments: callArgs

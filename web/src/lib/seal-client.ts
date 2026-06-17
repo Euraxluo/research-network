@@ -6,10 +6,6 @@
 //    SealClient.decrypt({ data, txBytes, sessionKey }).
 // The PTB calls the policy function in access.move; the key-server committee
 // re-executes it and only returns shares if it does not abort.
-//
-// id = report object id bytes (the M3-0 decision). At publish time the report
-// object doesn't exist yet, so publish does a dry-run to reserve the object id,
-// encrypts under that id, then publishes for real.
 
 import { SealClient, SessionKey, EncryptedObject } from "@mysten/seal";
 import { loadM3Config } from "./config";
@@ -63,6 +59,7 @@ export async function sealDecrypt(args: {
   moduleFn: Parameters<typeof buildSealApprove>[0]["moduleFn"];
   passObjectId?: string;
   delegationJobId?: string;
+  expectedSealId?: string;
   signerAddress: string;
   signPersonalMessage: (msg: Uint8Array) => Promise<string>;
 }): Promise<Uint8Array | null> {
@@ -74,6 +71,9 @@ export async function sealDecrypt(args: {
   // We read it so the PTB passes the same id that was used at encryption time.
   const encryptedObject = EncryptedObject.parse(args.ciphertext);
   const sealIdHex = encryptedObject.id;
+  if (args.expectedSealId && normalizeHex(args.expectedSealId) !== normalizeHex(sealIdHex)) {
+    return null;
+  }
 
   // SessionKey authorizes an ephemeral decryption session for this package.
   const sessionKey = await SessionKey.create({
@@ -84,10 +84,9 @@ export async function sealDecrypt(args: {
   });
   await sessionKey.setPersonalMessageSignature(await args.signPersonalMessage(sessionKey.getPersonalMessage()));
 
-  // Build the seal_approve PTB. id = report object id bytes (M3-0 decision).
-  // The policy asserts id == report.id.to_bytes(), so reportObjectId must match
-  // the id used at encrypt time (which we derived from the publish dry-run).
-  const idBytes = objectIdToBytes(args.reportObjectId);
+  // Build the seal_approve PTB with the Seal identity embedded in the ciphertext.
+  // The Move policy asserts this id equals report::seal_id(report).
+  const idBytes = objectIdToBytes(sealIdHex);
   const tx = buildSealApprove({
     packageId: config.packageId,
     moduleFn: args.moduleFn,
@@ -117,6 +116,12 @@ export async function sealDecrypt(args: {
   } catch {
     return null; // committee denied (shares < threshold) or network error
   }
+}
+
+function normalizeHex(value: string): string {
+  const raw = value.trim().toLowerCase();
+  const hex = raw.startsWith("0x") ? raw.slice(2) : raw;
+  return "0x" + hex.padStart(64, "0");
 }
 
 /** hex string (0x...) -> byte array for object ids. */

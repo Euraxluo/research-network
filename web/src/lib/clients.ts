@@ -9,13 +9,12 @@
 //   - Walrus upload: WalrusClient.writeBlob (register/upload/certify) -> blob id.
 //   - Seal encrypt on publish: SealClient.encrypt({ threshold, packageId, id, data }).
 //   - Seal decrypt on read: build seal_approve PTB -> SealClient.decrypt.
-//   - id = report object id bytes (M3-0 decision; access.move asserts this).
-//   - Package 0x97ea53... (Seal-conformant, published by M3-0).
+//   - id = publisher-chosen seal_id bytes; access.move asserts id == report.seal_id.
 
 import { hash } from "./storage";
-import { sha256, toBytesUtf8, toBase64 } from "./crypto";
+import { sha256, toBytesUtf8, toBase64, randomBytes } from "./crypto";
 import { uploadBlob, readBlob, blobIdToBytes } from "./walrus";
-import { sealEncrypt, sealDecrypt, objectIdToBytes, bytesToObjectId } from "./seal-client";
+import { sealEncrypt, sealDecrypt, bytesToObjectId } from "./seal-client";
 import { buildPublishPublicReport, buildPublishEncryptedReport, getSuiClient } from "./sui-client";
 import { loadM3Config } from "./config";
 import type { AccessDecision, Actor, ResearchReport, Visibility } from "./types";
@@ -45,6 +44,14 @@ export interface M3Signer {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function createdReportObjectId(result: { digest: string; createdObjectIds: string[] }): string {
+  const id = result.createdObjectIds[0];
+  if (!id) {
+    throw new Error("Sui publish succeeded but did not return a created ResearchReport object id");
+  }
+  return id;
 }
 
 // ============ M2 demo path (offline fallback) ============
@@ -151,7 +158,7 @@ export async function publishReport(
     tx.setSender(signer.address);
     const txBytes = await tx.build({ client: suiClient });
     const result = await signer.signAndExecuteTransaction(txBytes);
-    const reportObjectId = result.createdObjectIds[0] || ("0x" + hash(input.title + Date.now()));
+    const reportObjectId = createdReportObjectId(result);
     return {
       report: {
         id: reportObjectId,
@@ -171,40 +178,24 @@ export async function publishReport(
     };
   }
 
-  // Encrypted: Seal-encrypt plaintext under id = report-object-id.
-  // The report object id isn't known until publish, so we dry-run a placeholder
-  // publish to reserve the object id, encrypt under that id, then publish for real.
-  const placeholderTx = buildPublishEncryptedReport({
-    walrusBlobId: plaintextCommitment,
-    sealId: plaintextCommitment,
-    ciphertextHash: plaintextCommitment,
-    plaintextCommitment,
-    freePreviewHash,
-    requiredTier: input.requiredTier,
-    packageId: config.packageId
-  });
-  placeholderTx.setSender(signer.address);
-  const dryRun = await suiClient.devInspectTransactionBlock({
-    sender: signer.address,
-    transactionBlock: placeholderTx
-  });
-  const reportObjectId =
-    (dryRun.effects?.created?.[0]?.reference?.objectId as string) || "0x" + hash(input.title + Date.now());
-
-  // Seal-encrypt under id = report object id (hex string form for the SDK).
-  const sealIdHex = reportObjectId;
+  // Encrypted: choose a stable Seal identity before publish, encrypt under it,
+  // and store the same seal_id in the real on-chain report. Do not use
+  // devInspect-created object ids as pre-reserved ids; normal Sui object ids are
+  // only known after the real transaction executes.
+  const sealIdBytes = await randomBytes(32);
+  const sealIdHex = bytesToObjectId(sealIdBytes);
   const { ciphertext } = await sealEncrypt(plaintextBytes, sealIdHex);
   const ciphertextHash = await sha256(ciphertext);
 
   // Upload ciphertext to Walrus.
   const { blobId } = await uploadBlob(ciphertext);
   const walrusBlobId = blobIdToBytes(blobId);
-  const sealId = objectIdToBytes(reportObjectId);
 
-  // Publish the real encrypted report with the reserved seal_id.
+  // Publish the real encrypted report with the exact seal_id embedded in the
+  // ciphertext. The actual report object id comes only from this real tx.
   const tx = buildPublishEncryptedReport({
     walrusBlobId,
-    sealId,
+    sealId: sealIdBytes,
     ciphertextHash,
     plaintextCommitment,
     freePreviewHash,
@@ -213,7 +204,8 @@ export async function publishReport(
   });
   tx.setSender(signer.address);
   const txBytes = await tx.build({ client: suiClient });
-  await signer.signAndExecuteTransaction(txBytes);
+  const result = await signer.signAndExecuteTransaction(txBytes);
+  const reportObjectId = createdReportObjectId(result);
 
   return {
     report: {
@@ -223,7 +215,7 @@ export async function publishReport(
       visibility: input.visibility,
       required_tier: input.requiredTier,
       walrus_blob_id: blobId,
-      seal_id: reportObjectId,
+      seal_id: sealIdHex,
       ciphertext_hash: "sha256:" + toBase64(ciphertextHash),
       plaintext_commitment: "sha256:" + toBase64(plaintextCommitment),
       title: input.title,
@@ -241,7 +233,8 @@ export async function decryptReport(
   report: ResearchReport,
   moduleFn: Parameters<typeof sealDecrypt>[0]["moduleFn"],
   signer: M3Signer,
-  passObjectId?: string
+  passObjectId?: string,
+  delegationJobId?: string
 ): Promise<string | null> {
   if (!report.walrus_blob_id) return null;
   const ciphertext = await readBlob(report.walrus_blob_id);
@@ -252,6 +245,8 @@ export async function decryptReport(
     reportObjectId,
     moduleFn,
     passObjectId,
+    delegationJobId,
+    expectedSealId: report.seal_id,
     signerAddress: signer.address,
     signPersonalMessage: signer.signPersonalMessage
   });
