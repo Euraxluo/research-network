@@ -22,13 +22,13 @@ docs/01-16 可能保留历史设计脉络；本篇给出当前代码与产品语
 | Schema / 模板 / `init` / `validate` / `package` | ✅ 已实现 | `src/core/`、`schemas/`、`templates/` | `asset.yaml`/`skill.yaml` 已使用 `access`；旧 product license 字段不再必填 |
 | 本地 `publish` / `replay` / `search` / `fork` / `install` | ✅ 已实现（本地模拟） | `src/core/adapters.ts`、`indexer.ts` | 本地 publish 会生成 `ResearchReportPublished`，并投影 report/search/graph |
 | REST API / SDK / CLI | ✅ 已实现（本地后端） | `src/api/`、`src/core/sdk.ts`、`src/cli.ts` | 新增 reports/channels/delegations/access intent；旧 `/licenses` 和 `license:intent` 已移除 |
-| 静态站点生成 + Walrus Sites + Vercel 入口 | ✅ 已实现 | `src/core/web.ts`、`web-auth.ts`、`api/walrus.ts`、`vercel.json` | Web 已从 Licenses 切到 Membership / Delegations；Vercel shell + Walrus proxy 仍按历史部署策略工作 |
+| 静态站点生成 + Walrus Sites + Vercel 入口 | ✅ 已实现 | `src/core/web.ts`、`web-auth.ts`、`api/walrus.ts`、`vercel.json` | Web 已从 Licenses 切到 Membership / Delegations；Vercel shell + Walrus proxy 仍按历史部署策略工作；mainnet 部署会拒绝默认 testnet Walrus/auth 配置 |
 | Move 合约（Seal Access 本地源码） | ✅ 已实现 + Move 测试 | `move/sources/`、`move/tests/` | 新增 report/access/delegation/settlement，删除 license；本地 build/test 通过 |
 | Move 包 testnet 部署 | ✅ 最新源码已发布到 testnet | `move/Published.toml`、docs/16 | 当前 package `0x5ecd...231e` 包含 `settled_receipts` 幂等保护；已完成真实 Walrus + Seal + Sui author decrypt 回归 |
 | zkLogin | 🔶 真实地址派生 + salt service + CLI login + Web signer | `src/core/zklogin.ts`、`web-auth.ts`、`api/zklogin-salt.ts`、`web/src/lib/signer.ts` | Web signer 已对交易和 Seal personal message 组装 zkLogin composite signature；真实验收仍需要两个浏览器 zkLogin 会话文件和 prover |
 | GitHub App 仓库接入 | 🔶 真实流程已实现 + 测试 + 生产配置已补齐 | `src/core/github.ts`、`github-binding.ts`、`api/github-oauth.ts` | 站内 repo 下拉、server-signed binding attestation、server-side account store V1 已实现 |
 | Indexer 事件投影 | 🔶 全量本地目录 + Sui RPC poller V1 | `src/core/indexer.ts`、`sui-events.ts` | 新增 report/membership/subscription/receipt/delegation/settlement/earnings 投影；剩生产常驻调度和实时 Walrus fetcher |
-| Seal Access 交易闭环 | 🔶 Web 真实路径已接入；两账号生产验收待跑 | `web/src/lib/`、`scripts/production-acceptance.ts` | Web 已接真实 Walrus + Seal + Sui publish/decrypt/purchase/delegation/claim；新增带资金上限的 production acceptance runner。仍需两个真实 zkLogin 账号完成 `--execute` 验收 |
+| Seal Access 交易闭环 | 🔶 Web 真实路径已接入；两账号生产验收待跑 | `web/src/lib/`、`scripts/production-acceptance.ts` | Web 已接真实 Walrus + Seal + Sui publish/decrypt/purchase/delegation/claim；新增带资金上限的 production acceptance runner。Web/Vite config、Vercel Walrus proxy、auth shell 和 acceptance 均会拒绝 mainnet 混入已知 testnet 值。仍需两个真实 zkLogin 账号完成 `--preflight`/`--execute` 验收 |
 | 跨链支付 CCTP / Wormhole | 🔶 合约入口历史实现；真实 VAA 待接 | `move/sources/payment.move`、docs/09 | payment intent 已改为 access intent；真实 relayer/prover 仍未完成 |
 | Token / 声誉 / 治理 / 仲裁 | ❌ 仅设计 / 局部事件骨架 | docs/08、docs/12 | 仲裁在 private delegation dispute 中有最小授权语义；完整治理仍未实现 |
 
@@ -36,9 +36,9 @@ docs/01-16 可能保留历史设计脉络；本篇给出当前代码与产品语
 
 本轮 Seal Access 重构是**本地协议、schema、indexer、web、生产验收脚手架和测试**变更。不要对外宣称当前源码已经可上 mainnet，除非之后明确执行并记录：
 
-1. 使用两个真实 zkLogin 账号运行 `npm run acceptance:production -- --network testnet --preflight ...`，确认 session/prover/余额无资金预检通过。
+1. 使用两个真实 zkLogin 账号运行 `npm run acceptance:production -- --network testnet --preflight ...`，确认 session/prover/地址派生一致性/余额无资金预检通过。
 2. 使用同一组账号运行 `npm run acceptance:production -- --network testnet --execute ...` 并保留 receipt。
-3. 确认 production Web 配置、indexer 和部署环境均指向该 testnet package/shared objects。
+3. 确认 production Web 配置、indexer 和部署环境均指向该 testnet package/shared objects；Web 使用 `VITE_RN_*` 或 `window.__RN_M3_CONFIG__` 注入，Vercel API 使用 `RN_WEB_NETWORK`/`WALRUS_NETWORK`、`WALRUS_SITE_OBJECT_ID`、`WALRUS_SUI_RPC_URL`、`WALRUS_AGGREGATOR_URL`、`AUTH_SUI_RPC_URL`。
 4. 再切换 mainnet package/shared objects/RPC/Walrus/Seal key server 配置并跑小额 mainnet preflight + acceptance。
 
 历史部署记录仍有价值：
@@ -188,6 +188,14 @@ npm run acceptance:production -- --network testnet --execute \
 
 会话文件必须来自真实 Google zkLogin 登录，放在 `.research-network/secrets/`，包含 `address`、`ephemeralSecretKey`、`idToken`、`salt`、`maxEpoch`、`randomness`，也可以使用浏览器 storage 形状的 `rn_zk_eph` / `rn_zk_session`。脚本覆盖 encrypted report 发布、平台会员购买、Seal 解密、receipt 记录、agent subscription 购买与解密、会员 receipt 结算、agent claim、私有委托创建/资金托管/结果提交/买家解密/完成放款。`--execute` 会真实花费 testnet/mainnet SUI，预算由 `--max-spend-mist` 硬限制；`--network mainnet` 会拒绝已知 testnet object ids 和 testnet endpoints。
 
+Web/Vercel 生产配置防护：
+
+- Vite 构建可用 `VITE_RN_NETWORK`、`VITE_RN_SUI_RPC_URL`、`VITE_RN_PACKAGE_ID`、`VITE_RN_SETTLEMENT_CONFIG_ID`、`VITE_RN_AGENT_EARNINGS_ID`、`VITE_RN_MEMBERSHIP_RECEIPT_REGISTRY_ID`、`VITE_RN_WALRUS_PUBLISHER_URL`、`VITE_RN_WALRUS_AGGREGATOR_URL`、`VITE_RN_SEAL_KEY_SERVER_OBJECT_ID`、`VITE_RN_SEAL_KEY_SERVER_AGGREGATOR_URL` 注入，也可继续使用 `window.__RN_M3_CONFIG__` runtime 注入。
+- `network: "mainnet"` 时，Web config 会拒绝默认 testnet package/shared objects、testnet RPC、testnet Walrus endpoint 和 testnet Seal key server。
+- `api/walrus.ts` 在 `RN_WEB_NETWORK=mainnet` 或 `WALRUS_NETWORK=mainnet` 时必须显式配置 Walrus Site object、Sui RPC 和 aggregator，并拒绝 testnet 值。
+- `web-auth.ts` 在 `RN_WEB_NETWORK=mainnet` 或 `AUTH_NETWORK=mainnet` 时必须显式配置 `AUTH_SUI_RPC_URL`，并拒绝 testnet RPC，避免正式登录页仍按 testnet epoch 构造 zkLogin session。
+
 ## 修订记录
 
+- 2026-06-17：补生产配置防误用 guard。Web/Vite config、Vercel Walrus proxy、auth shell 与 production acceptance 均拒绝 mainnet 混入已知 testnet object ids/endpoints；acceptance 会校验 zkLogin session 中可选 `address` 必须等于 `idToken + salt` 派生地址。
 - 2026-06-15：Seal Access 协议重构。删除 `license.move` / license tests；新增 `report.move`、`access.move`、`delegation.move`、`settlement.move`；schema/API/CLI/SDK/indexer/web 从 licenses 改为 reports/access/membership/subscriptions/delegations；新增 Move 和 TS 测试；testnet 重发包留待单独决策。

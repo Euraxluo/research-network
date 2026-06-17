@@ -13,10 +13,19 @@ const NEGATIVE_CACHE_TTL_MS = 15_000;
 const AGGREGATOR_RETRIES = 3;
 const AGGREGATOR_RETRY_DELAY_MS = 400;
 const DEFAULT_MAX_PROXY_BYTES = 4_000_000;
+type WalrusProxyNetwork = "testnet" | "mainnet" | "devnet";
 
 interface CacheEntry {
   expiresAt: number;
   resolved?: { path: string; resource: WalrusSiteResource; url: string };
+}
+
+export interface WalrusProxyConfig {
+  network: WalrusProxyNetwork;
+  siteObjectId: string;
+  rpcUrl: string;
+  aggregatorUrl: string;
+  sourceHeader: string;
 }
 
 // Module-level: survives across invocations on a warm serverless instance.
@@ -101,6 +110,7 @@ function numberHeader(value: string | null | undefined): number | undefined {
 }
 
 function setProxyHeaders(res: any, input: {
+  sourceHeader: string;
   siteObjectId: string;
   resolved: { path: string; resource: WalrusSiteResource; url: string };
   contentType: string;
@@ -108,7 +118,7 @@ function setProxyHeaders(res: any, input: {
 }) {
   res.setHeader("content-type", input.contentType);
   res.setHeader("cache-control", "s-maxage=30, stale-while-revalidate=300");
-  res.setHeader("x-research-network-source", "walrus-testnet");
+  res.setHeader("x-research-network-source", input.sourceHeader);
   res.setHeader("x-walrus-site-object-id", input.siteObjectId);
   res.setHeader("x-walrus-resource-path", input.resolved.path);
   const contentEncoding = input.upstream?.headers.get("content-encoding") || input.resolved.resource.headers["content-encoding"];
@@ -127,6 +137,53 @@ function setProxyHeaders(res: any, input: {
   if (contentRange) {
     res.setHeader("content-range", contentRange);
   }
+}
+
+export function resolveWalrusProxyConfig(env: NodeJS.ProcessEnv = process.env): WalrusProxyConfig {
+  const network = env.WALRUS_NETWORK || env.RN_WEB_NETWORK || env.RN_NETWORK || "testnet";
+  if (network !== "testnet" && network !== "mainnet" && network !== "devnet") {
+    throw new Error("WALRUS_NETWORK/RN_WEB_NETWORK must be testnet, mainnet, or devnet");
+  }
+  const explicitSiteObjectId = env.WALRUS_SITE_OBJECT_ID;
+  const explicitRpcUrl = env.WALRUS_SUI_RPC_URL || env.SUI_RPC_URL;
+  const explicitAggregatorUrl = env.WALRUS_AGGREGATOR_URL;
+  const config: WalrusProxyConfig = {
+    network,
+    siteObjectId: explicitSiteObjectId || DEFAULT_TESTNET_SITE_OBJECT_ID,
+    rpcUrl: explicitRpcUrl || DEFAULT_TESTNET_SUI_RPC_URL,
+    aggregatorUrl: explicitAggregatorUrl || DEFAULT_TESTNET_AGGREGATOR_URL,
+    sourceHeader: `walrus-${network}`
+  };
+  if (network === "mainnet") {
+    const missing = [
+      ["WALRUS_SITE_OBJECT_ID", explicitSiteObjectId],
+      ["WALRUS_SUI_RPC_URL or SUI_RPC_URL", explicitRpcUrl],
+      ["WALRUS_AGGREGATOR_URL", explicitAggregatorUrl]
+    ].filter(([, value]) => !value).map(([name]) => name);
+    if (missing.length) {
+      throw new Error(`mainnet Walrus proxy requires explicit ${missing.join(", ")}`);
+    }
+    const leaks = walrusMainnetTestnetLeaks(config);
+    if (leaks.length) {
+      throw new Error(`mainnet Walrus proxy rejects testnet config in ${leaks.join(", ")}`);
+    }
+  }
+  return config;
+}
+
+function walrusMainnetTestnetLeaks(config: WalrusProxyConfig): string[] {
+  return [
+    ["WALRUS_SITE_OBJECT_ID", config.siteObjectId],
+    ["SUI_RPC_URL", config.rpcUrl],
+    ["WALRUS_AGGREGATOR_URL", config.aggregatorUrl]
+  ].filter(([, value]) => isKnownTestnetValue(String(value))).map(([name]) => name);
+}
+
+function isKnownTestnetValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === DEFAULT_TESTNET_SITE_OBJECT_ID.toLowerCase() ||
+    normalized.includes("testnet") ||
+    normalized.includes("sui-testnet-rpc.publicnode.com");
 }
 
 async function pipeBody(upstream: Response, res: any): Promise<void> {
@@ -149,14 +206,14 @@ export default async function handler(req: any, res: any) {
     res.send(JSON.stringify({ error: "method_not_allowed" }));
     return;
   }
-  const siteObjectId = process.env.WALRUS_SITE_OBJECT_ID || DEFAULT_TESTNET_SITE_OBJECT_ID;
-  const rpcUrl = process.env.SUI_RPC_URL || DEFAULT_TESTNET_SUI_RPC_URL;
-  const aggregatorUrl = process.env.WALRUS_AGGREGATOR_URL || DEFAULT_TESTNET_AGGREGATOR_URL;
-  const requestedPath = queryValue(req.query?.path) || "/";
-  const rangeHeader = typeof req.headers?.range === "string" ? req.headers.range : undefined;
-  const bypassCache = Boolean(req.query?.refresh || req.query?.cache_bust || req.query?.rn_verify);
 
   try {
+    const config = resolveWalrusProxyConfig();
+    const { siteObjectId, rpcUrl, aggregatorUrl } = config;
+    const requestedPath = queryValue(req.query?.path) || "/";
+    const rangeHeader = typeof req.headers?.range === "string" ? req.headers.range : undefined;
+    const bypassCache = Boolean(req.query?.refresh || req.query?.cache_bust || req.query?.rn_verify);
+
     const resolved = await resolveCached({ siteObjectId, path: requestedPath, rpcUrl, aggregatorUrl, bypassCache });
     if (!resolved) {
       res.status(404).setHeader("content-type", "text/plain; charset=utf-8");
@@ -168,7 +225,7 @@ export default async function handler(req: any, res: any) {
       res.status(302);
       res.setHeader("location", resolved.url);
       res.setHeader("cache-control", "no-store");
-      res.setHeader("x-research-network-source", "walrus-testnet");
+      res.setHeader("x-research-network-source", config.sourceHeader);
       res.setHeader("x-walrus-site-object-id", siteObjectId);
       res.setHeader("x-walrus-resource-path", resolved.path);
       res.send(`Redirecting to Walrus aggregator for ${resolved.path}`);
@@ -188,7 +245,7 @@ export default async function handler(req: any, res: any) {
       res.status(302);
       res.setHeader("location", resolved.url);
       res.setHeader("cache-control", "no-store");
-      res.setHeader("x-research-network-source", "walrus-testnet");
+      res.setHeader("x-research-network-source", config.sourceHeader);
       res.setHeader("x-walrus-site-object-id", siteObjectId);
       res.setHeader("x-walrus-resource-path", resolved.path);
       res.send(`Redirecting large Walrus resource for ${resolved.path}`);
@@ -196,7 +253,7 @@ export default async function handler(req: any, res: any) {
     }
 
     res.status(upstream.status === 206 ? 206 : 200);
-    setProxyHeaders(res, { siteObjectId, resolved, contentType, upstream });
+    setProxyHeaders(res, { sourceHeader: config.sourceHeader, siteObjectId, resolved, contentType, upstream });
     if (req.method === "HEAD") {
       res.end();
       return;

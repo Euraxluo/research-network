@@ -284,6 +284,18 @@ export function assertProductionAcceptanceSessionFresh(
   }
 }
 
+export function assertProductionAcceptanceSessionAddress(
+  label: string,
+  session: Pick<ProductionAcceptanceSession, "address" | "idToken" | "salt">,
+  deriveAddress: (idToken: string, salt: string) => string
+): string {
+  const derived = deriveAddress(session.idToken, session.salt);
+  if (session.address && session.address.toLowerCase() !== derived.toLowerCase()) {
+    throw new Error(`${label} zkLogin session address ${session.address} does not match derived address ${derived}`);
+  }
+  return derived;
+}
+
 function mainnetTestnetLeaks(config: ProductionAcceptanceConfig): string[] {
   const checks = [
     ["sui-rpc-url", config.suiRpcUrl],

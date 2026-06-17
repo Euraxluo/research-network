@@ -19,7 +19,7 @@ root; `auth/*` + `zklogin-browser.js` are emitted separately by `buildVercelAuth
 ## M3 client layer (`src/lib/`)
 
 - `config.ts` — on-chain + storage config (packageId, shared object ids, Walrus/Seal endpoints).
-  Override at runtime via `window.__RN_M3_CONFIG__`.
+  Override at build time with `VITE_RN_*` or at runtime via `window.__RN_M3_CONFIG__`.
 - `sui-client.ts` — `SuiJsonRpcClient` singleton + PTB builders (`buildPublishPublicReport`,
   `buildPublishEncryptedReport`, `buildSealApprove`).
 - `walrus.ts` — `uploadBlob` / `readBlob` via `@mysten/walrus`.
@@ -66,3 +66,10 @@ ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network t
 ```
 
 Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a smaller mainnet cap. The acceptance guard rejects known testnet ids/endpoints when `--network mainnet`.
+
+Production config guards:
+
+- Vite/Web: set `VITE_RN_NETWORK`, `VITE_RN_SUI_RPC_URL`, `VITE_RN_PACKAGE_ID`, `VITE_RN_SETTLEMENT_CONFIG_ID`, `VITE_RN_AGENT_EARNINGS_ID`, `VITE_RN_MEMBERSHIP_RECEIPT_REGISTRY_ID`, `VITE_RN_WALRUS_PUBLISHER_URL`, `VITE_RN_WALRUS_AGGREGATOR_URL`, `VITE_RN_SEAL_KEY_SERVER_OBJECT_ID`, and `VITE_RN_SEAL_KEY_SERVER_AGGREGATOR_URL` for production builds, or inject the same values through `window.__RN_M3_CONFIG__`.
+- Vercel Walrus proxy: set `RN_WEB_NETWORK=mainnet` or `WALRUS_NETWORK=mainnet` together with `WALRUS_SITE_OBJECT_ID`, `WALRUS_SUI_RPC_URL`/`SUI_RPC_URL`, and `WALRUS_AGGREGATOR_URL`.
+- Auth shell: set `AUTH_SUI_RPC_URL` when `RN_WEB_NETWORK=mainnet` or `AUTH_NETWORK=mainnet` so zkLogin uses the mainnet epoch source.
+- All three paths reject known testnet defaults when the declared network is `mainnet`.

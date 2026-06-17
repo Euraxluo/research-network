@@ -8,6 +8,7 @@ const ZKLOGIN_ENTRY = path.resolve(HERE, "..", "web-auth", "zklogin-entry.ts");
 const SECRETS_DIR = path.join(process.cwd(), ".research-network", "secrets");
 
 export const DEFAULT_AUTH_SUI_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
+type AuthNetwork = "testnet" | "mainnet" | "devnet";
 
 export interface AuthSiteConfig {
   googleClientId?: string;
@@ -49,17 +50,41 @@ export async function loadAuthSiteConfig(secretsDir = SECRETS_DIR): Promise<Auth
   if (!googleClientId && !githubInstallUrl) {
     return null;
   }
+  const suiRpcUrl = resolveAuthSuiRpcUrl(process.env);
   return {
     googleClientId,
     callbackPath: "/auth/callback.html",
     githubInstallUrl,
     githubClientId,
     githubCallbackPath: "/auth/github-callback.html",
-    suiRpcUrl: process.env.AUTH_SUI_RPC_URL ?? DEFAULT_AUTH_SUI_RPC_URL,
+    suiRpcUrl,
     saltServicePath: "/api/zklogin-salt",
     githubOauthPath: "/api/github-oauth",
     githubBindingPath: "/api/github-binding"
   };
+}
+
+export function resolveAuthSuiRpcUrl(env: NodeJS.ProcessEnv = process.env): string {
+  const network = env.AUTH_NETWORK || env.RN_WEB_NETWORK || env.RN_NETWORK || "testnet";
+  if (network !== "testnet" && network !== "mainnet" && network !== "devnet") {
+    throw new Error("AUTH_NETWORK/RN_WEB_NETWORK must be testnet, mainnet, or devnet");
+  }
+  const explicitRpc = env.AUTH_SUI_RPC_URL;
+  const rpc = explicitRpc ?? DEFAULT_AUTH_SUI_RPC_URL;
+  if (network === "mainnet") {
+    if (!explicitRpc) {
+      throw new Error("mainnet auth shell requires explicit AUTH_SUI_RPC_URL");
+    }
+    if (isTestnetRpc(explicitRpc)) {
+      throw new Error("mainnet auth shell rejects testnet AUTH_SUI_RPC_URL");
+    }
+  }
+  return rpc;
+}
+
+function isTestnetRpc(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized.includes("testnet") || normalized.includes("sui-testnet-rpc.publicnode.com");
 }
 
 function cspMetaTag(config: AuthSiteConfig): string {

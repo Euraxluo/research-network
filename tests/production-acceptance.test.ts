@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertProductionAcceptanceSessionAddress,
   assertProductionAcceptanceSessionFresh,
   assertProductionAcceptanceCanExecute,
   calculateProductionAcceptanceBudget,
@@ -149,6 +150,27 @@ describe("production acceptance guardrails", () => {
       maxEpoch: 123,
       randomness: "9"
     });
+  });
+
+  it("rejects zkLogin session files whose supplied address does not match JWT + salt", () => {
+    const session = normalizeProductionAcceptanceSession("buyer", {
+      address: "0xabc",
+      rn_zk_eph: { secret: "suiprivkey1x", maxEpoch: 123, randomness: "9" },
+      rn_zk_session: { id_token: "header.payload.sig", salt: "456", maxEpoch: 123, randomness: "9" }
+    });
+
+    expect(() =>
+      assertProductionAcceptanceSessionAddress("buyer", session, () => "0xdef")
+    ).toThrow(/does not match derived address/);
+  });
+
+  it("uses the canonical derived zkLogin address when the session omits address", () => {
+    const session = normalizeProductionAcceptanceSession("buyer", {
+      rn_zk_eph: { secret: "suiprivkey1x", maxEpoch: 123, randomness: "9" },
+      rn_zk_session: { id_token: "header.payload.sig", salt: "456", maxEpoch: 123, randomness: "9" }
+    });
+
+    expect(assertProductionAcceptanceSessionAddress("buyer", session, () => "0xdef")).toBe("0xdef");
   });
 
   it("rejects zkLogin sessions that are already too close to expiry", () => {

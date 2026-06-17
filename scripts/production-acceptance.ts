@@ -34,6 +34,7 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";
 import { getZkLoginSignature } from "@mysten/sui/zklogin";
 import {
   assertProductionAcceptanceCanExecute,
+  assertProductionAcceptanceSessionAddress,
   assertProductionAcceptanceSessionFresh,
   createProductionAcceptanceReceipt,
   normalizeProductionAcceptanceSession,
@@ -302,7 +303,7 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
   const raw = JSON.parse(await readFile(filePath, "utf8")) as SessionFile;
   const session = normalizeProductionAcceptanceSession(label, raw);
   const keypair = Ed25519Keypair.fromSecretKey(session.ephemeralSecretKey);
-  const address = session.address ?? deriveZkLoginAddress(session.idToken, session.salt);
+  const address = assertProductionAcceptanceSessionAddress(label, session, deriveZkLoginAddress);
 
   async function proof() {
     const proverUrl = process.env.ZKLOGIN_PROVER_URL;
