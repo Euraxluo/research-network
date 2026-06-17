@@ -83,7 +83,7 @@ npm run readiness:mainnet -- --stage mainnet-config \
   --skip-chain
 ```
 
-`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, testnet-looking mainnet endpoint, missing prover/mainnet env, or mismatch between acceptance/Web/Vercel/Auth mainnet values keeps the report red.
+`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, known testnet id/endpoint in mainnet evidence, missing prover/mainnet env, mismatch between acceptance/Web/Vercel/Auth mainnet values, stale mainnet receipt config, or over-large mainnet acceptance spend cap keeps the report red. Without `--skip-chain`, the gate also checks configured mainnet package/shared objects via RPC and validates the settlement shared-object type suffixes.
 
 Production config guards:
 

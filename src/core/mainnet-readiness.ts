@@ -1,4 +1,5 @@
 import type {
+  ProductionAcceptanceConfig,
   ProductionAcceptanceNetwork,
   ProductionAcceptanceReceipt,
   ProductionAcceptanceStep
@@ -22,7 +23,10 @@ export interface ReceiptExpectation {
   execute: boolean;
   preflight: boolean;
   required: boolean;
+  maxSpendMist?: bigint;
 }
+
+export const DEFAULT_MAINNET_ACCEPTANCE_MAX_SPEND_MIST = 110_000_000n;
 
 const ACCEPTANCE_STEPS = [
   "config.validate",
@@ -61,6 +65,14 @@ const EXECUTE_OBJECT_STEPS = new Set([
   "buyer.buy_agent_subscription",
   "buyer.create_and_fund_delegation",
   "agent.publish_private_result"
+]);
+
+const KNOWN_TESTNET_VALUES = new Set([
+  "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e",
+  "0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4",
+  "0xb637059cb77aca697e36673afa2e8639f7f82d16b8f0eba8eb6a1f5bd12eda2b",
+  "0x5a25a789a4032c8460afa68b26b839a081c770372fa04e567207c606b68ad748",
+  "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98"
 ]);
 
 export function hasBlockingReadinessFailures(checks: ReadinessCheck[]): boolean {
@@ -214,7 +226,7 @@ function checkExecuteBudget(receipt: ProductionAcceptanceReceipt, expectation: R
   } catch {
     return [fail(`receipt.${expectation.label}.budget`, `${expectation.label} receipt has malformed budget strings`, expectation.required)];
   }
-  return [
+  const checks = [
     checkBoolean(
       `receipt.${expectation.label}.budget.cap`,
       maxSpend > 0n && totalBudget <= maxSpend,
@@ -224,6 +236,18 @@ function checkExecuteBudget(receipt: ProductionAcceptanceReceipt, expectation: R
       { totalBudgetMist: String(totalBudget), maxSpendMist: String(maxSpend) }
     )
   ];
+  if (expectation.network === "mainnet") {
+    const allowedMaxSpend = expectation.maxSpendMist ?? DEFAULT_MAINNET_ACCEPTANCE_MAX_SPEND_MIST;
+    checks.push(checkBoolean(
+      `receipt.${expectation.label}.budget.mainnet_cap`,
+      maxSpend > 0n && maxSpend <= allowedMaxSpend,
+      `${expectation.label} execute uses a small explicit mainnet spend cap`,
+      `${expectation.label} execute max-spend-mist exceeds the allowed mainnet acceptance cap`,
+      expectation.required,
+      { maxSpendMist: String(maxSpend), allowedMaxSpendMist: String(allowedMaxSpend) }
+    ));
+  }
+  return checks;
 }
 
 function stepStatus(receipt: ProductionAcceptanceReceipt, name: string): ProductionAcceptanceStep["status"] | undefined {
@@ -238,7 +262,43 @@ function receiptHasKnownTestnetConfig(receipt: ProductionAcceptanceReceipt): boo
 
 export function isKnownTestnetValue(value: string): boolean {
   const normalized = value.trim().toLowerCase();
-  return normalized.includes("testnet") || normalized.includes("sui-testnet-rpc.publicnode.com");
+  return KNOWN_TESTNET_VALUES.has(normalized) ||
+    normalized.includes("testnet") ||
+    normalized.includes("sui-testnet-rpc.publicnode.com");
+}
+
+export function checkReceiptConfigMatchesAcceptanceConfig(
+  receipt: unknown,
+  label: string,
+  config: ProductionAcceptanceConfig,
+  required: boolean
+): ReadinessCheck[] {
+  if (!isReceipt(receipt)) return [];
+  const fields: Array<[string, string | number | undefined, string | number | undefined]> = [
+    ["sui_rpc", receipt.config.suiRpcUrl, config.suiRpcUrl],
+    ["package_id", receipt.config.packageId, config.packageId],
+    ["settlement_config_id", receipt.config.settlementConfigId, config.settlementConfigId],
+    ["agent_earnings_id", receipt.config.agentEarningsId, config.agentEarningsId],
+    ["receipt_registry_id", receipt.config.membershipReceiptRegistryId, config.membershipReceiptRegistryId],
+    ["walrus_publisher", receipt.config.walrusPublisherUrl, config.walrusPublisherUrl],
+    ["walrus_aggregator", receipt.config.walrusAggregatorUrl, config.walrusAggregatorUrl],
+    ["seal_key_server", receipt.config.sealKeyServerObjectId, config.sealKeyServerObjectId],
+    ["seal_aggregator", receipt.config.sealKeyServerAggregatorUrl, config.sealKeyServerAggregatorUrl]
+  ];
+  if (config.walrusEpochs !== undefined) {
+    fields.push(["walrus_epochs", receipt.config.walrusEpochs, config.walrusEpochs]);
+  }
+  if (config.sealThreshold !== undefined) {
+    fields.push(["seal_threshold", receipt.config.sealThreshold, config.sealThreshold]);
+  }
+  return fields.map(([field, receiptValue, expectedValue]) => checkBoolean(
+    `receipt.${label}.config.${field}`,
+    valuesMatch(receiptValue, expectedValue),
+    `${label} receipt ${field} matches the current mainnet acceptance config`,
+    `${label} receipt ${field} does not match the current mainnet acceptance config`,
+    required,
+    { receiptValue, expectedValue }
+  ));
 }
 
 function isReceipt(value: unknown): value is ProductionAcceptanceReceipt {
@@ -252,6 +312,25 @@ function isReceipt(value: unknown): value is ProductionAcceptanceReceipt {
     typeof receipt.config === "object" &&
     Array.isArray(receipt.steps) &&
     (receipt.conclusion === "not_run" || receipt.conclusion === "passed" || receipt.conclusion === "failed");
+}
+
+function valuesMatch(left: string | number | undefined, right: string | number | undefined): boolean {
+  const normalizedLeft = normalizeReadinessValue(left);
+  const normalizedRight = normalizeReadinessValue(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
+function normalizeReadinessValue(value: string | number | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number") return String(value);
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\/+$/, "").toLowerCase();
+  }
+  if (/^0x[0-9a-f]+$/i.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  return trimmed;
 }
 
 export function pass(

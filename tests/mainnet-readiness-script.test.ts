@@ -120,6 +120,64 @@ describe("mainnet readiness script", () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   });
+
+  it("fails mainnet-final when mainnet receipts do not match the current acceptance env", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
+    let stdout = "";
+    let stderr = "";
+    try {
+      const testnetPreflightPath = path.join(dir, "testnet-preflight.json");
+      const testnetExecutePath = path.join(dir, "testnet-execute.json");
+      const mainnetPreflightPath = path.join(dir, "mainnet-preflight.json");
+      const mainnetExecutePath = path.join(dir, "mainnet-execute.json");
+      await fs.writeFile(testnetPreflightPath, JSON.stringify(makePreflightReceipt(), null, 2), "utf8");
+      await fs.writeFile(testnetExecutePath, JSON.stringify(makeExecuteReceipt(), null, 2), "utf8");
+      await fs.writeFile(mainnetPreflightPath, JSON.stringify(makePreflightReceipt("mainnet"), null, 2), "utf8");
+      await fs.writeFile(
+        mainnetExecutePath,
+        JSON.stringify(makeExecuteReceipt("mainnet", {
+          config: {
+            ...mainnetConfig(),
+            packageId: "0x" + "99".repeat(32)
+          }
+        }), null, 2),
+        "utf8"
+      );
+
+      try {
+        await execFileAsync("npx", [
+          "tsx",
+          "scripts/mainnet-readiness.ts",
+          "--stage", "mainnet-final",
+          "--testnet-preflight-receipt", testnetPreflightPath,
+          "--testnet-execute-receipt", testnetExecutePath,
+          "--mainnet-preflight-receipt", mainnetPreflightPath,
+          "--mainnet-execute-receipt", mainnetExecutePath,
+          "--skip-chain",
+          "--json"
+        ], {
+          cwd: process.cwd(),
+          env: readinessEnv()
+        });
+      } catch (error) {
+        const failure = error as { stdout?: string; stderr?: string; code?: number };
+        stdout = failure.stdout ?? "";
+        stderr = failure.stderr ?? "";
+        expect(failure.code).toBe(1);
+      }
+
+      expect(stderr).toBe("");
+      const report = JSON.parse(stdout) as { ready: boolean; checks: Array<{ name: string; status: string; message: string }> };
+      expect(report.ready).toBe(false);
+      expect(report.checks.some((check) =>
+        check.name === "receipt.mainnet-execute.config.package_id" &&
+        check.status === "failed" &&
+        /does not match/.test(check.message)
+      )).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 const ALL_STEPS = [
@@ -185,9 +243,9 @@ function readinessEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   };
 }
 
-function makePreflightReceipt(): ProductionAcceptanceReceipt {
+function makePreflightReceipt(network: "testnet" | "mainnet" = "testnet"): ProductionAcceptanceReceipt {
   return {
-    network: "testnet",
+    network,
     execute: false,
     preflight: true,
     startedAt: "2026-06-17T00:00:00.000Z",
@@ -195,7 +253,7 @@ function makePreflightReceipt(): ProductionAcceptanceReceipt {
     buyerAddress: "0x" + "aa".repeat(32),
     agentAddress: "0x" + "bb".repeat(32),
     budget: baseBudget("0"),
-    config: testnetConfig(),
+    config: network === "mainnet" ? mainnetConfig() : testnetConfig(),
     steps: ALL_STEPS.map((name) => {
       if (["config.validate", "accounts.validate", "balances.validate"].includes(name)) {
         return { name, status: "passed" };
@@ -206,9 +264,12 @@ function makePreflightReceipt(): ProductionAcceptanceReceipt {
   };
 }
 
-function makeExecuteReceipt(): ProductionAcceptanceReceipt {
+function makeExecuteReceipt(
+  network: "testnet" | "mainnet" = "testnet",
+  overrides: Partial<ProductionAcceptanceReceipt> = {}
+): ProductionAcceptanceReceipt {
   return {
-    network: "testnet",
+    network,
     execute: true,
     preflight: false,
     startedAt: "2026-06-17T00:00:00.000Z",
@@ -216,9 +277,10 @@ function makeExecuteReceipt(): ProductionAcceptanceReceipt {
     buyerAddress: "0x" + "aa".repeat(32),
     agentAddress: "0x" + "bb".repeat(32),
     budget: baseBudget("110000000"),
-    config: testnetConfig(),
+    config: network === "mainnet" ? mainnetConfig() : testnetConfig(),
     steps: executeSteps(),
-    conclusion: "passed"
+    conclusion: "passed",
+    ...overrides
   };
 }
 
@@ -278,6 +340,22 @@ function testnetConfig(): ProductionAcceptanceReceipt["config"] {
     walrusEpochs: 5,
     sealKeyServerObjectId: "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98",
     sealKeyServerAggregatorUrl: "https://seal-aggregator-testnet.mystenlabs.com",
+    sealThreshold: 1
+  };
+}
+
+function mainnetConfig(): ProductionAcceptanceReceipt["config"] {
+  return {
+    suiRpcUrl: MAINNET.rpc,
+    packageId: MAINNET.packageId,
+    settlementConfigId: MAINNET.settlementConfigId,
+    agentEarningsId: MAINNET.agentEarningsId,
+    membershipReceiptRegistryId: MAINNET.receiptRegistryId,
+    walrusPublisherUrl: MAINNET.walrusPublisher,
+    walrusAggregatorUrl: MAINNET.walrusAggregator,
+    walrusEpochs: 5,
+    sealKeyServerObjectId: MAINNET.sealKeyServer,
+    sealKeyServerAggregatorUrl: MAINNET.sealAggregator,
     sealThreshold: 1
   };
 }

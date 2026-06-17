@@ -109,6 +109,49 @@ describe("mainnet readiness receipt checks", () => {
     expect(hasBlockingReadinessFailures(checks)).toBe(true);
     expect(checks.some((check) => check.name.endsWith(".config.no_testnet_values") && check.status === "failed")).toBe(true);
   });
+
+  it("rejects mainnet receipts that reuse known testnet object ids even without testnet URLs", () => {
+    const expectation: ReceiptExpectation = {
+      label: "mainnet-execute",
+      network: "mainnet",
+      execute: true,
+      preflight: false,
+      required: true
+    };
+    const receipt = makeExecuteReceipt({
+      network: "mainnet",
+      config: {
+        ...baseConfig("mainnet"),
+        packageId: "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e"
+      }
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, expectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".config.no_testnet_values") && check.status === "failed")).toBe(true);
+  });
+
+  it("rejects mainnet execute receipts whose explicit spend cap is too large for acceptance", () => {
+    const expectation: ReceiptExpectation = {
+      label: "mainnet-execute",
+      network: "mainnet",
+      execute: true,
+      preflight: false,
+      required: true,
+      maxSpendMist: 110_000_000n
+    };
+    const receipt = makeExecuteReceipt({
+      network: "mainnet",
+      budget: {
+        ...makeExecuteReceipt({ network: "mainnet" }).budget,
+        maxSpendMist: "1000000000"
+      }
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, expectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".budget.mainnet_cap") && check.status === "failed")).toBe(true);
+  });
 });
 
 function makeExecuteReceipt(overrides: Partial<ProductionAcceptanceReceipt> = {}): ProductionAcceptanceReceipt {

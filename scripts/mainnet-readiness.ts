@@ -13,8 +13,10 @@ import {
   type ProductionAcceptanceReceipt
 } from "../src/core/production-acceptance.js";
 import {
+  checkReceiptConfigMatchesAcceptanceConfig,
   checkBoolean,
   checkProductionAcceptanceReceipt,
+  DEFAULT_MAINNET_ACCEPTANCE_MAX_SPEND_MIST,
   fail,
   hasBlockingReadinessFailures,
   pass,
@@ -43,11 +45,21 @@ interface Report {
   checks: ReadinessCheck[];
 }
 
+interface ReceiptSet {
+  testnetPreflight?: ProductionAcceptanceReceipt;
+  testnetExecute?: ProductionAcceptanceReceipt;
+  mainnetPreflight?: ProductionAcceptanceReceipt;
+  mainnetExecute?: ProductionAcceptanceReceipt;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2), process.env);
   const checks: ReadinessCheck[] = [];
-  checks.push(...await receiptChecks(args));
-  checks.push(...configChecks(process.env, args.stage));
+  const receipts = await readReceipts(args);
+  checks.push(...receiptChecks(args, receipts));
+  const configResult = configChecks(process.env, args.stage);
+  checks.push(...configResult.checks);
+  checks.push(...receiptConfigChecks(args.stage, receipts, configResult.acceptance));
   if (!args.skipChain) {
     checks.push(...await chainChecks(process.env, args.stage));
   }
@@ -101,19 +113,28 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): ReadinessArgs {
   };
 }
 
-async function receiptChecks(args: ReadinessArgs): Promise<ReadinessCheck[]> {
+async function readReceipts(args: ReadinessArgs): Promise<ReceiptSet> {
+  return {
+    testnetPreflight: await readReceipt(args.testnetPreflightReceipt),
+    testnetExecute: await readReceipt(args.testnetExecuteReceipt),
+    mainnetPreflight: await readReceipt(args.mainnetPreflightReceipt),
+    mainnetExecute: await readReceipt(args.mainnetExecuteReceipt)
+  };
+}
+
+function receiptChecks(args: ReadinessArgs, receipts: ReceiptSet): ReadinessCheck[] {
   const checks: ReadinessCheck[] = [];
   const needsTestnet = args.stage === "testnet" || args.stage === "mainnet-config" || args.stage === "mainnet-final";
   const needsMainnet = args.stage === "mainnet-final";
   if (needsTestnet) {
-    checks.push(...checkProductionAcceptanceReceipt(await readReceipt(args.testnetPreflightReceipt), {
+    checks.push(...checkProductionAcceptanceReceipt(receipts.testnetPreflight, {
       label: "testnet-preflight",
       network: "testnet",
       execute: false,
       preflight: true,
       required: true
     }));
-    checks.push(...checkProductionAcceptanceReceipt(await readReceipt(args.testnetExecuteReceipt), {
+    checks.push(...checkProductionAcceptanceReceipt(receipts.testnetExecute, {
       label: "testnet-execute",
       network: "testnet",
       execute: true,
@@ -122,25 +143,29 @@ async function receiptChecks(args: ReadinessArgs): Promise<ReadinessCheck[]> {
     }));
   }
   if (needsMainnet) {
-    checks.push(...checkProductionAcceptanceReceipt(await readReceipt(args.mainnetPreflightReceipt), {
+    checks.push(...checkProductionAcceptanceReceipt(receipts.mainnetPreflight, {
       label: "mainnet-preflight",
       network: "mainnet",
       execute: false,
       preflight: true,
       required: true
     }));
-    checks.push(...checkProductionAcceptanceReceipt(await readReceipt(args.mainnetExecuteReceipt), {
+    checks.push(...checkProductionAcceptanceReceipt(receipts.mainnetExecute, {
       label: "mainnet-execute",
       network: "mainnet",
       execute: true,
       preflight: false,
-      required: true
+      required: true,
+      maxSpendMist: DEFAULT_MAINNET_ACCEPTANCE_MAX_SPEND_MIST
     }));
   }
   return checks;
 }
 
-function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): ReadinessCheck[] {
+function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): {
+  checks: ReadinessCheck[];
+  acceptance?: ReturnType<typeof parseProductionAcceptanceArgs>;
+} {
   const checks: ReadinessCheck[] = [];
   if (stage === "testnet") {
     checks.push(warn(
@@ -149,7 +174,7 @@ function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): Rea
       undefined,
       "Run --stage mainnet-config before approving mainnet deployment."
     ));
-    return checks;
+    return { checks };
   }
 
   const mainnetAcceptanceEnv = {
@@ -240,7 +265,19 @@ function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): Rea
     env.ZKLOGIN_PROVER_URL ? { proverConfigured: true } : undefined
   ));
   checks.push(...configConsistencyChecks(configSet));
-  return checks;
+  return { checks, acceptance: configSet.acceptance };
+}
+
+function receiptConfigChecks(
+  stage: MainnetReadinessStage,
+  receipts: ReceiptSet,
+  acceptance: ReturnType<typeof parseProductionAcceptanceArgs> | undefined
+): ReadinessCheck[] {
+  if (stage !== "mainnet-final" || !acceptance) return [];
+  return [
+    ...checkReceiptConfigMatchesAcceptanceConfig(receipts.mainnetPreflight, "mainnet-preflight", acceptance, true),
+    ...checkReceiptConfigMatchesAcceptanceConfig(receipts.mainnetExecute, "mainnet-execute", acceptance, true)
+  ];
 }
 
 function configConsistencyChecks(configSet: {
@@ -372,12 +409,12 @@ async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage)
   }
   const rpcUrl = env.RN_SUI_RPC_URL;
   const ids = [
-    ["package", env.RN_PACKAGE_ID],
-    ["settlement-config", env.RN_SETTLEMENT_CONFIG_ID],
-    ["agent-earnings", env.RN_AGENT_EARNINGS_ID],
-    ["membership-receipt-registry", env.RN_MEMBERSHIP_RECEIPT_REGISTRY_ID],
-    ["seal-key-server", env.RN_SEAL_KEY_SERVER_OBJECT_ID]
-  ].filter(([, id]) => Boolean(id)) as Array<[string, string]>;
+    ["package", env.RN_PACKAGE_ID, undefined],
+    ["settlement-config", env.RN_SETTLEMENT_CONFIG_ID, "::settlement::SettlementConfig"],
+    ["agent-earnings", env.RN_AGENT_EARNINGS_ID, "::settlement::AgentEarnings"],
+    ["membership-receipt-registry", env.RN_MEMBERSHIP_RECEIPT_REGISTRY_ID, "::settlement::MembershipReceiptRegistry"],
+    ["seal-key-server", env.RN_SEAL_KEY_SERVER_OBJECT_ID, "::key_server::KeyServer"]
+  ].filter(([, id]) => Boolean(id)) as Array<[string, string, string | undefined]>;
   if (!rpcUrl) {
     return [fail("chain.mainnet.rpc", "Cannot query mainnet objects because RN_SUI_RPC_URL is missing")];
   }
@@ -389,17 +426,28 @@ async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage)
       ids.map(([, id]) => id),
       { showType: true, showOwner: true }
     ]);
-    return ids.map(([label, id], index) => {
+    return ids.flatMap(([label, id, expectedTypeSuffix], index) => {
       const response = responses[index];
       if (response?.data?.objectId) {
-        return pass(`chain.mainnet.${label}`, `Mainnet ${label} object exists`, {
+        const objectChecks: ReadinessCheck[] = [pass(`chain.mainnet.${label}`, `Mainnet ${label} object exists`, {
           objectId: response.data.objectId,
           type: response.data.type
-        });
+        })];
+        if (expectedTypeSuffix) {
+          objectChecks.push(checkBoolean(
+            `chain.mainnet.${label}.type`,
+            typeof response.data.type === "string" && response.data.type.endsWith(expectedTypeSuffix),
+            `Mainnet ${label} object type matches ${expectedTypeSuffix}`,
+            `Mainnet ${label} object type does not match ${expectedTypeSuffix}`,
+            true,
+            { objectId: response.data.objectId, type: response.data.type, expectedTypeSuffix }
+          ));
+        }
+        return objectChecks;
       }
-      return fail(`chain.mainnet.${label}`, `Mainnet ${label} object was not found by RPC`, true, {
+      return [fail(`chain.mainnet.${label}`, `Mainnet ${label} object was not found by RPC`, true, {
         evidence: { objectId: id, error: response?.error }
-      });
+      })];
     });
   } catch (error) {
     return [fail("chain.mainnet.rpc", `Mainnet object query failed: ${message(error)}`)];
