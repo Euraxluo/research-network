@@ -72,9 +72,9 @@ ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:production -- --network t
   --receipt .research-network/acceptance/testnet-production.json
 ```
 
-Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a smaller mainnet cap. The acceptance guard rejects known testnet ids/endpoints when `--network mainnet`.
+Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a small mainnet cap. The acceptance guard rejects known testnet ids/endpoints when `--network mainnet`.
 
-Use the readiness gate before approving real funds:
+Use the readiness gate before approving mainnet config:
 
 ```bash
 npm run readiness:mainnet -- --stage mainnet-config \
@@ -83,7 +83,17 @@ npm run readiness:mainnet -- --stage mainnet-config \
   --skip-chain
 ```
 
-`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, known testnet id/endpoint in mainnet evidence, missing prover/mainnet env, mismatch between acceptance/Web/Vercel/Auth mainnet values, stale mainnet receipt config, or over-large mainnet acceptance spend cap keeps the report red. Without `--skip-chain`, the gate also checks configured mainnet package/shared objects via RPC and validates the settlement shared-object type suffixes.
+Before injecting mainnet funds, run final readiness with mainnet preflight/execute receipts and live chain checks:
+
+```bash
+npm run readiness:mainnet -- --stage mainnet-final \
+  --testnet-preflight-receipt .research-network/acceptance/testnet-preflight.json \
+  --testnet-execute-receipt .research-network/acceptance/testnet-production.json \
+  --mainnet-preflight-receipt .research-network/acceptance/mainnet-preflight.json \
+  --mainnet-execute-receipt .research-network/acceptance/mainnet-production.json
+```
+
+`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, missing or inverted receipt timestamps, known testnet id/endpoint in mainnet evidence, missing prover/mainnet env, mismatch between acceptance/Web/Vercel/Auth mainnet values, stale mainnet receipt config, or over-large mainnet acceptance spend cap keeps the report red. Without `--skip-chain`, the gate also checks configured mainnet package/shared objects via RPC and validates the settlement shared-object type suffixes. `mainnet-final` always requires live chain checks; `--skip-chain` is only accepted for earlier config/preflight review.
 
 Production config guards:
 
@@ -91,3 +101,4 @@ Production config guards:
 - Vercel Walrus proxy: set `RN_WEB_NETWORK=mainnet` or `WALRUS_NETWORK=mainnet` together with `WALRUS_SITE_OBJECT_ID`, `WALRUS_SUI_RPC_URL`/`SUI_RPC_URL`, and `WALRUS_AGGREGATOR_URL`.
 - Auth shell: set `AUTH_SUI_RPC_URL` when `RN_WEB_NETWORK=mainnet` or `AUTH_NETWORK=mainnet` so zkLogin uses the mainnet epoch source.
 - All three paths reject known testnet defaults when the declared network is `mainnet`.
+- `infra/env.example` lists the full `RN_*`, `VITE_RN_*`, Walrus proxy, auth, prover, and receipt-path variable set for production acceptance.

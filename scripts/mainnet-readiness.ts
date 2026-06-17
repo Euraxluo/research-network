@@ -60,7 +60,11 @@ async function main() {
   const configResult = configChecks(process.env, args.stage);
   checks.push(...configResult.checks);
   checks.push(...receiptConfigChecks(args.stage, receipts, configResult.acceptance));
-  if (!args.skipChain) {
+  if (args.stage === "mainnet-final" && args.skipChain) {
+    checks.push(fail("chain.mainnet.required", "mainnet-final readiness requires live mainnet chain checks; --skip-chain is only allowed before final funding approval", true, {
+      remediation: "Re-run readiness without --skip-chain so mainnet package/shared objects and receipt transactions are queried by RPC."
+    }));
+  } else if (!args.skipChain) {
     checks.push(...await chainChecks(process.env, args.stage, receipts));
   }
   const report: Report = {

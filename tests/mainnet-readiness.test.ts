@@ -226,6 +226,23 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".decrypt_evidence") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects receipts without a valid completed run window", () => {
+    const missingFinishedAt = makeExecuteReceipt({ finishedAt: undefined });
+    const missingChecks = checkProductionAcceptanceReceipt(missingFinishedAt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(missingChecks)).toBe(true);
+    expect(missingChecks.some((check) => check.name.endsWith(".timing") && check.status === "failed")).toBe(true);
+
+    const backwardsReceipt = makeExecuteReceipt({
+      startedAt: "2026-06-17T00:01:00.000Z",
+      finishedAt: "2026-06-17T00:00:00.000Z"
+    });
+    const backwardsChecks = checkProductionAcceptanceReceipt(backwardsReceipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(backwardsChecks)).toBe(true);
+    expect(backwardsChecks.some((check) => check.name.endsWith(".timing") && check.status === "failed")).toBe(true);
+  });
+
   it("accepts no-spend preflight receipts only when transaction steps are skipped", () => {
     const expectation: ReceiptExpectation = {
       label: "testnet-preflight",

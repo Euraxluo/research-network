@@ -223,6 +223,55 @@ describe("mainnet readiness script", () => {
     }
   });
 
+  it("fails mainnet-final when live chain checks are skipped", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
+    let stdout = "";
+    let stderr = "";
+    try {
+      const testnetPreflightPath = path.join(dir, "testnet-preflight.json");
+      const testnetExecutePath = path.join(dir, "testnet-execute.json");
+      const mainnetPreflightPath = path.join(dir, "mainnet-preflight.json");
+      const mainnetExecutePath = path.join(dir, "mainnet-execute.json");
+      await fs.writeFile(testnetPreflightPath, JSON.stringify(makePreflightReceipt(), null, 2), "utf8");
+      await fs.writeFile(testnetExecutePath, JSON.stringify(makeExecuteReceipt(), null, 2), "utf8");
+      await fs.writeFile(mainnetPreflightPath, JSON.stringify(makePreflightReceipt("mainnet"), null, 2), "utf8");
+      await fs.writeFile(mainnetExecutePath, JSON.stringify(makeExecuteReceipt("mainnet"), null, 2), "utf8");
+
+      try {
+        await execFileAsync("npx", [
+          "tsx",
+          "scripts/mainnet-readiness.ts",
+          "--stage", "mainnet-final",
+          "--testnet-preflight-receipt", testnetPreflightPath,
+          "--testnet-execute-receipt", testnetExecutePath,
+          "--mainnet-preflight-receipt", mainnetPreflightPath,
+          "--mainnet-execute-receipt", mainnetExecutePath,
+          "--skip-chain",
+          "--json"
+        ], {
+          cwd: process.cwd(),
+          env: readinessEnv()
+        });
+      } catch (error) {
+        const failure = error as { stdout?: string; stderr?: string; code?: number };
+        stdout = failure.stdout ?? "";
+        stderr = failure.stderr ?? "";
+        expect(failure.code).toBe(1);
+      }
+
+      expect(stderr).toBe("");
+      const report = JSON.parse(stdout) as { ready: boolean; checks: Array<{ name: string; status: string; message: string }> };
+      expect(report.ready).toBe(false);
+      expect(report.checks.some((check) =>
+        check.name === "chain.mainnet.required" &&
+        check.status === "failed" &&
+        /requires live mainnet chain checks/.test(check.message)
+      )).toBe(true);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails mainnet-final when the chain RPC omits a receipt transaction", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
     let stdout = "";

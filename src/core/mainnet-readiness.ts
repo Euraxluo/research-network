@@ -140,6 +140,15 @@ export function checkProductionAcceptanceReceipt(
   ));
 
   checks.push(checkBoolean(
+    `${baseName}.timing`,
+    hasValidReceiptTiming(receipt),
+    `${expectation.label} receipt records a valid completed run window`,
+    `${expectation.label} receipt must include valid startedAt/finishedAt timestamps with finishedAt at or after startedAt`,
+    expectation.required,
+    { startedAt: receipt.startedAt, finishedAt: receipt.finishedAt }
+  ));
+
+  checks.push(checkBoolean(
     `${baseName}.accounts`,
     Boolean(receipt.buyerAddress && receipt.agentAddress && receipt.buyerAddress.toLowerCase() !== receipt.agentAddress.toLowerCase()),
     `${expectation.label} receipt has distinct buyer and agent zkLogin addresses`,
@@ -469,6 +478,13 @@ function isReceipt(value: unknown): value is ProductionAcceptanceReceipt {
     typeof receipt.config === "object" &&
     Array.isArray(receipt.steps) &&
     (receipt.conclusion === "not_run" || receipt.conclusion === "passed" || receipt.conclusion === "failed");
+}
+
+function hasValidReceiptTiming(receipt: ProductionAcceptanceReceipt): boolean {
+  if (typeof receipt.startedAt !== "string" || typeof receipt.finishedAt !== "string") return false;
+  const started = Date.parse(receipt.startedAt);
+  const finished = Date.parse(receipt.finishedAt);
+  return Number.isFinite(started) && Number.isFinite(finished) && finished >= started;
 }
 
 function valuesMatch(left: string | number | undefined, right: string | number | undefined): boolean {
