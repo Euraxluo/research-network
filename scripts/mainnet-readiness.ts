@@ -28,6 +28,7 @@ import {
 import { DEFAULT_M3_CONFIG, m3ConfigOverridesFromEnv, validateM3Config, type M3Config } from "../web/src/lib/config.ts";
 import { resolveAuthSuiRpcUrl } from "../src/core/web-auth.js";
 import { resolveWalrusProxyConfig } from "../api/walrus.js";
+import { getWalrusSiteResourceByPath, walrusAggregatorResourceUrl } from "../src/core/walrus-sites.js";
 
 interface ReadinessArgs {
   stage: MainnetReadinessStage;
@@ -53,6 +54,14 @@ interface ReceiptSet {
   mainnetPreflight?: ProductionAcceptanceReceipt;
   mainnetExecute?: ProductionAcceptanceReceipt;
 }
+
+const REQUIRED_MAINNET_WALRUS_SITE_PATHS = [
+  "/index.html",
+  "/site-data.json",
+  "/dashboard.html",
+  "/membership.html",
+  "/delegations.html"
+];
 
 async function main() {
   const args = parseArgs(process.argv.slice(2), process.env);
@@ -493,6 +502,7 @@ async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage,
     checks.push(...await chainObjectChecks(rpcUrl, ids));
   }
   if (stage === "mainnet-final") {
+    checks.push(...await chainWalrusSiteChecks(env));
     checks.push(...await chainReceiptTransactionChecks(rpcUrl, receipts.mainnetExecute));
   }
   return checks;
@@ -533,6 +543,47 @@ async function chainObjectChecks(
   } catch (error) {
     return [fail("chain.mainnet.rpc", `Mainnet object query failed: ${message(error)}`)];
   }
+}
+
+async function chainWalrusSiteChecks(env: NodeJS.ProcessEnv): Promise<ReadinessCheck[]> {
+  let config: ReturnType<typeof resolveWalrusProxyConfig>;
+  try {
+    config = resolveWalrusProxyConfig({ ...env, RN_WEB_NETWORK: "mainnet" });
+  } catch (error) {
+    return [fail("chain.mainnet.walrus_site.config", `Cannot query mainnet Walrus Site because proxy config is invalid: ${message(error)}`)];
+  }
+
+  const checks: ReadinessCheck[] = [];
+  for (const path of REQUIRED_MAINNET_WALRUS_SITE_PATHS) {
+    try {
+      const resource = await getWalrusSiteResourceByPath({
+        siteObjectId: config.siteObjectId,
+        path,
+        rpcUrl: config.rpcUrl
+      });
+      checks.push(checkBoolean(
+        `chain.mainnet.walrus_site.${path.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "")}`,
+        Boolean(resource?.blobId),
+        `Mainnet Walrus Site serves ${path}`,
+        `Mainnet Walrus Site is missing required resource ${path}`,
+        true,
+        {
+          siteObjectId: config.siteObjectId,
+          path,
+          blobId: resource?.blobId,
+          aggregatorUrl: resource ? walrusAggregatorResourceUrl(resource, config.aggregatorUrl) : undefined
+        }
+      ));
+    } catch (error) {
+      checks.push(fail(
+        `chain.mainnet.walrus_site.${path.replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "")}`,
+        `Mainnet Walrus Site resource check failed for ${path}: ${message(error)}`,
+        true,
+        { evidence: { siteObjectId: config.siteObjectId, path } }
+      ));
+    }
+  }
+  return checks;
 }
 
 async function chainReceiptTransactionChecks(
