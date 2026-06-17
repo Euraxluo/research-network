@@ -81,6 +81,25 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".digests") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts that reuse a digest for distinct transactions", () => {
+    const reusedDigest = digestFor("agent.publish_encrypted_report");
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "buyer.buy_platform_membership"
+          ? {
+              ...step,
+              digest: reusedDigest,
+              meta: { ...(step.meta ?? {}), suiSpentMist: "5000000" }
+            }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".execute.unique_digests") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects execute receipts missing actual balance-change spend evidence", () => {
     const receipt = makeExecuteReceipt({ spend: undefined });
     const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
@@ -142,6 +161,29 @@ describe("mainnet readiness receipt checks", () => {
 
     expect(hasBlockingReadinessFailures(checks)).toBe(true);
     expect(checks.some((check) => check.name.endsWith(".transaction_spend_metadata") && check.status === "failed")).toBe(true);
+  });
+
+  it("rejects execute receipts whose signer evidence does not match user-story roles", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "agent.claim_membership_earnings"
+          ? {
+              ...step,
+              meta: {
+                ...(step.meta ?? {}),
+                signer: "buyer",
+                signerAddress: "0x" + "aa".repeat(32),
+                suiSpentMist: "5000000",
+                balanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-5000000" }]
+              }
+            }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".execute.signer_roles") && check.status === "failed")).toBe(true);
   });
 
   it("rejects execute receipts whose transaction spend metadata does not match balanceChanges", () => {

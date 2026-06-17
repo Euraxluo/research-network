@@ -70,6 +70,18 @@ const EXECUTE_OBJECT_STEPS = new Set([
   "agent.publish_private_result"
 ]);
 
+const EXECUTE_SIGNER_ROLE: Record<string, "buyer" | "agent"> = {
+  "agent.publish_encrypted_report": "agent",
+  "buyer.buy_platform_membership": "buyer",
+  "buyer.record_access_receipt": "buyer",
+  "buyer.buy_agent_subscription": "buyer",
+  "platform.settle_membership_receipt": "buyer",
+  "agent.claim_membership_earnings": "agent",
+  "buyer.create_and_fund_delegation": "buyer",
+  "agent.publish_private_result": "agent",
+  "buyer.complete_delegation": "buyer"
+};
+
 const KNOWN_TESTNET_VALUES = new Set([
   "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e",
   "0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4",
@@ -274,6 +286,26 @@ function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: Re
     `${expectation.label} execute records balance-change SUI spend metadata for every transaction step`,
     `${expectation.label} execute is missing per-transaction SUI spend metadata`,
     expectation.required
+  ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.unique_digests`,
+    receiptTransactionDigestCount(receipt) === expectedReceiptTransactionCount(receipt),
+    `${expectation.label} execute records a distinct digest for every Sui transaction`,
+    `${expectation.label} execute reuses one or more transaction digests across distinct Sui transactions`,
+    expectation.required,
+    {
+      uniqueDigestCount: receiptTransactionDigestCount(receipt),
+      expectedTransactionCount: expectedReceiptTransactionCount(receipt)
+    }
+  ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.signer_roles`,
+    [...EXECUTE_DIGEST_STEPS].every((name) => stepSignerMatchesRole(receipt, name)) &&
+      delegationFundSignerMatchesBuyer(receipt),
+    `${expectation.label} execute signer evidence matches the buyer/agent user-story roles`,
+    `${expectation.label} execute signer evidence does not match the expected buyer/agent roles`,
+    expectation.required,
+    { buyerAddress: receipt.buyerAddress, agentAddress: receipt.agentAddress }
   ));
   return checks;
 }
@@ -487,6 +519,36 @@ function receiptTransactionDigestCount(receipt: ProductionAcceptanceReceipt): nu
   const fundDigest = receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundDigest;
   if (typeof fundDigest === "string") digests.add(fundDigest);
   return digests.size;
+}
+
+function expectedReceiptTransactionCount(receipt: ProductionAcceptanceReceipt): number {
+  let count = 0;
+  for (const name of EXECUTE_DIGEST_STEPS) {
+    if (isSuiDigest(receipt.steps.find((step) => step.name === name)?.digest)) count += 1;
+  }
+  if (isSuiDigest(receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundDigest)) {
+    count += 1;
+  }
+  return count;
+}
+
+function stepSignerMatchesRole(receipt: ProductionAcceptanceReceipt, name: string): boolean {
+  const expected = EXECUTE_SIGNER_ROLE[name];
+  if (!expected) return false;
+  const address = expected === "buyer" ? receipt.buyerAddress : receipt.agentAddress;
+  const signerAddress = receipt.steps.find((step) => step.name === name)?.meta?.signerAddress;
+  return sameSuiAddress(signerAddress, address);
+}
+
+function delegationFundSignerMatchesBuyer(receipt: ProductionAcceptanceReceipt): boolean {
+  const fundSignerAddress = receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundSignerAddress;
+  return sameSuiAddress(fundSignerAddress, receipt.buyerAddress);
+}
+
+function sameSuiAddress(left: unknown, right: unknown): boolean {
+  return typeof left === "string" &&
+    typeof right === "string" &&
+    normalizeReadinessValue(left) === normalizeReadinessValue(right);
 }
 
 function hasBalanceChanges(value: unknown): boolean {
