@@ -146,6 +146,11 @@ export interface ProductionAcceptanceFreshnessEvidence {
   epochsRemaining: number;
 }
 
+export interface ProductionAcceptanceProverEvidence {
+  configured: boolean;
+  urlSha256: string;
+}
+
 const DEFAULT_RECEIPT_PATH = ".research-network/acceptance/production-acceptance.json";
 const DEFAULT_GAS_RESERVE_MIST = 50_000_000n;
 const DEFAULT_ACCESS_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -354,6 +359,19 @@ export function productionAcceptanceFreshnessEvidence(
   };
 }
 
+export async function productionAcceptanceProverEvidence(proverUrl: string): Promise<ProductionAcceptanceProverEvidence> {
+  const normalized = proverUrl.trim();
+  if (!normalized) {
+    throw new Error("ZKLOGIN_PROVER_URL is required for prover evidence");
+  }
+  const bytes = new TextEncoder().encode(normalized);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return {
+    configured: true,
+    urlSha256: bytesToHex(new Uint8Array(digest))
+  };
+}
+
 export function assertProductionAcceptanceSessionAddress(
   label: string,
   session: Pick<ProductionAcceptanceSession, "address" | "idToken" | "salt">,
@@ -508,6 +526,10 @@ function normalizeSuiTypeAddress(value: string): string {
   if (!trimmed.startsWith("0x")) return trimmed;
   const hex = trimmed.slice(2).replace(/^0+/, "") || "0";
   return `0x${hex}`;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 export function createProductionAcceptanceReceipt(

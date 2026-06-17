@@ -264,6 +264,27 @@ describe("mainnet readiness receipt checks", () => {
     expect(hasBlockingReadinessFailures(badChecks)).toBe(true);
   });
 
+  it("rejects preflight receipts missing prover endpoint evidence", () => {
+    const expectation: ReceiptExpectation = {
+      label: "testnet-preflight",
+      network: "testnet",
+      execute: false,
+      preflight: true,
+      required: true
+    };
+    const receipt = makePreflightReceipt({
+      steps: preflightSteps().map((step) =>
+        step.name === "accounts.validate"
+          ? { ...step, meta: { ...(step.meta ?? {}), prover: undefined } }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, expectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".preflight.zkproof_evidence") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects mainnet receipts that still contain testnet-looking config", () => {
     const expectation: ReceiptExpectation = {
       label: "mainnet-execute",
@@ -487,6 +508,7 @@ function preflightSteps(): ProductionAcceptanceStep[] {
           meta: {
             buyerProof: proofMeta(),
             agentProof: proofMeta(),
+            prover: proverMeta(),
             buyerFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 },
             agentFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 }
           }
@@ -504,6 +526,13 @@ function proofMeta(): Record<string, boolean> {
     hasIssBase64Details: true,
     hasHeaderBase64: true,
     hasAddressSeed: true
+  };
+}
+
+function proverMeta(): Record<string, string | boolean> {
+  return {
+    configured: true,
+    urlSha256: "a".repeat(64)
   };
 }
 

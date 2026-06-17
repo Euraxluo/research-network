@@ -41,6 +41,7 @@ import {
   normalizeProductionAcceptanceSession,
   parseProductionAcceptanceArgs,
   productionAcceptanceFreshnessEvidence,
+  productionAcceptanceProverEvidence,
   productionAcceptanceSuiSpentMist,
   summarizeProductionAcceptanceSpend,
   writeProductionAcceptanceReceipt,
@@ -181,6 +182,7 @@ async function main() {
     if (config.preflight) {
       assertProductionAcceptanceSessionFresh("buyer", buyer.session, currentEpoch);
       assertProductionAcceptanceSessionFresh("agent", agent.session, currentEpoch);
+      const proverEvidence = await productionAcceptanceProverEvidence(required(process.env.ZKLOGIN_PROVER_URL, "ZKLOGIN_PROVER_URL"));
       const buyerProof = await buyer.proof();
       const agentProof = await agent.proof();
       pass("accounts.validate", {
@@ -189,6 +191,7 @@ async function main() {
         currentEpoch,
         buyerFreshness,
         agentFreshness,
+        prover: proverEvidence,
         buyerProof: zkProofEvidence(buyerProof),
         agentProof: zkProofEvidence(agentProof)
       });

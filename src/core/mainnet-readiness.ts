@@ -227,11 +227,13 @@ function checkPreflightSteps(receipt: ProductionAcceptanceReceipt, expectation: 
   ));
   checks.push(checkBoolean(
     `receipt.${expectation.label}.preflight.zkproof_evidence`,
-    hasProofEvidence(accountMeta?.buyerProof) && hasProofEvidence(accountMeta?.agentProof),
+    hasProverEvidence(accountMeta?.prover) &&
+      hasProofEvidence(accountMeta?.buyerProof) &&
+      hasProofEvidence(accountMeta?.agentProof),
     `${expectation.label} preflight records non-sensitive zkLogin prover evidence for both accounts`,
     `${expectation.label} preflight is missing zkLogin prover evidence`,
     expectation.required,
-    { buyerProof: accountMeta?.buyerProof, agentProof: accountMeta?.agentProof }
+    { prover: accountMeta?.prover, buyerProof: accountMeta?.buyerProof, agentProof: accountMeta?.agentProof }
   ));
   checks.push(checkBoolean(
     `receipt.${expectation.label}.preflight.epoch_freshness`,
@@ -543,6 +545,14 @@ function hasProofEvidence(value: unknown): boolean {
     proof.hasIssBase64Details === true &&
     proof.hasHeaderBase64 === true &&
     proof.hasAddressSeed === true;
+}
+
+function hasProverEvidence(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const prover = value as Record<string, unknown>;
+  return prover.configured === true &&
+    typeof prover.urlSha256 === "string" &&
+    /^[0-9a-f]{64}$/.test(prover.urlSha256);
 }
 
 function hasString(value: unknown): value is string {

@@ -8,6 +8,7 @@ import {
   normalizeProductionAcceptanceSession,
   parseProductionAcceptanceArgs,
   productionAcceptanceFreshnessEvidence,
+  productionAcceptanceProverEvidence,
   productionAcceptanceSuiSpentMist,
   summarizeProductionAcceptanceSpend,
   zkProofEvidence
@@ -212,7 +213,7 @@ describe("production acceptance guardrails", () => {
     );
   });
 
-  it("summarizes freshness and prover evidence without storing sensitive proof material", () => {
+  it("summarizes freshness and proof evidence without storing sensitive proof material", () => {
     expect(productionAcceptanceFreshnessEvidence({ maxEpoch: 105 }, 100)).toEqual({
       maxEpoch: 105,
       currentEpoch: 100,
@@ -229,6 +230,15 @@ describe("production acceptance guardrails", () => {
       hasHeaderBase64: true,
       hasAddressSeed: true
     });
+  });
+
+  it("records non-sensitive zkLogin prover endpoint evidence", async () => {
+    const evidence = await productionAcceptanceProverEvidence("https://prover.mainnet.example/v1");
+
+    expect(evidence.configured).toBe(true);
+    expect(evidence.urlSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(evidence.urlSha256).not.toContain("prover.mainnet.example");
+    await expect(productionAcceptanceProverEvidence("   ")).rejects.toThrow(/ZKLOGIN_PROVER_URL/);
   });
 
   it("normalizes Sui balanceChanges and computes actual sender spend from negative SUI amounts", () => {

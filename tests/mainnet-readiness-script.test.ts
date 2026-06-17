@@ -519,6 +519,7 @@ function makePreflightReceipt(network: "testnet" | "mainnet" = "testnet"): Produ
             meta: {
               buyerProof: proofMeta(),
               agentProof: proofMeta(),
+              prover: proverMeta(),
               buyerFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 },
               agentFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 }
             }
@@ -616,6 +617,13 @@ function proofMeta(): Record<string, boolean> {
     hasIssBase64Details: true,
     hasHeaderBase64: true,
     hasAddressSeed: true
+  };
+}
+
+function proverMeta(): Record<string, string | boolean> {
+  return {
+    configured: true,
+    urlSha256: "a".repeat(64)
   };
 }
 
