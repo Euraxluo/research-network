@@ -344,7 +344,13 @@ async function loadAcceptanceSigner(label: "buyer" | "agent", filePath: string, 
           createdObjectIds.push(item.objectId);
         }
       }
-      return { digest: result.digest, createdObjectIds, createdObjects };
+      return {
+        digest: result.digest,
+        status: result.effects?.status?.status ?? "unknown",
+        error: result.effects?.status?.error,
+        createdObjectIds,
+        createdObjects
+      };
     },
     signPersonalMessage: async (message: Uint8Array) => {
       const { signature: userSignature } = await keypair.signPersonalMessage(message);

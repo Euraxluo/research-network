@@ -61,6 +61,8 @@ export interface M3Signer {
   address: string;
   signAndExecuteTransaction: (txBytes: Uint8Array) => Promise<{
     digest: string;
+    status: string;
+    error?: string;
     createdObjectIds: string[];
     createdObjects?: Array<{ objectId: string; objectType?: string }>;
   }>;
@@ -85,6 +87,13 @@ function createdObjectId(
     throw new Error(`Sui transaction succeeded but did not return a created ${typeHint} object id`);
   }
   return id;
+}
+
+function assertSuiTransactionSuccess(result: { digest: string; status: string; error?: string }): void {
+  if (result.status !== "success") {
+    const suffix = result.error ? `: ${result.error}` : "";
+    throw new Error(`Sui transaction ${result.digest} failed${suffix}`);
+  }
 }
 
 // ============ M2 demo path (offline fallback) ============
@@ -191,6 +200,7 @@ export async function publishReport(
     tx.setSender(signer.address);
     const txBytes = await tx.build({ client: suiClient });
     const result = await signer.signAndExecuteTransaction(txBytes);
+    assertSuiTransactionSuccess(result);
     const reportObjectId = createdObjectId(result, "ResearchReport");
     return {
       report: {
@@ -240,6 +250,7 @@ export async function publishReport(
   tx.setSender(signer.address);
   const txBytes = await tx.build({ client: suiClient });
   const result = await signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
   const reportObjectId = createdObjectId(result, "ResearchReport");
 
   return {
@@ -281,6 +292,7 @@ export async function buyPlatformMembershipOnChain(input: {
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
   return { digest: result.digest, objectId: createdObjectId(result, "PlatformMembershipPass") };
 }
 
@@ -304,6 +316,7 @@ export async function buyAgentSubscriptionOnChain(input: {
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
   return { digest: result.digest, objectId: createdObjectId(result, "AgentSubscriptionPass") };
 }
 
@@ -327,6 +340,7 @@ export async function createDelegationJobOnChain(input: {
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
   return { digest: result.digest, objectId: createdObjectId(result, "DelegationJob") };
 }
 
@@ -335,7 +349,9 @@ export async function acceptDelegationJobOnChain(input: { signer: M3Signer; jobO
   const tx = buildAcceptDelegationJob({ jobObjectId: input.jobObjectId, packageId: config.packageId });
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
-  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
+  return result.digest;
 }
 
 export async function fundDelegationJobOnChain(input: {
@@ -351,7 +367,9 @@ export async function fundDelegationJobOnChain(input: {
   });
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
-  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
+  return result.digest;
 }
 
 export async function completeDelegationJobOnChain(input: { signer: M3Signer; jobObjectId: string }): Promise<string> {
@@ -359,7 +377,9 @@ export async function completeDelegationJobOnChain(input: { signer: M3Signer; jo
   const tx = buildCompleteDelegationJob({ jobObjectId: input.jobObjectId, packageId: config.packageId });
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
-  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
+  return result.digest;
 }
 
 export async function openDisputeOnChain(input: {
@@ -377,7 +397,9 @@ export async function openDisputeOnChain(input: {
   });
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
-  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
+  return result.digest;
 }
 
 export async function publishPrivateResultOnChain(input: {
@@ -410,6 +432,7 @@ export async function publishPrivateResultOnChain(input: {
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
   const reportObjectId = createdObjectId(result, "ResearchReport");
   return {
     report: {
@@ -452,6 +475,7 @@ export async function recordPlatformAccessReceiptOnChain(input: {
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
   const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
   return { digest: result.digest, objectId: createdObjectId(result, "AccessReceipt") };
 }
 
@@ -471,7 +495,9 @@ export async function settleMembershipReportOnChain(input: {
   });
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
-  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
+  return result.digest;
 }
 
 export async function claimAgentEarningsOnChain(input: { signer: M3Signer }): Promise<string> {
@@ -479,7 +505,9 @@ export async function claimAgentEarningsOnChain(input: { signer: M3Signer }): Pr
   const tx = buildClaimAgentEarnings({ earningsObjectId: config.agentEarningsId, packageId: config.packageId });
   tx.setSender(input.signer.address);
   const txBytes = await tx.build({ client: getSuiClient() });
-  return (await input.signer.signAndExecuteTransaction(txBytes)).digest;
+  const result = await input.signer.signAndExecuteTransaction(txBytes);
+  assertSuiTransactionSuccess(result);
+  return result.digest;
 }
 
 /** Decrypt a report: fetch ciphertext from Walrus (via aggregator) then Seal

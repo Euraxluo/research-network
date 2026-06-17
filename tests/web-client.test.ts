@@ -104,6 +104,7 @@ describe("web M3/M4 client publish path", () => {
       address: "0x" + "cd".repeat(32),
       signAndExecuteTransaction: vi.fn(async () => ({
         digest: "tx-real",
+        status: "success",
         createdObjectIds: [CREATED_REPORT_ID]
       })),
       signPersonalMessage: vi.fn()
@@ -177,6 +178,7 @@ describe("web M3/M4 client publish path", () => {
         .fn()
         .mockResolvedValueOnce({
           digest: "tx-membership",
+          status: "success",
           createdObjectIds: [ids.coin, ids.membership],
           createdObjects: [
             { objectId: ids.coin, objectType: "0x2::coin::Coin<0x2::sui::SUI>" },
@@ -185,6 +187,7 @@ describe("web M3/M4 client publish path", () => {
         })
         .mockResolvedValueOnce({
           digest: "tx-subscription",
+          status: "success",
           createdObjectIds: [ids.coin, ids.subscription],
           createdObjects: [
             { objectId: ids.coin, objectType: "0x2::coin::Coin<0x2::sui::SUI>" },
@@ -193,20 +196,24 @@ describe("web M3/M4 client publish path", () => {
         })
         .mockResolvedValueOnce({
           digest: "tx-job",
+          status: "success",
           createdObjectIds: [ids.job],
           createdObjects: [{ objectId: ids.job, objectType: "0xpackage::delegation::DelegationJob" }]
         })
         .mockResolvedValueOnce({
           digest: "tx-receipt",
+          status: "success",
           createdObjectIds: [ids.receipt],
           createdObjects: [{ objectId: ids.receipt, objectType: "0xpackage::access::AccessReceipt" }]
         })
         .mockResolvedValueOnce({
           digest: "tx-settle",
+          status: "success",
           createdObjectIds: []
         })
         .mockResolvedValueOnce({
           digest: "tx-claim",
+          status: "success",
           createdObjectIds: []
         }),
       signPersonalMessage: vi.fn()
@@ -255,6 +262,7 @@ describe("web M3/M4 client publish path", () => {
       address: "0x" + "cd".repeat(32),
       signAndExecuteTransaction: vi.fn(async () => ({
         digest: "tx-wrong-object",
+        status: "success",
         createdObjectIds: ["0x" + "01".repeat(32)],
         createdObjects: [
           { objectId: "0x" + "01".repeat(32), objectType: "0x2::coin::Coin<0x2::sui::SUI>" }
@@ -264,5 +272,28 @@ describe("web M3/M4 client publish path", () => {
     };
 
     await expect(buyPlatformMembershipOnChain({ signer })).rejects.toThrow("typed PlatformMembershipPass");
+  });
+
+  it("rejects failed Sui effects before treating a digest as accepted", async () => {
+    const clientModulePath = "../web/src/lib/clients.ts";
+    const { claimAgentEarningsOnChain } = await import(clientModulePath);
+    mocks.buildClaimAgentEarnings.mockImplementation(() => ({
+      setSender: vi.fn(),
+      build: vi.fn(async () => new Uint8Array([1, 2, 3]))
+    }));
+    const signer = {
+      address: "0x" + "cd".repeat(32),
+      signAndExecuteTransaction: vi.fn(async () => ({
+        digest: "tx-aborted",
+        status: "failure",
+        error: "MoveAbort in settlement::claim_agent_earnings",
+        createdObjectIds: []
+      })),
+      signPersonalMessage: vi.fn()
+    };
+
+    await expect(claimAgentEarningsOnChain({ signer })).rejects.toThrow(
+      /Sui transaction tx-aborted failed: MoveAbort/
+    );
   });
 });

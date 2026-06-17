@@ -118,7 +118,13 @@ export async function buildZkLoginSigner(): Promise<M3Signer | null> {
       const oid = (change as { reference?: { objectId?: string } }).reference?.objectId;
       if (oid) created.push(oid);
     }
-    return { digest: result.digest, createdObjectIds: createdObjects.map((obj) => obj.objectId).concat(created), createdObjects };
+    return {
+      digest: result.digest,
+      status: result.effects?.status?.status ?? "unknown",
+      error: result.effects?.status?.error,
+      createdObjectIds: createdObjects.map((obj) => obj.objectId).concat(created),
+      createdObjects
+    };
   }
 
   async function signPersonalMessage(msg: Uint8Array) {

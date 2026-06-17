@@ -80,6 +80,13 @@ export interface ProductionAcceptanceReceipt {
 
 const DEFAULT_RECEIPT_PATH = ".research-network/acceptance/production-acceptance.json";
 const DEFAULT_GAS_RESERVE_MIST = 50_000_000n;
+const KNOWN_TESTNET_IDS = new Set([
+  "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e",
+  "0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4",
+  "0xb637059cb77aca697e36673afa2e8639f7f82d16b8f0eba8eb6a1f5bd12eda2b",
+  "0x5a25a789a4032c8460afa68b26b839a081c770372fa04e567207c606b68ad748",
+  "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98"
+]);
 
 export function parseMist(value: string | number | bigint | undefined, fallback: bigint, name: string): bigint {
   if (value === undefined || value === "") return fallback;
@@ -178,6 +185,10 @@ export function assertProductionAcceptanceCanExecute(config: ProductionAcceptanc
     if (missingMainnetConfig.length) {
       throw new Error(`mainnet acceptance requires explicit ${missingMainnetConfig.join(", ")}`);
     }
+    const testnetLeaks = mainnetTestnetLeaks(config);
+    if (testnetLeaks.length) {
+      throw new Error(`mainnet acceptance rejects testnet config in ${testnetLeaks.join(", ")}`);
+    }
   }
   if (!config.execute) return budget;
   const missing = [
@@ -194,6 +205,30 @@ export function assertProductionAcceptanceCanExecute(config: ProductionAcceptanc
     );
   }
   return budget;
+}
+
+function mainnetTestnetLeaks(config: ProductionAcceptanceConfig): string[] {
+  const checks = [
+    ["sui-rpc-url", config.suiRpcUrl],
+    ["package-id", config.packageId],
+    ["settlement-config-id", config.settlementConfigId],
+    ["agent-earnings-id", config.agentEarningsId],
+    ["membership-receipt-registry-id", config.membershipReceiptRegistryId],
+    ["walrus-publisher-url", config.walrusPublisherUrl],
+    ["walrus-aggregator-url", config.walrusAggregatorUrl],
+    ["seal-key-server-object-id", config.sealKeyServerObjectId],
+    ["seal-key-server-aggregator-url", config.sealKeyServerAggregatorUrl]
+  ];
+  return checks
+    .filter(([, value]) => typeof value === "string" && isKnownTestnetValue(value))
+    .map(([name]) => String(name));
+}
+
+function isKnownTestnetValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return false;
+  if (KNOWN_TESTNET_IDS.has(normalized)) return true;
+  return normalized.includes("testnet") || normalized.includes("sui-testnet-rpc.publicnode.com");
 }
 
 export function createProductionAcceptanceReceipt(
