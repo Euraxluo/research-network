@@ -1,6 +1,6 @@
 # 10. Sui Move 协议设计
 
-> **状态提示**：本篇描述当前 `move/sources/` 的 Seal Access 协议目标态与本地实现。旧 `license.move` / License NFT 路线已删除。新源码已本地 `sui move build` 和 `sui move test` 通过；是否重新部署到 Sui testnet package 需要单独决策，不能默认宣称已经上线。
+> **状态提示**：本篇描述当前 `move/sources/` 的 Seal Access 协议目标态与本地实现。旧 `license.move` / License NFT 路线已删除。最新源码已发布到 Sui testnet package `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`，并完成真实 Walrus + Seal + Sui author decrypt 回归；mainnet 仍未验收，不能注入正式资金。
 
 ## 包结构
 

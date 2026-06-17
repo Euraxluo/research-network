@@ -24,10 +24,21 @@ sui move build --path move --silence-warnings
 
 ## Testnet Deployment
 
-历史包已部署到 Sui testnet：
+当前 Seal Access 包已部署到 Sui testnet：
+
+- Package ID: `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`
+- Publish tx: `CvzaiupRbddPTmNhKQ5zLkS737GUS2DLmpKkjePnaoX6`
+- Shared `settlement::SettlementConfig`: `0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4`
+- Shared `settlement::AgentEarnings`: `0xb637059cb77aca697e36673afa2e8639f7f82d16b8f0eba8eb6a1f5bd12eda2b`
+- Shared `settlement::MembershipReceiptRegistry`: `0x5a25a789a4032c8460afa68b26b839a081c770372fa04e567207c606b68ad748`
+
+该包包含 `AgentEarnings.settled_receipts`，并已完成真实 Walrus + Seal + Sui author decrypt
+回归。下一步仍需两个真实 zkLogin 账号执行带资金上限的 production acceptance。
+
+历史骨架包也保留在 Sui testnet：
 
 - Package ID: `0x03d2e61b22a98c3eabb49ccb0fe4e6252fee9f5076cec3b5e513a45b0c57a245`
 - Publish tx: `6a38rdmgZ1RV5YTpmYU6HXafQhBGnhJgrE4R1J5HerMB`
 - Shared `payment::SettlementRegistry`: `0xd0565a1a06de32503ebb8c07c61db33c3a0dd57c5966aec79f5f8b871ef8f9b2`
 
-详细部署记录见 `docs/16-testnet-deployment.md`。Seal Access 重构后的新 Move 源码已本地 build/test 通过；是否重新发布 testnet package 需要单独决策。
+详细部署记录见 `docs/16-testnet-deployment.md`。

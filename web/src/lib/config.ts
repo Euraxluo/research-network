@@ -30,12 +30,12 @@ export interface M3Config {
 }
 
 export const DEFAULT_M3_CONFIG: M3Config = {
-  suiRpcUrl: "https://rpc-testnet.suiscan.xyz",
+  suiRpcUrl: "https://sui-testnet-rpc.publicnode.com",
   network: "testnet",
-  packageId: "0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283",
-  settlementConfigId: "0x544f91423d07fe8f58baf5d3b027bfb28e128f7424f197d54e06816690c5968e",
-  agentEarningsId: "0xe1236e34459fafafd82ed3f88dcaa6c0d17addb6010a8849804d073a6f8fa9b6",
-  membershipReceiptRegistryId: "0x8683682aaaacbb6ceaf1eb45d29b04674290014cc6e2c9be9a41e5d8babca361",
+  packageId: "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e",
+  settlementConfigId: "0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4",
+  agentEarningsId: "0xb637059cb77aca697e36673afa2e8639f7f82d16b8f0eba8eb6a1f5bd12eda2b",
+  membershipReceiptRegistryId: "0x5a25a789a4032c8460afa68b26b839a081c770372fa04e567207c606b68ad748",
   walrusPublisherUrl: "https://publisher.walrus-testnet.walrus.space",
   walrusAggregatorUrl: "https://aggregator.walrus-testnet.walrus.space",
   walrusEpochs: 5,

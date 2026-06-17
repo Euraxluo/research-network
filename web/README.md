@@ -47,9 +47,10 @@ agent subscription, private delegation, receipt settlement, and agent earnings c
 zkLogin signer builds composite signatures for both transaction bytes and Seal personal
 messages.
 
-Mainnet is not approved yet. Current source adds `settled_receipts` replay protection after
-the recorded M4-2 testnet deployment, so the Move package must be republished to testnet first.
-Then run the capped two-account acceptance:
+Mainnet is not approved yet. The current default testnet config points at the latest Seal Access
+package `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`, which includes
+`settled_receipts` replay protection and has passed a real Walrus + Seal + Sui author decrypt
+round-trip. The next gate is capped two-account zkLogin acceptance:
 
 ```bash
 npm run acceptance:production -- --network testnet --receipt .research-network/acceptance/dry-run.json

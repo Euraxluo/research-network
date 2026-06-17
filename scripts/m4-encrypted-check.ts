@@ -18,15 +18,21 @@ import { SealClient, SessionKey, EncryptedObject } from "@mysten/seal";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { DEFAULT_M3_CONFIG } from "../web/src/lib/config.ts";
 
-const PACKAGE_ID = "0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283";
+const NETWORK = env("RN_NETWORK", DEFAULT_M3_CONFIG.network);
+const PACKAGE_ID = env("RN_PACKAGE_ID", DEFAULT_M3_CONFIG.packageId);
 const CLOCK_ID = "0x6";
-const SEAL_KEY_SERVER = "0xb012378c9f3799fb5b1a7083da74a4069e3c3f1c93de0b27212a5799ce1e1e98";
-const SEAL_KEY_SERVER_URL = "https://seal-aggregator-testnet.mystenlabs.com";
-const SEAL_THRESHOLD = 1;
-const WALRUS_PUBLISHER = "https://publisher.walrus-testnet.walrus.space";
-const WALRUS_AGGREGATOR = "https://aggregator.walrus-testnet.walrus.space";
-const WALRUS_EPOCHS = 5;
+const SEAL_KEY_SERVER = env("RN_SEAL_KEY_SERVER_OBJECT_ID", DEFAULT_M3_CONFIG.sealKeyServers[0]?.objectId || "");
+const SEAL_KEY_SERVER_URL = env(
+  "RN_SEAL_KEY_SERVER_AGGREGATOR_URL",
+  DEFAULT_M3_CONFIG.sealKeyServers[0]?.aggregatorUrl || ""
+);
+const SEAL_THRESHOLD = Number(env("RN_SEAL_THRESHOLD", String(DEFAULT_M3_CONFIG.sealThreshold)));
+const WALRUS_PUBLISHER = env("RN_WALRUS_PUBLISHER_URL", DEFAULT_M3_CONFIG.walrusPublisherUrl);
+const WALRUS_AGGREGATOR = env("RN_WALRUS_AGGREGATOR_URL", DEFAULT_M3_CONFIG.walrusAggregatorUrl);
+const WALRUS_EPOCHS = Number(env("RN_WALRUS_EPOCHS", String(DEFAULT_M3_CONFIG.walrusEpochs)));
+const SUI_RPC_URL = env("RN_SUI_RPC_URL", DEFAULT_M3_CONFIG.suiRpcUrl);
 
 async function sha256Hex(d: Uint8Array): Promise<string> {
   const b = new ArrayBuffer(d.byteLength); new Uint8Array(b).set(d);
@@ -41,15 +47,32 @@ function hexToBytes(h: string): Uint8Array {
 function b64urlToBytes(u: string): Uint8Array {
   return Uint8Array.from(Buffer.from(u.replace(/-/g, "+").replace(/_/g, "/"), "base64"));
 }
+function env(name: string, fallback: string): string {
+  const value = process.env[name];
+  return value && value.trim() ? value.trim() : fallback;
+}
 
 async function main() {
+  if (NETWORK !== "testnet" && process.env.RN_ALLOW_M4_MAINNET !== "1") {
+    throw new Error("m4-encrypted-check defaults to testnet; set RN_ALLOW_M4_MAINNET=1 for non-testnet smoke only");
+  }
+  if (!PACKAGE_ID || !SEAL_KEY_SERVER || !SEAL_KEY_SERVER_URL) {
+    throw new Error("missing package or Seal key-server config");
+  }
   const ks = JSON.parse(readFileSync(join(homedir(), ".sui", "sui_config", "sui.keystore"), "utf8")) as string[];
   const fas = Buffer.from(ks[0], "base64");
   const keypair = Ed25519Keypair.fromSecretKey(fas.subarray(1));
   const address = keypair.getPublicKey().toSuiAddress();
   console.log("Author address:", address);
+  console.log("Network:", NETWORK);
+  console.log("Package:", PACKAGE_ID);
+  console.log("Sui RPC:", SUI_RPC_URL);
+  console.log("Walrus publisher:", WALRUS_PUBLISHER);
 
-  const client = new SuiJsonRpcClient({ url: getJsonRpcFullnodeUrl("testnet"), network: "testnet" });
+  const client = new SuiJsonRpcClient({
+    url: SUI_RPC_URL || getJsonRpcFullnodeUrl(NETWORK),
+    network: NETWORK === "devnet" ? "testnet" : NETWORK
+  } as ConstructorParameters<typeof SuiJsonRpcClient>[0]);
   const coins = await client.getCoins({ owner: address });
   const balance = coins.data.reduce((s, c) => s + BigInt(c.balance), 0n);
   console.log("SUI balance:", balance.toString());

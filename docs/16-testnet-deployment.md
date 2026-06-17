@@ -6,12 +6,36 @@ This deployment used the local `research deploy:testnet` flow against Walrus tes
 
 > **版本说明**：本报告记录历史 testnet 部署。`## Sui Testnet` 是 v0.1 骨架包；`## v2 Deployment` 是 2026-06-12 的 revenue/payment 经济安全包。2026-06-15 的 Seal Access 重构删除了旧 `license.move` 并新增 `report/access/delegation/settlement`，本报告尚未记录该新源码的 testnet 发布。不要把本报告中的历史包当作当前 Seal Access 已上线证明。
 
-> **2026-06-17 更新**：`move/Published.toml` 和 Web 默认配置现在指向 M4-2 Seal Access testnet package
-> `0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283`，该包已验证
-> publisher-chosen `seal_id` 的 Walrus + Seal author decrypt 流程。随后当前源码新增
-> `settlement::AgentEarnings.settled_receipts`，阻止同一个 `AccessReceipt` 重复结算；因此
-> `0x7a1e...a283` 已不是最新源码字节码。下一次真实 production acceptance 前必须重新发布
-> testnet 包、更新 shared object ids，再运行 `npm run acceptance:production -- --network testnet --execute ...`。
+> **2026-06-17 更新**：最新 Seal Access package 已重新发布到 Sui testnet，并包含
+> `settlement::AgentEarnings.settled_receipts`，可阻止同一个 `AccessReceipt` 重复结算。
+> `move/Published.toml` 和 Web 默认配置当前指向 package
+> `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`。该包已完成真实
+> Walrus + Seal + Sui author decrypt 回归：tx `EtJWxVQ99aFfkDhh8JB2mia5BsdqeX6V72Ps3bhoVy8C`，
+> report `0x1574d82f0de52242c9c82d36300629793fc3113d6d4324d0256442a5ae04fa09`，Seal id
+> `0x7de40428ce8fb805262b108a0041201618f57a857009532a355a2d3d5cbc36ee`。下一道 gate
+> 仍然是两个真实 zkLogin 账号运行带资金上限的 production acceptance。
+
+## Latest Seal Access Testnet Package（2026-06-17）
+
+- Publisher address: `0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788`
+- Package ID: `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`
+- Publish tx: `CvzaiupRbddPTmNhKQ5zLkS737GUS2DLmpKkjePnaoX6`
+- Upgrade capability: `0x37623166a16dff2c7ee5641c3b1aef5d51e4defb2b39a1a875cb32ef5a0d9f7e`
+- Shared `settlement::SettlementConfig`: `0x612c971a021e8139e0cd4e63bfef162f4301e72532b808a840d3d16512125ea4`
+- Shared `settlement::AgentEarnings`: `0xb637059cb77aca697e36673afa2e8639f7f82d16b8f0eba8eb6a1f5bd12eda2b`
+- Shared `settlement::MembershipReceiptRegistry`: `0x5a25a789a4032c8460afa68b26b839a081c770372fa04e567207c606b68ad748`
+- Shared `payment::SettlementRegistry`: `0x03485f5dc44ab8e465ec73435ed9754928128daa297cfb118a6a9cc3d2382340`
+- Owned `settlement::SettlerCap`: `0x46b1c097f6bf4002290a474c445c310031678c5b2381be014c2d4746ae36780d`
+
+Verification performed:
+
+```bash
+RN_SUI_RPC_URL=https://sui-testnet-rpc.publicnode.com npx tsx scripts/m4-encrypted-check.ts
+```
+
+This verified the current `seal_id` design against the latest package: the publisher chooses a
+random 32-byte `seal_id`, Seal encrypts under that id, the real Sui transaction writes the same
+`seal_id` into `ResearchReport`, and `access::seal_approve_report_author` authorizes decryption.
 
 ## v2 Deployment（historical economic safety package，2026-06-12）
 

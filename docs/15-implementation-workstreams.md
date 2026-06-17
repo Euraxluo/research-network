@@ -83,7 +83,7 @@
 
 ## 工作流 E：Sui Move Protocol
 
-状态：✅ Seal Access 本地源码已实现 + Move 测试。新增 `report.move`、`access.move`、`delegation.move`、`settlement.move`，删除旧 `license.move`；本轮不默认重新部署 Sui testnet package。历史 v2 revenue/payment 包已部署并完成 revenue 链上冒烟，见 docs/16。
+状态：✅ Seal Access 源码已实现、Move 测试通过，并已重新发布 Sui testnet package `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`。新增 `report.move`、`access.move`、`delegation.move`、`settlement.move`，删除旧 `license.move`；最新包包含 `settled_receipts` 结算幂等保护，已完成真实 Walrus + Seal + Sui author decrypt 回归。历史 v2 revenue/payment 包已部署并完成 revenue 链上冒烟，见 docs/16。
 
 产物：
 

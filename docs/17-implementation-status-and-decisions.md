@@ -24,11 +24,11 @@ docs/01-16 可能保留历史设计脉络；本篇给出当前代码与产品语
 | REST API / SDK / CLI | ✅ 已实现（本地后端） | `src/api/`、`src/core/sdk.ts`、`src/cli.ts` | 新增 reports/channels/delegations/access intent；旧 `/licenses` 和 `license:intent` 已移除 |
 | 静态站点生成 + Walrus Sites + Vercel 入口 | ✅ 已实现 | `src/core/web.ts`、`web-auth.ts`、`api/walrus.ts`、`vercel.json` | Web 已从 Licenses 切到 Membership / Delegations；Vercel shell + Walrus proxy 仍按历史部署策略工作 |
 | Move 合约（Seal Access 本地源码） | ✅ 已实现 + Move 测试 | `move/sources/`、`move/tests/` | 新增 report/access/delegation/settlement，删除 license；本地 build/test 通过 |
-| Move 包 testnet 部署 | 🔶 M4-2 包已部署；当前源码需重发 | `move/Published.toml`、docs/16 | `0x7a1e...a283` 已验证 M4-2 Seal id 流程；2026-06-17 新增 receipt 结算幂等保护，必须重新发布 testnet 包后才能做生产验收 |
+| Move 包 testnet 部署 | ✅ 最新源码已发布到 testnet | `move/Published.toml`、docs/16 | 当前 package `0x5ecd...231e` 包含 `settled_receipts` 幂等保护；已完成真实 Walrus + Seal + Sui author decrypt 回归 |
 | zkLogin | 🔶 真实地址派生 + salt service + CLI login + Web signer | `src/core/zklogin.ts`、`web-auth.ts`、`api/zklogin-salt.ts`、`web/src/lib/signer.ts` | Web signer 已对交易和 Seal personal message 组装 zkLogin composite signature；真实验收仍需要两个浏览器 zkLogin 会话文件和 prover |
 | GitHub App 仓库接入 | 🔶 真实流程已实现 + 测试 + 生产配置已补齐 | `src/core/github.ts`、`github-binding.ts`、`api/github-oauth.ts` | 站内 repo 下拉、server-signed binding attestation、server-side account store V1 已实现 |
 | Indexer 事件投影 | 🔶 全量本地目录 + Sui RPC poller V1 | `src/core/indexer.ts`、`sui-events.ts` | 新增 report/membership/subscription/receipt/delegation/settlement/earnings 投影；剩生产常驻调度和实时 Walrus fetcher |
-| Seal Access 交易闭环 | 🔶 Web 真实路径已接入；生产验收待跑 | `web/src/lib/`、`scripts/production-acceptance.ts` | Web 已接真实 Walrus + Seal + Sui publish/decrypt/purchase/delegation/claim；新增带资金上限的 production acceptance runner。仍需两个真实 zkLogin 账号和重发后的 testnet package 完成验收 |
+| Seal Access 交易闭环 | 🔶 Web 真实路径已接入；两账号生产验收待跑 | `web/src/lib/`、`scripts/production-acceptance.ts` | Web 已接真实 Walrus + Seal + Sui publish/decrypt/purchase/delegation/claim；新增带资金上限的 production acceptance runner。仍需两个真实 zkLogin 账号完成 `--execute` 验收 |
 | 跨链支付 CCTP / Wormhole | 🔶 合约入口历史实现；真实 VAA 待接 | `move/sources/payment.move`、docs/09 | payment intent 已改为 access intent；真实 relayer/prover 仍未完成 |
 | Token / 声誉 / 治理 / 仲裁 | ❌ 仅设计 / 局部事件骨架 | docs/08、docs/12 | 仲裁在 private delegation dispute 中有最小授权语义；完整治理仍未实现 |
 
@@ -36,22 +36,21 @@ docs/01-16 可能保留历史设计脉络；本篇给出当前代码与产品语
 
 本轮 Seal Access 重构是**本地协议、schema、indexer、web、生产验收脚手架和测试**变更。不要对外宣称当前源码已经可上 mainnet，除非之后明确执行并记录：
 
-1. 重新发布包含 `settled_receipts` 幂等保护的 Move package 到 testnet。
-2. 使用两个真实 zkLogin 账号运行 `npm run acceptance:production -- --network testnet --execute ...` 并保留 receipt。
-3. 同步 production Web 配置到该 testnet package/shared objects。
-4. 再切换 mainnet package/shared objects/RPC/Walrus/Seal key server 配置并跑小额 mainnet acceptance。
+1. 使用两个真实 zkLogin 账号运行 `npm run acceptance:production -- --network testnet --execute ...` 并保留 receipt。
+2. 确认 production Web 配置、indexer 和部署环境均指向该 testnet package/shared objects。
+3. 再切换 mainnet package/shared objects/RPC/Walrus/Seal key server 配置并跑小额 mainnet acceptance。
 
 历史部署记录仍有价值：
 
 - v0.1 package `0x03d2...` 是早期骨架，保留为历史记录。
 - v2 revenue/payment package `0x1c8ecc...` 曾完成真实 SUI revenue 入池和领取冒烟验证，详见 docs/16。
-- M4-2 package `0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283` 曾完成真实 Walrus + Seal author decrypt 验证，并作为 Web 默认 testnet 配置。
-- 2026-06-17 起当前源码新增 `settlement::AgentEarnings.settled_receipts`，防止同一个 `AccessReceipt` 重复结算；这使 `0x7a1e...a283` 不再代表最新字节码。
+- M4-2 package `0x7a1eed5292d80ea04f37f18fbbfdd1fd7774becc7c4f85972ebe16e16183a283` 曾完成真实 Walrus + Seal author decrypt 验证，现保留为历史包。
+- Current testnet package `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e` 包含 `settlement::AgentEarnings.settled_receipts`，防止同一个 `AccessReceipt` 重复结算；Web 默认 testnet 配置已指向该包。
 
 对外可说：
 
 - 本地 Seal Access Move 源码、TS/web/indexer 和 production acceptance dry-run 已实现并测试通过。
-- testnet 必须重发最新包后，才能进行“带真实资金的生产验收”。
+- 最新 Seal Access package 已发布到 testnet，并完成真实 Walrus + Seal + Sui author decrypt 回归。
 - 私有委托内容默认平台不可见，只有 dispute 授权后仲裁者可临时解密。
 - mainnet 还未部署/验收，不允许注入正式资金运行。
 
