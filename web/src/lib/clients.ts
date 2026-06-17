@@ -90,16 +90,14 @@ function createdObjectId(
   result: { digest: string; createdObjectIds: string[]; createdObjects?: Array<{ objectId: string; objectType?: string }> },
   typeHint: string
 ): string {
-  const typed = result.createdObjects?.find((obj) => String(obj.objectType || "").includes(typeHint))?.objectId;
+  const typed = result.createdObjects?.find((obj) => moveStructName(obj.objectType) === typeHint)?.objectId;
   if (typed) return typed;
-  if (result.createdObjects?.length) {
-    throw new Error(`Sui transaction succeeded but did not return a typed ${typeHint} object`);
-  }
-  const id = result.createdObjectIds[0];
-  if (!id) {
-    throw new Error(`Sui transaction succeeded but did not return a created ${typeHint} object id`);
-  }
-  return id;
+  throw new Error(`Sui transaction succeeded but did not return a typed ${typeHint} object`);
+}
+
+function moveStructName(type: string | undefined): string | undefined {
+  if (!type) return undefined;
+  return type.split("<", 1)[0]?.split("::").pop();
 }
 
 function assertSuiTransactionSuccess(result: { digest: string; status: string; error?: string }): void {

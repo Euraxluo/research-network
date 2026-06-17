@@ -105,7 +105,8 @@ describe("web M3/M4 client publish path", () => {
       signAndExecuteTransaction: vi.fn(async () => ({
         digest: "tx-real",
         status: "success",
-        createdObjectIds: [CREATED_REPORT_ID]
+        createdObjectIds: [CREATED_REPORT_ID],
+        createdObjects: [{ objectId: CREATED_REPORT_ID, objectType: "0xpackage::report::ResearchReport" }]
       })),
       signPersonalMessage: vi.fn()
     };
@@ -137,6 +138,33 @@ describe("web M3/M4 client publish path", () => {
 
     const publishArgs = mocks.buildPublishEncryptedReport.mock.calls[0][0] as { sealId: Uint8Array };
     expect(Array.from(publishArgs.sealId)).toEqual(Array.from(hexToBytes(sealIdHex)));
+  });
+
+  it("requires typed created object changes for published reports", async () => {
+    const clientModulePath = "../web/src/lib/clients.ts";
+    const { publishReport } = await import(clientModulePath);
+    const signer = {
+      address: "0x" + "cd".repeat(32),
+      signAndExecuteTransaction: vi.fn(async () => ({
+        digest: "tx-untyped-report",
+        status: "success",
+        createdObjectIds: [CREATED_REPORT_ID]
+      })),
+      signPersonalMessage: vi.fn()
+    };
+
+    await expect(publishReport(
+      {
+        title: "Untyped object change regression",
+        visibility: "encrypted",
+        requiredTier: 1,
+        freePreview: "preview",
+        plaintext: "private body",
+        agent: signer.address,
+        sourceRepo: "owner/repo"
+      },
+      signer
+    )).rejects.toThrow("typed ResearchReport");
   });
 
   it("uses typed created object changes for real commerce and delegation wrappers", async () => {
@@ -267,6 +295,49 @@ describe("web M3/M4 client publish path", () => {
         createdObjects: [
           { objectId: "0x" + "01".repeat(32), objectType: "0x2::coin::Coin<0x2::sui::SUI>" }
         ]
+      })),
+      signPersonalMessage: vi.fn()
+    };
+
+    await expect(buyPlatformMembershipOnChain({ signer })).rejects.toThrow("typed PlatformMembershipPass");
+  });
+
+  it("requires exact Move struct names for created object type matching", async () => {
+    const clientModulePath = "../web/src/lib/clients.ts";
+    const { buyPlatformMembershipOnChain } = await import(clientModulePath);
+    mocks.buildBuyPlatformMembership.mockImplementation(() => ({
+      setSender: vi.fn(),
+      build: vi.fn(async () => new Uint8Array([1, 2, 3]))
+    }));
+    const signer = {
+      address: "0x" + "cd".repeat(32),
+      signAndExecuteTransaction: vi.fn(async () => ({
+        digest: "tx-substring-object-type",
+        status: "success",
+        createdObjectIds: ["0x" + "01".repeat(32)],
+        createdObjects: [
+          { objectId: "0x" + "01".repeat(32), objectType: "0xpackage::access::FakePlatformMembershipPass" }
+        ]
+      })),
+      signPersonalMessage: vi.fn()
+    };
+
+    await expect(buyPlatformMembershipOnChain({ signer })).rejects.toThrow("typed PlatformMembershipPass");
+  });
+
+  it("rejects commerce object ids that are not backed by typed object changes", async () => {
+    const clientModulePath = "../web/src/lib/clients.ts";
+    const { buyPlatformMembershipOnChain } = await import(clientModulePath);
+    mocks.buildBuyPlatformMembership.mockImplementation(() => ({
+      setSender: vi.fn(),
+      build: vi.fn(async () => new Uint8Array([1, 2, 3]))
+    }));
+    const signer = {
+      address: "0x" + "cd".repeat(32),
+      signAndExecuteTransaction: vi.fn(async () => ({
+        digest: "tx-untyped-membership",
+        status: "success",
+        createdObjectIds: ["0x" + "02".repeat(32)]
       })),
       signPersonalMessage: vi.fn()
     };
