@@ -699,20 +699,28 @@ function hasSuccessfulTransactionStatus(
 function stepHasExpectedEvents(receipt: ProductionAcceptanceReceipt, name: string): boolean {
   const expected = EXECUTE_STEP_EVENTS[name];
   if (!expected?.length) return false;
-  return hasExpectedEventTypes(receipt.steps.find((step) => step.name === name)?.meta?.eventTypes, expected);
+  return hasExpectedEventTypes(receipt.steps.find((step) => step.name === name)?.meta?.eventTypes, expected, receipt.config.packageId);
 }
 
 function delegationFundHasExpectedEvents(receipt: ProductionAcceptanceReceipt): boolean {
   return hasExpectedEventTypes(
     receipt.steps.find((step) => step.name === "buyer.create_and_fund_delegation")?.meta?.fundEventTypes,
-    ["DelegationFunded"]
+    ["DelegationFunded"],
+    receipt.config.packageId
   );
 }
 
-function hasExpectedEventTypes(value: unknown, expected: string[]): boolean {
+function hasExpectedEventTypes(value: unknown, expected: string[], packageId: unknown): boolean {
   if (!Array.isArray(value)) return false;
+  if (!hasString(packageId)) return false;
+  const packagePrefix = `${packageId.toLowerCase()}::`;
   const eventTypes = value.filter((item): item is string => typeof item === "string");
-  return expected.every((eventName) => eventTypes.some((type) => type.endsWith(`::${eventName}`)));
+  return expected.every((eventName) =>
+    eventTypes.some((type) => {
+      const normalized = type.toLowerCase();
+      return normalized.startsWith(packagePrefix) && type.endsWith(`::${eventName}`);
+    })
+  );
 }
 
 function sameSuiAddress(left: unknown, right: unknown): boolean {

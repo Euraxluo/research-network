@@ -200,6 +200,30 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".execute.move_events") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts whose Move events come from a different package", () => {
+    const wrongPackage = "0x" + "99".repeat(32);
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "buyer.buy_agent_subscription"
+          ? {
+              ...step,
+              meta: {
+                ...(step.meta ?? {}),
+                eventTypes: [
+                  `${wrongPackage}::access::AgentSubscriptionPurchased`,
+                  `${wrongPackage}::settlement::AgentSubscriptionPaid`
+                ]
+              }
+            }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".execute.move_events") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects execute receipts whose transaction spend metadata does not match balanceChanges", () => {
     const receipt = makeExecuteReceipt({
       steps: executeSteps().map((step) =>
@@ -456,6 +480,7 @@ describe("mainnet readiness receipt checks", () => {
 
 function makeExecuteReceipt(overrides: Partial<ProductionAcceptanceReceipt> = {}): ProductionAcceptanceReceipt {
   const network = overrides.network ?? "testnet";
+  const config = baseConfig(network);
   return {
     network,
     execute: true,
@@ -472,9 +497,9 @@ function makeExecuteReceipt(overrides: Partial<ProductionAcceptanceReceipt> = {}
       totalBudgetMist: "103800000",
       maxSpendMist: "110000000"
     },
-    config: baseConfig(network),
+    config,
     spend: spendSummary(),
-    steps: executeSteps(),
+    steps: executeSteps(config.packageId ?? ""),
     conclusion: "passed",
     ...overrides
   };
@@ -506,7 +531,7 @@ function makePreflightReceipt(overrides: Partial<ProductionAcceptanceReceipt> = 
   };
 }
 
-function executeSteps(): ProductionAcceptanceStep[] {
+function executeSteps(packageId = baseConfig("testnet").packageId): ProductionAcceptanceStep[] {
   return ALL_STEPS.map((name) => {
     const step: ProductionAcceptanceStep = { name, status: "passed" };
     if ([
@@ -538,7 +563,7 @@ function executeSteps(): ProductionAcceptanceStep[] {
         fundSignerAddress: "0x" + "aa".repeat(32),
         fundSuiSpentMist: "2000000",
         fundBalanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-2000000" }],
-        fundEventTypes: eventTypesFor("buyer.fund_delegation"),
+        fundEventTypes: eventTypesFor("buyer.fund_delegation", packageId),
         fundTxStatus: "success"
       };
     }
@@ -555,7 +580,7 @@ function executeSteps(): ProductionAcceptanceStep[] {
       step.meta = decryptMeta("private_delegation");
     }
     if (step.digest) {
-      step.meta = { ...(step.meta ?? {}), ...spendMeta(name) };
+      step.meta = { ...(step.meta ?? {}), ...spendMeta(name, packageId) };
     }
     if (name === "budget.actual_spend_cap") {
       step.meta = spendSummary();
@@ -651,7 +676,7 @@ function decryptMeta(accessPath: string): Record<string, string | number | boole
   };
 }
 
-function spendMeta(name: string): Record<string, unknown> {
+function spendMeta(name: string, packageId = baseConfig("testnet").packageId ?? ""): Record<string, unknown> {
   const signerAddress = name.startsWith("agent.") ? "0x" + "bb".repeat(32) : "0x" + "aa".repeat(32);
   const suiSpentMist = name.startsWith("agent.") ? "1500000" : "5000000";
   return {
@@ -659,13 +684,13 @@ function spendMeta(name: string): Record<string, unknown> {
     signerAddress,
     suiSpentMist,
     balanceChanges: [{ owner: signerAddress, coinType: "0x2::sui::SUI", amount: `-${suiSpentMist}` }],
-    eventTypes: eventTypesFor(name),
+    eventTypes: eventTypesFor(name, packageId),
     txStatus: "success"
   };
 }
 
-function eventTypesFor(name: string): string[] {
-  const pkg = "0x" + "11".repeat(32);
+function eventTypesFor(name: string, packageId = baseConfig("testnet").packageId): string[] {
+  const pkg = packageId;
   const map: Record<string, string[]> = {
     "agent.publish_encrypted_report": [`${pkg}::report::ResearchReportPublished`],
     "buyer.buy_platform_membership": [
