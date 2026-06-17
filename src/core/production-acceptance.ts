@@ -80,6 +80,8 @@ export interface ProductionAcceptanceBalanceChange {
 
 export interface ProductionAcceptanceTransactionSpendEvidence {
   digest: string;
+  signerAddress?: string;
+  suiSpentMist?: string;
   balanceChanges: ProductionAcceptanceBalanceChange[];
 }
 
@@ -434,9 +436,26 @@ export function summarizeProductionAcceptanceSpend(input: {
   agentAddress: string;
   maxSpendMist: bigint;
 }): ProductionAcceptanceSpendSummary {
-  const balanceChanges = input.transactions.flatMap((transaction) => transaction.balanceChanges);
-  const buyerSpentMist = productionAcceptanceSuiSpentMist(balanceChanges, input.buyerAddress);
-  const agentSpentMist = productionAcceptanceSuiSpentMist(balanceChanges, input.agentAddress);
+  let buyerSpentMist = 0n;
+  let agentSpentMist = 0n;
+  for (const transaction of input.transactions) {
+    const signerAddress = transaction.signerAddress;
+    const computedSpend = signerAddress
+      ? productionAcceptanceSuiSpentMist(transaction.balanceChanges, signerAddress)
+      : undefined;
+    if (signerAddress && transaction.suiSpentMist !== undefined && String(computedSpend) !== transaction.suiSpentMist) {
+      throw new Error(`transaction ${transaction.digest} spend metadata does not match balanceChanges`);
+    }
+    if (signerAddress && computedSpend !== undefined && computedSpend === 0n) {
+      throw new Error(`transaction ${transaction.digest} has no negative SUI balance change for signer ${signerAddress}`);
+    }
+    if (!signerAddress || normalizeSuiTypeAddress(signerAddress) === normalizeSuiTypeAddress(input.buyerAddress)) {
+      buyerSpentMist += signerAddress ? computedSpend ?? 0n : productionAcceptanceSuiSpentMist(transaction.balanceChanges, input.buyerAddress);
+    }
+    if (!signerAddress || normalizeSuiTypeAddress(signerAddress) === normalizeSuiTypeAddress(input.agentAddress)) {
+      agentSpentMist += signerAddress ? computedSpend ?? 0n : productionAcceptanceSuiSpentMist(transaction.balanceChanges, input.agentAddress);
+    }
+  }
   const totalSpentMist = buyerSpentMist + agentSpentMist;
   return {
     buyerSpentMist: String(buyerSpentMist),

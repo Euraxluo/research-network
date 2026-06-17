@@ -331,7 +331,12 @@ async function main() {
     pass("buyer.complete_delegation", { digest: completeDigest });
 
     receipt.spend = summarizeProductionAcceptanceSpend({
-      transactions: [...transactionLedger.values()].map(({ digest, balanceChanges }) => ({ digest, balanceChanges })),
+      transactions: [...transactionLedger.values()].map(({ digest, signerAddress, suiSpentMist, balanceChanges }) => ({
+        digest,
+        signerAddress,
+        suiSpentMist,
+        balanceChanges
+      })),
       buyerAddress: buyer.address,
       agentAddress: agent.address,
       maxSpendMist: config.maxSpendMist

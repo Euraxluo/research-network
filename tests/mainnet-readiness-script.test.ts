@@ -483,6 +483,7 @@ function executeSteps(): ProductionAcceptanceStep[] {
     if (name === "buyer.create_and_fund_delegation") {
       step.meta = {
         fundDigest: digestFor("fund"),
+        fundSignerAddress: "0x" + "aa".repeat(32),
         fundSuiSpentMist: "2000000",
         fundBalanceChanges: [{ owner: "0x" + "aa".repeat(32), coinType: "0x2::sui::SUI", amount: "-2000000" }]
       };
@@ -553,11 +554,12 @@ function decryptMeta(accessPath: string): Record<string, string | number | boole
 
 function spendMeta(name: string): Record<string, string | Array<Record<string, string | undefined>>> {
   const signerAddress = name.startsWith("agent.") ? "0x" + "bb".repeat(32) : "0x" + "aa".repeat(32);
+  const suiSpentMist = name.startsWith("agent.") ? "1500000" : "5000000";
   return {
     signer: name.startsWith("agent.") ? "agent" : "buyer",
     signerAddress,
-    suiSpentMist: name.startsWith("agent.") ? "1500000" : "5000000",
-    balanceChanges: [{ owner: signerAddress, coinType: "0x2::sui::SUI", amount: "-1" }]
+    suiSpentMist,
+    balanceChanges: [{ owner: signerAddress, coinType: "0x2::sui::SUI", amount: `-${suiSpentMist}` }]
   };
 }
 

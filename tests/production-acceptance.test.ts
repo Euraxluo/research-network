@@ -292,4 +292,40 @@ describe("production acceptance guardrails", () => {
       transactionCount: 2
     });
   });
+
+  it("rejects transaction spend metadata that does not match balanceChanges", () => {
+    const buyer = "0x" + "aa".repeat(32);
+
+    expect(() =>
+      summarizeProductionAcceptanceSpend({
+        buyerAddress: buyer,
+        agentAddress: "0x" + "bb".repeat(32),
+        maxSpendMist: 1200n,
+        transactions: [{
+          digest: "tx-buyer",
+          signerAddress: buyer,
+          suiSpentMist: "999",
+          balanceChanges: [{ owner: buyer, coinType: "0x2::sui::SUI", amount: "-1000" }]
+        }]
+      })
+    ).toThrow(/spend metadata does not match balanceChanges/);
+  });
+
+  it("rejects transaction spend evidence without a negative signer SUI balance change", () => {
+    const buyer = "0x" + "aa".repeat(32);
+
+    expect(() =>
+      summarizeProductionAcceptanceSpend({
+        buyerAddress: buyer,
+        agentAddress: "0x" + "bb".repeat(32),
+        maxSpendMist: 1200n,
+        transactions: [{
+          digest: "tx-buyer",
+          signerAddress: buyer,
+          suiSpentMist: "0",
+          balanceChanges: [{ owner: buyer, coinType: "0x2::sui::SUI", amount: "1000" }]
+        }]
+      })
+    ).toThrow(/has no negative SUI balance change/);
+  });
 });

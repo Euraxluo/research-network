@@ -1,9 +1,11 @@
 import type {
+  ProductionAcceptanceBalanceChange,
   ProductionAcceptanceConfig,
   ProductionAcceptanceNetwork,
   ProductionAcceptanceReceipt,
   ProductionAcceptanceStep
 } from "./production-acceptance.js";
+import { productionAcceptanceSuiSpentMist } from "./production-acceptance.js";
 
 export type MainnetReadinessStage = "testnet" | "mainnet-config" | "mainnet-final";
 export type ReadinessStatus = "passed" | "failed" | "warning";
@@ -261,12 +263,11 @@ function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: Re
     `receipt.${expectation.label}.execute.transaction_spend_metadata`,
     [...EXECUTE_DIGEST_STEPS].every((name) => {
       const meta = receipt.steps.find((step) => step.name === name)?.meta;
-      if (!meta || !isNonNegativeIntegerString(meta.suiSpentMist)) return false;
-      if (!hasBalanceChanges(meta.balanceChanges)) return false;
+      if (!hasTransactionSpendEvidence(meta, "suiSpentMist", "balanceChanges", "signerAddress")) return false;
       if (name === "buyer.create_and_fund_delegation") {
+        if (!meta) return false;
         return hasString(meta.fundDigest) &&
-          isNonNegativeIntegerString(meta.fundSuiSpentMist) &&
-          hasBalanceChanges(meta.fundBalanceChanges);
+          hasTransactionSpendEvidence(meta, "fundSuiSpentMist", "fundBalanceChanges", "fundSignerAddress");
       }
       return true;
     }),
@@ -477,6 +478,27 @@ function hasBalanceChanges(value: unknown): boolean {
       isIntegerString(item.amount) &&
       (item.owner === undefined || typeof item.owner === "string");
   });
+}
+
+function hasTransactionSpendEvidence(
+  meta: unknown,
+  spendKey: "suiSpentMist" | "fundSuiSpentMist",
+  balanceChangesKey: "balanceChanges" | "fundBalanceChanges",
+  signerAddressKey: "signerAddress" | "fundSignerAddress"
+): boolean {
+  if (!meta || typeof meta !== "object") return false;
+  const record = meta as Record<string, unknown>;
+  const expectedSpend = record[spendKey];
+  const signerAddress = record[signerAddressKey];
+  if (!isNonNegativeIntegerString(expectedSpend)) return false;
+  if (!hasString(signerAddress)) return false;
+  if (!hasBalanceChanges(record[balanceChangesKey])) return false;
+  const balanceChanges = record[balanceChangesKey] as ProductionAcceptanceBalanceChange[];
+  try {
+    return String(productionAcceptanceSuiSpentMist(balanceChanges, signerAddress)) === expectedSpend;
+  } catch {
+    return false;
+  }
 }
 
 function isNonNegativeIntegerString(value: unknown): value is string {
