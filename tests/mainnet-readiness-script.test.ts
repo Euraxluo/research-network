@@ -648,8 +648,8 @@ function makePreflightReceipt(network: "testnet" | "mainnet" = "testnet"): Produ
             name,
             status: "passed",
             meta: {
-              buyerProof: proofMeta(),
-              agentProof: proofMeta(),
+              buyerProof: proofMeta("buyer"),
+              agentProof: proofMeta("agent"),
               prover: proverMeta(),
               buyerFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 },
               agentFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 }
@@ -755,12 +755,16 @@ function balanceMeta(): Record<string, string> {
   };
 }
 
-function proofMeta(): Record<string, boolean> {
+function proofMeta(role: "buyer" | "agent"): Record<string, string | boolean> {
+  const derivedAddress = role === "buyer" ? "0x" + "aa".repeat(32) : "0x" + "bb".repeat(32);
   return {
     hasProofPoints: true,
     hasIssBase64Details: true,
     hasHeaderBase64: true,
-    hasAddressSeed: true
+    hasAddressSeed: true,
+    addressSeedMatchesDerivedAddress: true,
+    addressSeedSha256: role === "buyer" ? "1".repeat(64) : "2".repeat(64),
+    derivedAddress
   };
 }
 

@@ -299,6 +299,36 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".preflight.zkproof_evidence") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects preflight receipts whose zkLogin proof seed is not bound to the receipt addresses", () => {
+    const expectation: ReceiptExpectation = {
+      label: "testnet-preflight",
+      network: "testnet",
+      execute: false,
+      preflight: true,
+      required: true
+    };
+    const receipt = makePreflightReceipt({
+      steps: preflightSteps().map((step) =>
+        step.name === "accounts.validate"
+          ? {
+              ...step,
+              meta: {
+                ...(step.meta ?? {}),
+                buyerProof: {
+                  ...proofMeta("buyer"),
+                  addressSeedMatchesDerivedAddress: false
+                }
+              }
+            }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, expectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".preflight.zkproof_address_binding") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects preflight receipts whose balance evidence does not cover required minimums", () => {
     const expectation: ReceiptExpectation = {
       label: "testnet-preflight",
@@ -542,8 +572,8 @@ function preflightSteps(): ProductionAcceptanceStep[] {
           name,
           status: "passed",
           meta: {
-            buyerProof: proofMeta(),
-            agentProof: proofMeta(),
+            buyerProof: proofMeta("buyer"),
+            agentProof: proofMeta("agent"),
             prover: proverMeta(),
             buyerFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 },
             agentFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 }
@@ -568,12 +598,16 @@ function balanceMeta(): Record<string, string> {
   };
 }
 
-function proofMeta(): Record<string, boolean> {
+function proofMeta(role: "buyer" | "agent"): Record<string, string | boolean> {
+  const derivedAddress = role === "buyer" ? "0x" + "aa".repeat(32) : "0x" + "bb".repeat(32);
   return {
     hasProofPoints: true,
     hasIssBase64Details: true,
     hasHeaderBase64: true,
-    hasAddressSeed: true
+    hasAddressSeed: true,
+    addressSeedMatchesDerivedAddress: true,
+    addressSeedSha256: role === "buyer" ? "1".repeat(64) : "2".repeat(64),
+    derivedAddress
   };
 }
 

@@ -245,6 +245,15 @@ function checkPreflightSteps(receipt: ProductionAcceptanceReceipt, expectation: 
     { prover: accountMeta?.prover, buyerProof: accountMeta?.buyerProof, agentProof: accountMeta?.agentProof }
   ));
   checks.push(checkBoolean(
+    `receipt.${expectation.label}.preflight.zkproof_address_binding`,
+    proofMatchesReceiptAddress(accountMeta?.buyerProof, receipt.buyerAddress) &&
+      proofMatchesReceiptAddress(accountMeta?.agentProof, receipt.agentAddress),
+    `${expectation.label} preflight binds zkLogin proof address seeds to the receipt buyer/agent addresses`,
+    `${expectation.label} preflight is missing zkLogin proof address binding evidence`,
+    expectation.required,
+    { buyerProof: accountMeta?.buyerProof, agentProof: accountMeta?.agentProof, buyerAddress: receipt.buyerAddress, agentAddress: receipt.agentAddress }
+  ));
+  checks.push(checkBoolean(
     `receipt.${expectation.label}.preflight.epoch_freshness`,
     hasPositiveNumber(accountMeta?.buyerFreshness, "epochsRemaining") &&
       hasPositiveNumber(accountMeta?.agentFreshness, "epochsRemaining"),
@@ -562,6 +571,15 @@ function hasProofEvidence(value: unknown): boolean {
     proof.hasIssBase64Details === true &&
     proof.hasHeaderBase64 === true &&
     proof.hasAddressSeed === true;
+}
+
+function proofMatchesReceiptAddress(value: unknown, address: unknown): boolean {
+  if (!value || typeof value !== "object" || !hasString(address)) return false;
+  const proof = value as Record<string, unknown>;
+  return proof.addressSeedMatchesDerivedAddress === true &&
+    typeof proof.addressSeedSha256 === "string" &&
+    /^[0-9a-f]{64}$/.test(proof.addressSeedSha256) &&
+    sameSuiAddress(proof.derivedAddress, address);
 }
 
 function hasProverEvidence(value: unknown): boolean {

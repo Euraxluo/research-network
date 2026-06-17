@@ -194,8 +194,8 @@ async function main() {
         buyerFreshness,
         agentFreshness,
         prover: proverEvidence,
-        buyerProof: zkProofEvidence(buyerProof),
-        agentProof: zkProofEvidence(agentProof)
+        buyerProof: await zkProofEvidence(buyerProof, buyer.session, buyer.address),
+        agentProof: await zkProofEvidence(agentProof, agent.session, agent.address)
       });
       for (const step of receipt.steps.filter((step) => step.status === "pending")) {
         step.status = "skipped";

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { genAddressSeed } from "@mysten/sui/zklogin";
 import {
   assertProductionAcceptanceSessionAddress,
   assertProductionAcceptanceSessionFresh,
@@ -213,22 +214,48 @@ describe("production acceptance guardrails", () => {
     );
   });
 
-  it("summarizes freshness and proof evidence without storing sensitive proof material", () => {
+  it("summarizes freshness and proof evidence without storing sensitive proof material", async () => {
     expect(productionAcceptanceFreshnessEvidence({ maxEpoch: 105 }, 100)).toEqual({
       maxEpoch: 105,
       currentEpoch: 100,
       epochsRemaining: 5
     });
-    expect(zkProofEvidence({
+    await expect(zkProofEvidence({
       proofPoints: { a: ["1"] },
       issBase64Details: { value: "issuer" },
       headerBase64: "header",
       addressSeed: "seed"
-    })).toEqual({
+    })).resolves.toEqual({
       hasProofPoints: true,
       hasIssBase64Details: true,
       hasHeaderBase64: true,
-      hasAddressSeed: true
+      hasAddressSeed: true,
+      addressSeedSha256: expect.stringMatching(/^[0-9a-f]{64}$/)
+    });
+  });
+
+  it("records non-sensitive proof address-seed binding evidence", async () => {
+    const idToken = [
+      Buffer.from(JSON.stringify({ alg: "RS256" })).toString("base64url"),
+      Buffer.from(JSON.stringify({ iss: "https://accounts.google.com", sub: "user-1", aud: "client-1" })).toString("base64url"),
+      "signature"
+    ].join(".");
+    const addressSeed = genAddressSeed("123456789", "sub", "user-1", "client-1").toString();
+
+    await expect(zkProofEvidence(
+      {
+        proofPoints: { a: ["1"] },
+        issBase64Details: { value: "issuer" },
+        headerBase64: "header",
+        addressSeed
+      },
+      { idToken, salt: "123456789" },
+      "0x" + "aa".repeat(32)
+    )).resolves.toMatchObject({
+      hasAddressSeed: true,
+      addressSeedMatchesDerivedAddress: true,
+      addressSeedSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      derivedAddress: "0x" + "aa".repeat(32)
     });
   });
 

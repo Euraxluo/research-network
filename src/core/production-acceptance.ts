@@ -1,5 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { decodeJwt } from "@mysten/sui/zklogin";
+import { genAddressSeed } from "@mysten/sui/zklogin";
 
 export type ProductionAcceptanceNetwork = "testnet" | "mainnet";
 
@@ -138,6 +140,9 @@ export interface ProductionAcceptanceProofEvidence {
   hasIssBase64Details: boolean;
   hasHeaderBase64: boolean;
   hasAddressSeed: boolean;
+  addressSeedMatchesDerivedAddress?: boolean;
+  addressSeedSha256?: string;
+  derivedAddress?: string;
 }
 
 export interface ProductionAcceptanceFreshnessEvidence {
@@ -384,13 +389,36 @@ export function assertProductionAcceptanceSessionAddress(
   return derived;
 }
 
-export function zkProofEvidence(proof: Record<string, unknown>): ProductionAcceptanceProofEvidence {
-  return {
+export async function zkProofEvidence(
+  proof: Record<string, unknown>,
+  session?: Pick<ProductionAcceptanceSession, "idToken" | "salt">,
+  derivedAddress?: string
+): Promise<ProductionAcceptanceProofEvidence> {
+  const addressSeed = proof.addressSeed ?? proof.address_seed;
+  const evidence: ProductionAcceptanceProofEvidence = {
     hasProofPoints: Boolean(proof.proofPoints ?? proof.proof_points),
     hasIssBase64Details: Boolean(proof.issBase64Details ?? proof.iss_base64_details),
     hasHeaderBase64: Boolean(proof.headerBase64 ?? proof.header_base64),
-    hasAddressSeed: Boolean(proof.addressSeed ?? proof.address_seed)
+    hasAddressSeed: Boolean(addressSeed)
   };
+  if (addressSeed !== undefined) {
+    evidence.addressSeedSha256 = await sha256Hex(String(addressSeed));
+  }
+  if (session && derivedAddress && addressSeed !== undefined) {
+    const decoded = decodeJwt(session.idToken);
+    const aud = Array.isArray(decoded.aud) ? String(decoded.aud[0]) : String(decoded.aud ?? "");
+    const expectedSeed = genAddressSeed(session.salt, "sub", String(decoded.sub ?? ""), aud).toString();
+    evidence.addressSeedMatchesDerivedAddress = String(addressSeed) === expectedSeed;
+    evidence.derivedAddress = derivedAddress;
+  }
+  return {
+    ...evidence
+  };
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return bytesToHex(new Uint8Array(digest));
 }
 
 export function normalizeProductionAcceptanceBalanceChanges(raw: unknown): ProductionAcceptanceBalanceChange[] {
