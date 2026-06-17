@@ -275,8 +275,10 @@ export function assertProductionAcceptanceCanExecute(config: ProductionAcceptanc
       ["membership-receipt-registry-id", config.membershipReceiptRegistryId],
       ["walrus-publisher-url", config.walrusPublisherUrl],
       ["walrus-aggregator-url", config.walrusAggregatorUrl],
+      ["walrus-epochs", positiveNumberConfig(config.walrusEpochs)],
       ["seal-key-server-object-id", config.sealKeyServerObjectId],
-      ["seal-key-server-aggregator-url", config.sealKeyServerAggregatorUrl]
+      ["seal-key-server-aggregator-url", config.sealKeyServerAggregatorUrl],
+      ["seal-threshold", positiveNumberConfig(config.sealThreshold)]
     ].filter(([, value]) => !value).map(([name]) => name);
     if (missingMainnetConfig.length) {
       throw new Error(`mainnet acceptance requires explicit ${missingMainnetConfig.join(", ")}`);
@@ -547,6 +549,10 @@ function isKnownTestnetValue(value: string): boolean {
   if (!normalized) return false;
   if (KNOWN_TESTNET_IDS.has(normalized)) return true;
   return normalized.includes("testnet") || normalized.includes("sui-testnet-rpc.publicnode.com");
+}
+
+function positiveNumberConfig(value: number | undefined): string | undefined {
+  return value !== undefined && Number.isInteger(value) && value > 0 ? String(value) : undefined;
 }
 
 function normalizeSuiTypeAddress(value: string): string {
