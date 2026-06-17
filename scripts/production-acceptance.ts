@@ -165,6 +165,8 @@ async function main() {
     const currentEpoch = await getCurrentEpoch();
     const buyerFreshness = productionAcceptanceFreshnessEvidence(buyer.session, currentEpoch);
     const agentFreshness = productionAcceptanceFreshnessEvidence(agent.session, currentEpoch);
+    assertProductionAcceptanceSessionFresh("buyer", buyer.session, currentEpoch);
+    assertProductionAcceptanceSessionFresh("agent", agent.session, currentEpoch);
     pass("accounts.validate", {
       buyer: buyer.address,
       agent: agent.address,
@@ -172,7 +174,9 @@ async function main() {
       buyerMaxEpoch: buyer.session.maxEpoch,
       agentMaxEpoch: agent.session.maxEpoch,
       buyerEpochsRemaining: buyerFreshness.epochsRemaining,
-      agentEpochsRemaining: agentFreshness.epochsRemaining
+      agentEpochsRemaining: agentFreshness.epochsRemaining,
+      buyerFreshness,
+      agentFreshness
     });
 
     const buyerBalance = await validateBalance("buyer", buyer.address, budget.buyerMinimumMist);
@@ -185,8 +189,6 @@ async function main() {
     });
 
     if (config.preflight) {
-      assertProductionAcceptanceSessionFresh("buyer", buyer.session, currentEpoch);
-      assertProductionAcceptanceSessionFresh("agent", agent.session, currentEpoch);
       const proverEvidence = await productionAcceptanceProverEvidence(required(process.env.ZKLOGIN_PROVER_URL, "ZKLOGIN_PROVER_URL"));
       const buyerProof = await buyer.proof();
       const agentProof = await agent.proof();

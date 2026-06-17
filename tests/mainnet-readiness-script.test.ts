@@ -1271,6 +1271,12 @@ function makeExecuteReceipt(
 function executeSteps(packageId: string): ProductionAcceptanceStep[] {
   return ALL_STEPS.map((name) => {
     const step: ProductionAcceptanceStep = { name, status: "passed" };
+    if (name === "accounts.validate") {
+      step.meta = {
+        buyerFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 },
+        agentFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 }
+      };
+    }
     if ([
       "agent.publish_encrypted_report",
       "buyer.buy_platform_membership",

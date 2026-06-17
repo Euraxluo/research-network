@@ -69,6 +69,20 @@ describe("mainnet readiness receipt checks", () => {
     expect(checks.some((check) => check.name.endsWith(".digests") && check.status === "failed")).toBe(true);
   });
 
+  it("rejects execute receipts missing zkLogin epoch freshness evidence before spending", () => {
+    const receipt = makeExecuteReceipt({
+      steps: executeSteps().map((step) =>
+        step.name === "accounts.validate"
+          ? { ...step, meta: { ...(step.meta ?? {}), buyerFreshness: undefined } }
+          : step
+      )
+    });
+    const checks = checkProductionAcceptanceReceipt(receipt, executeExpectation);
+
+    expect(hasBlockingReadinessFailures(checks)).toBe(true);
+    expect(checks.some((check) => check.name.endsWith(".execute.epoch_freshness") && check.status === "failed")).toBe(true);
+  });
+
   it("rejects execute receipts with placeholder-looking transaction digests", () => {
     const receipt = makeExecuteReceipt({
       steps: executeSteps().map((step) =>
@@ -548,6 +562,12 @@ function makePreflightReceipt(overrides: Partial<ProductionAcceptanceReceipt> = 
 function executeSteps(packageId = baseConfig("testnet").packageId): ProductionAcceptanceStep[] {
   return ALL_STEPS.map((name) => {
     const step: ProductionAcceptanceStep = { name, status: "passed" };
+    if (name === "accounts.validate") {
+      step.meta = {
+        buyerFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 },
+        agentFreshness: { maxEpoch: 123, currentEpoch: 120, epochsRemaining: 3 }
+      };
+    }
     if ([
       "agent.publish_encrypted_report",
       "buyer.buy_platform_membership",

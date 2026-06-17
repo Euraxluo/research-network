@@ -267,12 +267,22 @@ function checkPreflightSteps(receipt: ProductionAcceptanceReceipt, expectation: 
 
 function checkExecuteSteps(receipt: ProductionAcceptanceReceipt, expectation: ReceiptExpectation): ReadinessCheck[] {
   const checks: ReadinessCheck[] = [];
+  const accountMeta = receipt.steps.find((step) => step.name === "accounts.validate")?.meta;
   checks.push(checkBoolean(
     `receipt.${expectation.label}.execute.all_steps_passed`,
     ACCEPTANCE_STEPS.every((name) => stepStatus(receipt, name) === "passed"),
     `${expectation.label} execute passed every user-story transaction/decrypt step`,
     `${expectation.label} execute must pass every production acceptance step`,
     expectation.required
+  ));
+  checks.push(checkBoolean(
+    `receipt.${expectation.label}.execute.epoch_freshness`,
+    hasPositiveNumber(accountMeta?.buyerFreshness, "epochsRemaining") &&
+      hasPositiveNumber(accountMeta?.agentFreshness, "epochsRemaining"),
+    `${expectation.label} execute records positive zkLogin epoch freshness before spending funds`,
+    `${expectation.label} execute is missing positive zkLogin epoch freshness evidence`,
+    expectation.required,
+    { buyerFreshness: accountMeta?.buyerFreshness, agentFreshness: accountMeta?.agentFreshness }
   ));
   checks.push(checkBoolean(
     `receipt.${expectation.label}.execute.digests`,
