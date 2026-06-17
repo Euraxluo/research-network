@@ -6,6 +6,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import type { ProductionAcceptanceReceipt, ProductionAcceptanceStep } from "../src/core/production-acceptance.js";
+import { UI_ACCEPTANCE_STEPS, type UiAcceptanceReceipt, type UiAcceptanceStep } from "../src/core/ui-acceptance.js";
 
 const execFileAsync = promisify(execFile);
 const CURRENT_GIT_COMMIT = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -50,6 +51,11 @@ describe("mainnet readiness script", () => {
       check.status === "failed" &&
       /missing/.test(check.message)
     )).toBe(true);
+    expect(report.checks.some((check) =>
+      check.name === "receipt.testnet-ui" &&
+      check.status === "failed" &&
+      /missing/.test(check.message)
+    )).toBe(true);
   });
 
   it("passes when receipts and all mainnet config surfaces agree", async () => {
@@ -57,8 +63,10 @@ describe("mainnet readiness script", () => {
     try {
       const preflightPath = path.join(dir, "testnet-preflight.json");
       const executePath = path.join(dir, "testnet-execute.json");
+      const uiPath = path.join(dir, "testnet-ui.json");
       await fs.writeFile(preflightPath, JSON.stringify(makePreflightReceipt(), null, 2), "utf8");
       await fs.writeFile(executePath, JSON.stringify(makeExecuteReceipt(), null, 2), "utf8");
+      await fs.writeFile(uiPath, JSON.stringify(makeUiReceipt(), null, 2), "utf8");
 
       const { stdout, stderr } = await execFileAsync("npx", [
         "tsx",
@@ -66,6 +74,7 @@ describe("mainnet readiness script", () => {
         "--stage", "mainnet-config",
         "--testnet-preflight-receipt", preflightPath,
         "--testnet-execute-receipt", executePath,
+        "--testnet-ui-receipt", uiPath,
         "--skip-chain",
         "--json"
       ], {
@@ -1663,6 +1672,30 @@ function makeExecuteReceipt(
   };
 }
 
+function makeUiReceipt(overrides: Partial<UiAcceptanceReceipt> = {}): UiAcceptanceReceipt {
+  return {
+    kind: "normal-user-ui-acceptance/v1",
+    network: "testnet",
+    surface: "web-ui",
+    startedAt: "2026-06-17T00:00:00.000Z",
+    finishedAt: "2026-06-17T00:02:00.000Z",
+    conclusion: "passed",
+    provenance: receiptProvenance(),
+    entrypointUrl: "https://testnet.example/workbench.html",
+    browser: {
+      name: "chromium",
+      userAgent: "Mozilla/5.0 Playwright",
+      automationTool: "playwright",
+      headless: true
+    },
+    buyerAddress: "0x" + "aa".repeat(32),
+    agentAddress: "0x" + "bb".repeat(32),
+    config: testnetConfig(),
+    steps: uiSteps(testnetConfig().packageId ?? ""),
+    ...overrides
+  };
+}
+
 function receiptProvenance(): NonNullable<ProductionAcceptanceReceipt["provenance"]> {
   return {
     generatedBy: "tests/mainnet-readiness-script.test.ts",
@@ -1671,6 +1704,73 @@ function receiptProvenance(): NonNullable<ProductionAcceptanceReceipt["provenanc
     packageName: "@research-network/protocol-kit",
     packageVersion: "0.1.0"
   };
+}
+
+function uiSteps(packageId: string): UiAcceptanceStep[] {
+  return UI_ACCEPTANCE_STEPS.map((name, index) => {
+    const item: UiAcceptanceStep = {
+      name,
+      status: "passed",
+      route: "/workbench.html",
+      testId: name.replaceAll(".", "-"),
+      statusText: "passed " + name
+    };
+    if (name === "agent.sign_in" || name === "agent.sign_in_for_private_result" || name === "agent.sign_in_for_claim") {
+      item.actor = "agent";
+      item.signerAddress = "0x" + "bb".repeat(32);
+    }
+    if (name.startsWith("buyer.sign_in")) {
+      item.actor = "buyer";
+      item.signerAddress = "0x" + "aa".repeat(32);
+    }
+    if (uiTransactionSteps().includes(name)) {
+      item.actor = name.startsWith("agent.") ? "agent" : "buyer";
+      item.signerAddress = item.actor === "agent" ? "0x" + "bb".repeat(32) : "0x" + "aa".repeat(32);
+      item.digest = digestFor("ui:" + name);
+      item.meta = { eventTypes: eventTypesFor(uiProductionStepName(name), packageId) };
+      if (uiObjectSteps().includes(name)) item.objectId = uiObjectIdFor(name);
+      if (name === "buyer.create_and_fund_delegation") {
+        item.meta = {
+          ...(item.meta ?? {}),
+          fundDigest: digestFor("ui:fund"),
+          fundSignerAddress: "0x" + "aa".repeat(32)
+        };
+      }
+    }
+    if (name.startsWith("buyer.decrypt_")) {
+      item.actor = "buyer";
+      item.signerAddress = "0x" + "aa".repeat(32);
+      item.meta = {
+        plaintextMatched: true,
+        accessPath: name.includes("subscription")
+          ? "agent_subscription"
+          : name.includes("private")
+            ? "private_delegation"
+            : "platform_member",
+        sealId: "0x" + "dd".repeat(32),
+        walrusBlobId: "walrus-blob",
+        plaintextBytes: 42
+      };
+    }
+    if (name === "indexer.poll_and_publish") {
+      item.meta = {
+        eventsIngested: 10,
+        reportsIndexed: 2,
+        walrusSiteObjectId: "0x" + "88".repeat(32)
+      };
+    }
+    if (name === "buyer.reloads_indexed_state") {
+      item.actor = "buyer";
+      item.signerAddress = "0x" + "aa".repeat(32);
+      item.meta = {
+        indexedReportObjectId: uiObjectIdFor("agent.publish_encrypted_report"),
+        indexedAccessReceiptObjectId: uiObjectIdFor("buyer.record_access_receipt"),
+        indexedDelegationObjectId: uiObjectIdFor("buyer.create_and_fund_delegation"),
+        localStorageOnly: false
+      };
+    }
+    return item;
+  });
 }
 
 function executeSteps(packageId: string): ProductionAcceptanceStep[] {
@@ -1735,6 +1835,51 @@ function executeSteps(packageId: string): ProductionAcceptanceStep[] {
     }
     return step;
   });
+}
+
+function uiTransactionSteps(): string[] {
+  return [
+    "agent.publish_encrypted_report",
+    "buyer.buy_platform_membership",
+    "buyer.record_access_receipt",
+    "buyer.buy_agent_subscription",
+    "buyer.create_and_fund_delegation",
+    "agent.publish_private_result",
+    "buyer.settle_membership_receipt",
+    "agent.claim_earnings",
+    "buyer.complete_delegation"
+  ];
+}
+
+function uiObjectSteps(): string[] {
+  return [
+    "agent.publish_encrypted_report",
+    "buyer.buy_platform_membership",
+    "buyer.record_access_receipt",
+    "buyer.buy_agent_subscription",
+    "buyer.create_and_fund_delegation",
+    "agent.publish_private_result"
+  ];
+}
+
+function uiProductionStepName(name: string): string {
+  const map: Record<string, string> = {
+    "buyer.settle_membership_receipt": "platform.settle_membership_receipt",
+    "agent.claim_earnings": "agent.claim_membership_earnings"
+  };
+  return map[name] ?? name;
+}
+
+function uiObjectIdFor(name: string): string {
+  const map: Record<string, string> = {
+    "agent.publish_encrypted_report": "d1",
+    "buyer.buy_platform_membership": "d2",
+    "buyer.record_access_receipt": "d3",
+    "buyer.buy_agent_subscription": "d4",
+    "buyer.create_and_fund_delegation": "d5",
+    "agent.publish_private_result": "d6"
+  };
+  return "0x" + (map[name] ?? "df").repeat(32);
 }
 
 function balanceMeta(): Record<string, string> {

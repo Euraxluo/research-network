@@ -82,6 +82,16 @@ exactly: package id, shared object ids, Sui/Walrus/Seal endpoints, thresholds, a
 parameters. Two receipts that agree with each other but point at an older or different testnet
 package are not acceptable mainnet evidence.
 
+Script-level acceptance is not enough to claim a normal user can use the product. Before mainnet
+config approval, also keep `.research-network/acceptance/testnet-ui.json`, a
+`normal-user-ui-acceptance/v1` receipt from automated browser interaction. That receipt must use
+two distinct zkLogin accounts, drive the Workbench UI through publish, membership purchase,
+membership decrypt, access receipt recording, agent subscription, subscription decrypt, delegation
+create/fund, private result publish, private result decrypt, membership settlement, claim, and
+delegation completion. It must also prove indexer/Walrus Site sync and a buyer reload that sees the
+indexed state with `localStorageOnly: false`. The jsdom/mock UI tests in `tests/` are regression
+tests only; they are not production user-flow evidence.
+
 Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a small mainnet cap. The acceptance guard rejects known testnet ids/endpoints when `--network mainnet`.
 
 Use the readiness gate before approving mainnet config:
@@ -90,6 +100,7 @@ Use the readiness gate before approving mainnet config:
 npm run readiness:mainnet -- --stage mainnet-config \
   --testnet-preflight-receipt .research-network/acceptance/testnet-preflight.json \
   --testnet-execute-receipt .research-network/acceptance/testnet-execute.json \
+  --testnet-ui-receipt .research-network/acceptance/testnet-ui.json \
   --skip-chain
 ```
 
@@ -99,12 +110,13 @@ Before injecting mainnet funds, run final readiness with mainnet preflight/execu
 npm run readiness:mainnet -- --stage mainnet-final \
   --testnet-preflight-receipt .research-network/acceptance/testnet-preflight.json \
   --testnet-execute-receipt .research-network/acceptance/testnet-execute.json \
+  --testnet-ui-receipt .research-network/acceptance/testnet-ui.json \
   --mainnet-preflight-receipt .research-network/acceptance/mainnet-preflight.json \
   --mainnet-execute-receipt .research-network/acceptance/mainnet-execute.json \
   --mainnet-receipt-max-age-ms 86400000
 ```
 
-`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, missing or inverted receipt timestamps, missing/dirty/mismatched receipt provenance, testnet receipt config that does not match the expected current testnet version, mismatched preflight/execute receipt config, stale or future-dated final mainnet receipt, known testnet id/endpoint in mainnet evidence, missing prover/mainnet env, mismatch between acceptance/Web/Vercel/Auth mainnet values, stale mainnet receipt config, or over-large mainnet acceptance spend cap keeps the report red. Without `--skip-chain`, the gate also checks configured mainnet package/shared objects via RPC and validates that protocol shared objects are typed under the configured `RN_PACKAGE_ID`; Seal key server objects are checked by key-server type. `mainnet-final` always requires live chain checks and fresh mainnet preflight/execute receipts. It verifies testnet execute receipt transactions with `RN_TESTNET_SUI_RPC_URL` (or the receipt RPC) and verifies mainnet execute receipt transactions with `RN_SUI_RPC_URL`; each receipt transaction must exist on chain, have successful effects, emit the expected events, create the object ids claimed by the receipt, and have a chain timestamp inside the execute receipt window. `--skip-chain` is only accepted for earlier config/preflight review. The default final receipt freshness window is 24 hours and can be changed with `RN_MAINNET_RECEIPT_MAX_AGE_MS` or `--mainnet-receipt-max-age-ms`.
+`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, missing or inverted receipt timestamps, missing/dirty/mismatched receipt provenance, missing automated browser UI receipt, UI receipt without indexer/buyer reload evidence, testnet receipt config that does not match the expected current testnet version, mismatched preflight/execute/UI receipt config, stale or future-dated final mainnet receipt, known testnet id/endpoint in mainnet evidence, missing prover/mainnet env, mismatch between acceptance/Web/Vercel/Auth mainnet values, stale mainnet receipt config, or over-large mainnet acceptance spend cap keeps the report red. Without `--skip-chain`, the gate also checks configured mainnet package/shared objects via RPC and validates that protocol shared objects are typed under the configured `RN_PACKAGE_ID`; Seal key server objects are checked by key-server type. `mainnet-final` always requires live chain checks and fresh mainnet preflight/execute/UI receipts. It verifies testnet execute receipt transactions with `RN_TESTNET_SUI_RPC_URL` (or the receipt RPC) and verifies mainnet execute receipt transactions with `RN_SUI_RPC_URL`; each receipt transaction must exist on chain, have successful effects, emit the expected events, create the object ids claimed by the receipt, and have a chain timestamp inside the execute receipt window. `--skip-chain` is only accepted for earlier config/preflight review. The default final receipt freshness window is 24 hours and can be changed with `RN_MAINNET_RECEIPT_MAX_AGE_MS` or `--mainnet-receipt-max-age-ms`.
 Preflight receipts also record non-sensitive prover evidence (`configured: true` and a SHA-256 URL fingerprint) and buyer/agent balance evidence so readiness can verify a real prover was configured and both zkLogin accounts covered their required minimums without storing the prover endpoint or proof material.
 
 Production config guards:
