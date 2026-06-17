@@ -197,7 +197,7 @@ npm run readiness:mainnet -- --stage mainnet-config \
   --skip-chain
 ```
 
-`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，并且 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在且无 testnet 泄漏。`--stage mainnet-final` 还要求 mainnet preflight + capped execute receipt 通过。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
+`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，并且 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在、无 testnet 泄漏、关键 RPC/object/endpoint 在各部署面之间一致。`--stage mainnet-final` 还要求 mainnet preflight + capped execute receipt 通过。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
 
 Web/Vercel 生产配置防护：
 

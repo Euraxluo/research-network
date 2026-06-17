@@ -22,7 +22,7 @@ import {
   type MainnetReadinessStage,
   type ReadinessCheck
 } from "../src/core/mainnet-readiness.js";
-import { m3ConfigOverridesFromEnv, validateM3Config, type M3Config } from "../web/src/lib/config.ts";
+import { DEFAULT_M3_CONFIG, m3ConfigOverridesFromEnv, validateM3Config, type M3Config } from "../web/src/lib/config.ts";
 import { resolveAuthSuiRpcUrl } from "../src/core/web-auth.js";
 import { resolveWalrusProxyConfig } from "../api/walrus.js";
 
@@ -156,9 +156,16 @@ function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): Rea
     ...env,
     RN_ACCEPTANCE_NETWORK: "mainnet"
   };
+  const configSet: {
+    acceptance?: ReturnType<typeof parseProductionAcceptanceArgs>;
+    web?: Partial<M3Config>;
+    walrus?: ReturnType<typeof resolveWalrusProxyConfig>;
+    authRpc?: string;
+  } = {};
   try {
     const config = parseProductionAcceptanceArgs([], mainnetAcceptanceEnv);
     assertProductionAcceptanceCanExecute(config);
+    configSet.acceptance = config;
     checks.push(pass("config.acceptance.mainnet", "Mainnet acceptance config is explicit and has no known testnet values", {
       packageId: config.packageId,
       suiRpcUrl: config.suiRpcUrl,
@@ -187,7 +194,8 @@ function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): Rea
     if (missing.length) {
       throw new Error(`mainnet Web config requires VITE_RN_* overrides for ${missing.join(", ")}`);
     }
-    validateM3Config(overrides as M3Config);
+    validateM3Config({ ...DEFAULT_M3_CONFIG, ...overrides } as M3Config);
+    configSet.web = overrides;
     checks.push(pass("config.web.mainnet", "Vite Web mainnet config is explicit and has no known testnet values", {
       network: overrides.network,
       packageId: overrides.packageId,
@@ -201,6 +209,7 @@ function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): Rea
 
   try {
     const walrus = resolveWalrusProxyConfig({ ...env, RN_WEB_NETWORK: "mainnet" });
+    configSet.walrus = walrus;
     checks.push(pass("config.vercel.walrus.mainnet", "Vercel Walrus proxy mainnet config is explicit", {
       siteObjectId: walrus.siteObjectId,
       rpcUrl: walrus.rpcUrl,
@@ -214,6 +223,7 @@ function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): Rea
 
   try {
     const rpc = resolveAuthSuiRpcUrl({ ...env, RN_WEB_NETWORK: "mainnet" });
+    configSet.authRpc = rpc;
     checks.push(pass("config.auth.mainnet", "Auth shell uses explicit mainnet Sui RPC", { authSuiRpcUrl: rpc }));
   } catch (error) {
     checks.push(fail("config.auth.mainnet", message(error), true, {
@@ -229,7 +239,131 @@ function configChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): Rea
     true,
     env.ZKLOGIN_PROVER_URL ? { proverConfigured: true } : undefined
   ));
+  checks.push(...configConsistencyChecks(configSet));
   return checks;
+}
+
+function configConsistencyChecks(configSet: {
+  acceptance?: ReturnType<typeof parseProductionAcceptanceArgs>;
+  web?: Partial<M3Config>;
+  walrus?: ReturnType<typeof resolveWalrusProxyConfig>;
+  authRpc?: string;
+}): ReadinessCheck[] {
+  const checks: ReadinessCheck[] = [];
+  const acceptance = configSet.acceptance;
+  const web = configSet.web;
+  const walrus = configSet.walrus;
+  const authRpc = configSet.authRpc;
+  if (acceptance && web) {
+    checks.push(compareConfigValue(
+      "config.consistency.package_id",
+      "Acceptance RN_PACKAGE_ID matches Web VITE_RN_PACKAGE_ID",
+      "Acceptance RN_PACKAGE_ID does not match Web VITE_RN_PACKAGE_ID",
+      acceptance.packageId,
+      web.packageId
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.settlement_config_id",
+      "Acceptance settlement config id matches Web config",
+      "Acceptance settlement config id does not match Web config",
+      acceptance.settlementConfigId,
+      web.settlementConfigId
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.agent_earnings_id",
+      "Acceptance agent earnings id matches Web config",
+      "Acceptance agent earnings id does not match Web config",
+      acceptance.agentEarningsId,
+      web.agentEarningsId
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.receipt_registry_id",
+      "Acceptance receipt registry id matches Web config",
+      "Acceptance receipt registry id does not match Web config",
+      acceptance.membershipReceiptRegistryId,
+      web.membershipReceiptRegistryId
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.sui_rpc",
+      "Acceptance Sui RPC matches Web Sui RPC",
+      "Acceptance Sui RPC does not match Web Sui RPC",
+      acceptance.suiRpcUrl,
+      web.suiRpcUrl
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.walrus_publisher",
+      "Acceptance Walrus publisher matches Web publisher",
+      "Acceptance Walrus publisher does not match Web publisher",
+      acceptance.walrusPublisherUrl,
+      web.walrusPublisherUrl
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.walrus_aggregator",
+      "Acceptance Walrus aggregator matches Web aggregator",
+      "Acceptance Walrus aggregator does not match Web aggregator",
+      acceptance.walrusAggregatorUrl,
+      web.walrusAggregatorUrl
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.seal_key_server",
+      "Acceptance Seal key server matches Web Seal key server",
+      "Acceptance Seal key server does not match Web Seal key server",
+      acceptance.sealKeyServerObjectId,
+      web.sealKeyServers?.[0]?.objectId
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.seal_aggregator",
+      "Acceptance Seal aggregator matches Web Seal aggregator",
+      "Acceptance Seal aggregator does not match Web Seal aggregator",
+      acceptance.sealKeyServerAggregatorUrl,
+      web.sealKeyServers?.[0]?.aggregatorUrl
+    ));
+  }
+  if (acceptance && walrus) {
+    checks.push(compareConfigValue(
+      "config.consistency.vercel_walrus_rpc",
+      "Acceptance Sui RPC matches Vercel Walrus proxy RPC",
+      "Acceptance Sui RPC does not match Vercel Walrus proxy RPC",
+      acceptance.suiRpcUrl,
+      walrus.rpcUrl
+    ));
+    checks.push(compareConfigValue(
+      "config.consistency.vercel_walrus_aggregator",
+      "Acceptance Walrus aggregator matches Vercel Walrus proxy aggregator",
+      "Acceptance Walrus aggregator does not match Vercel Walrus proxy aggregator",
+      acceptance.walrusAggregatorUrl,
+      walrus.aggregatorUrl
+    ));
+  }
+  if (acceptance && authRpc) {
+    checks.push(compareConfigValue(
+      "config.consistency.auth_rpc",
+      "Acceptance Sui RPC matches auth shell Sui RPC",
+      "Acceptance Sui RPC does not match auth shell Sui RPC",
+      acceptance.suiRpcUrl,
+      authRpc
+    ));
+  }
+  return checks;
+}
+
+function compareConfigValue(
+  name: string,
+  passedMessage: string,
+  failedMessage: string,
+  left: string | undefined,
+  right: string | undefined
+): ReadinessCheck {
+  const normalizedLeft = normalizeConfigValue(left);
+  const normalizedRight = normalizeConfigValue(right);
+  return checkBoolean(
+    name,
+    Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight),
+    passedMessage,
+    failedMessage,
+    true,
+    { left, right }
+  );
 }
 
 async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage): Promise<ReadinessCheck[]> {
@@ -316,6 +450,18 @@ function stringArg(args: Map<string, string | boolean>, env: NodeJS.ProcessEnv, 
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function normalizeConfigValue(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\/+$/, "").toLowerCase();
+  }
+  if (/^0x[0-9a-f]+$/i.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  return trimmed;
 }
 
 main().catch((error) => {

@@ -76,7 +76,7 @@ npm run readiness:mainnet -- --stage mainnet-config \
   --skip-chain
 ```
 
-`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, testnet-looking mainnet endpoint, or missing prover/mainnet env keeps the report red.
+`ready: true` means the required receipts and production config evidence are present for the requested stage. A missing receipt, dry-run receipt, testnet-looking mainnet endpoint, missing prover/mainnet env, or mismatch between acceptance/Web/Vercel/Auth mainnet values keeps the report red.
 
 Production config guards:
 
