@@ -604,7 +604,12 @@ async function chainChecks(env: NodeJS.ProcessEnv, stage: MainnetReadinessStage,
   }
   if (stage === "mainnet-final") {
     checks.push(...await chainWalrusSiteChecks(env));
-    checks.push(...await chainReceiptTransactionChecks(rpcUrl, receipts.mainnetExecute));
+    checks.push(...await chainReceiptTransactionChecks(
+      env.RN_TESTNET_SUI_RPC_URL ?? receipts.testnetExecute?.config.suiRpcUrl,
+      receipts.testnetExecute,
+      "testnet"
+    ));
+    checks.push(...await chainReceiptTransactionChecks(rpcUrl, receipts.mainnetExecute, "mainnet"));
   }
   return checks;
 }
@@ -698,12 +703,16 @@ async function chainWalrusSiteChecks(env: NodeJS.ProcessEnv): Promise<ReadinessC
 }
 
 async function chainReceiptTransactionChecks(
-  rpcUrl: string,
-  receipt: ProductionAcceptanceReceipt | undefined
+  rpcUrl: string | undefined,
+  receipt: ProductionAcceptanceReceipt | undefined,
+  network: ProductionAcceptanceReceipt["network"]
 ): Promise<ReadinessCheck[]> {
+  if (!rpcUrl) {
+    return [fail(`chain.${network}.transactions`, `Cannot query ${network} receipt transactions because Sui RPC URL is missing`)];
+  }
   const evidence = receipt ? receiptTransactionEvidence(receipt) : [];
   if (!evidence.length) {
-    return [fail("chain.mainnet.transactions", "Cannot query mainnet receipt transactions because no execute receipt digests are available")];
+    return [fail(`chain.${network}.transactions`, `Cannot query ${network} receipt transactions because no execute receipt digests are available`)];
   }
   const digests = evidence.map((item) => item.digest);
   const startedMs = receiptTimestampMs(receipt?.startedAt);
@@ -748,10 +757,10 @@ async function chainReceiptTransactionChecks(
         timestampMs >= startedMs &&
         timestampMs <= finishedMs;
       return checkBoolean(
-        `chain.mainnet.transaction.${index + 1}`,
+        `chain.${network}.transaction.${index + 1}`,
         response?.digest === digest && status === "success" && senderMatches && eventsMatch && createdObjectsMatch && timestampMatches,
-        `Mainnet receipt transaction ${digest} exists, succeeded, sender matches the receipt role, emitted receipt events, created the receipt objects, and falls within the receipt window`,
-        `Mainnet receipt transaction ${digest} was not found, did not succeed, sender did not match the receipt role, emitted different events, did not create the receipt objects, or falls outside the receipt window`,
+        `${capitalize(network)} receipt transaction ${digest} exists, succeeded, sender matches the receipt role, emitted receipt events, created the receipt objects, and falls within the receipt window`,
+        `${capitalize(network)} receipt transaction ${digest} was not found, did not succeed, sender did not match the receipt role, emitted different events, did not create the receipt objects, or falls outside the receipt window`,
         true,
         {
           digest,
@@ -771,7 +780,7 @@ async function chainReceiptTransactionChecks(
       );
     });
   } catch (error) {
-    return [fail("chain.mainnet.transactions", `Mainnet receipt transaction query failed: ${message(error)}`)];
+    return [fail(`chain.${network}.transactions`, `${capitalize(network)} receipt transaction query failed: ${message(error)}`)];
   }
 }
 
@@ -943,6 +952,10 @@ function positiveIntegerArg(args: Map<string, string | boolean>, env: NodeJS.Pro
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function capitalize(value: string): string {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
 }
 
 function normalizeConfigValue(value: string | undefined): string | undefined {

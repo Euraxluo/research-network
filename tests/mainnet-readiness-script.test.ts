@@ -595,6 +595,130 @@ describe("mainnet readiness script", () => {
     }
   });
 
+  it("fails mainnet-final when the testnet execute receipt transactions are not live on chain", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
+    let stdout = "";
+    let stderr = "";
+    let testnetExecuteReceipt: ProductionAcceptanceReceipt | null = null;
+    let mainnetExecuteReceipt: ProductionAcceptanceReceipt | null = null;
+    let transactionQueryCount = 0;
+    const server = http.createServer(async (request, response) => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { id: unknown; method: string; params: unknown[] };
+      response.setHeader("content-type", "application/json");
+      if (body.method === "sui_multiGetObjects") {
+        const ids = body.params[0] as string[];
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: ids.map((id) => ({
+            data: {
+              objectId: id,
+              type: chainObjectType(id)
+            }
+          }))
+        }));
+        return;
+      }
+      if (body.method === "sui_multiGetTransactionBlocks") {
+        const digests = body.params[0] as string[];
+        const receipt = transactionQueryCount === 0 ? testnetExecuteReceipt : mainnetExecuteReceipt;
+        transactionQueryCount += 1;
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: digests.map((digest, index) =>
+            receipt === testnetExecuteReceipt && index === 0
+              ? null
+              : chainTransactionBlock(digest, receipt)
+          )
+        }));
+        return;
+      }
+      if (body.method === "sui_getObject") {
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: walrusSiteObject()
+        }));
+        return;
+      }
+      if (body.method === "suix_getDynamicFieldObject") {
+        const field = body.params[1] as { value?: { path?: string } };
+        response.end(JSON.stringify({
+          jsonrpc: "2.0",
+          id: body.id,
+          result: walrusSiteResourceObject(field.value?.path ?? "/index.html")
+        }));
+        return;
+      }
+      response.end(JSON.stringify({ jsonrpc: "2.0", id: body.id, error: { message: "unexpected method" } }));
+    });
+    try {
+      const rpcUrl = await listen(server);
+      const env = readinessEnv({
+        RN_SUI_RPC_URL: rpcUrl,
+        RN_TESTNET_SUI_RPC_URL: rpcUrl,
+        VITE_RN_SUI_RPC_URL: rpcUrl,
+        WALRUS_SUI_RPC_URL: rpcUrl,
+        AUTH_SUI_RPC_URL: rpcUrl
+      });
+      const testnetPreflightPath = path.join(dir, "testnet-preflight.json");
+      const testnetExecutePath = path.join(dir, "testnet-execute.json");
+      const mainnetPreflightPath = path.join(dir, "mainnet-preflight.json");
+      const mainnetExecutePath = path.join(dir, "mainnet-execute.json");
+      await fs.writeFile(testnetPreflightPath, JSON.stringify(makePreflightReceipt(), null, 2), "utf8");
+      testnetExecuteReceipt = makeExecuteReceipt();
+      await fs.writeFile(testnetExecutePath, JSON.stringify(testnetExecuteReceipt, null, 2), "utf8");
+      const mainnetReceiptConfig = {
+        ...mainnetConfig(),
+        suiRpcUrl: rpcUrl
+      };
+      await fs.writeFile(mainnetPreflightPath, JSON.stringify({
+        ...makePreflightReceipt("mainnet"),
+        config: mainnetReceiptConfig
+      }, null, 2), "utf8");
+      mainnetExecuteReceipt = makeExecuteReceipt("mainnet", {
+        config: mainnetReceiptConfig
+      });
+      await fs.writeFile(mainnetExecutePath, JSON.stringify(mainnetExecuteReceipt, null, 2), "utf8");
+
+      try {
+        await execFileAsync("npx", [
+          "tsx",
+          "scripts/mainnet-readiness.ts",
+          "--stage", "mainnet-final",
+          "--testnet-preflight-receipt", testnetPreflightPath,
+          "--testnet-execute-receipt", testnetExecutePath,
+          "--mainnet-preflight-receipt", mainnetPreflightPath,
+          "--mainnet-execute-receipt", mainnetExecutePath,
+          "--json"
+        ], {
+          cwd: process.cwd(),
+          env
+        });
+      } catch (error) {
+        const failure = error as { stdout?: string; stderr?: string; code?: number };
+        stdout = failure.stdout ?? "";
+        stderr = failure.stderr ?? "";
+        expect(failure.code).toBe(1);
+      }
+
+      expect(stderr).toBe("");
+      const report = JSON.parse(stdout) as { ready: boolean; checks: Array<{ name: string; status: string; message: string }> };
+      expect(report.ready).toBe(false);
+      expect(report.checks.some((check) =>
+        check.name.startsWith("chain.testnet.transaction.") &&
+        check.status === "failed" &&
+        /not found/.test(check.message)
+      )).toBe(true);
+    } finally {
+      server.close();
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails mainnet-final when live transaction object changes do not create the receipt object id", async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "rn-readiness-"));
     let stdout = "";

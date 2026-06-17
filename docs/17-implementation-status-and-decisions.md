@@ -199,7 +199,7 @@ npm run readiness:mainnet -- --stage mainnet-config \
   --skip-chain
 ```
 
-`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，且这两张 receipt 的 package/RPC/Walrus/Seal/经济参数一致，并且 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在、无 testnet 泄漏、关键 RPC/object/endpoint 在各部署面之间一致。资金相关参数也必须一致：平台会员价格、agent 订阅价格、委托预算、会员结算分成、访问有效期、Walrus epochs 和 Seal threshold。execute receipt 必须包含 `receipt.spend` 和每个交易步骤的 `suiSpentMist`，证明实际链上扣款没有超过显式 cap。`--stage mainnet-final` 还要求 mainnet preflight + 小额 capped execute receipt 通过、mainnet receipt 中的配置与当前 acceptance env 完全一致；不加 `--skip-chain` 时还会查询 mainnet RPC，确认 package/shared objects 存在，且 settlement shared objects 类型匹配预期。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
+`--stage mainnet-config` 要求 testnet preflight + capped execute receipt 已通过，且这两张 receipt 的 package/RPC/Walrus/Seal/经济参数一致，并且 acceptance/Web/Vercel/Auth/prover mainnet 配置都存在、无 testnet 泄漏、关键 RPC/object/endpoint 在各部署面之间一致。资金相关参数也必须一致：平台会员价格、agent 订阅价格、委托预算、会员结算分成、访问有效期、Walrus epochs 和 Seal threshold。execute receipt 必须包含 `receipt.spend` 和每个交易步骤的 `suiSpentMist`，证明实际链上扣款没有超过显式 cap。`--stage mainnet-final` 还要求 mainnet preflight + 小额 capped execute receipt 通过、mainnet receipt 中的配置与当前 acceptance env 完全一致；不加 `--skip-chain` 时还会查询 testnet execute receipt 交易（优先使用 `RN_TESTNET_SUI_RPC_URL`，否则使用 receipt 自带 RPC）和 mainnet RPC，确认 package/shared objects 存在、receipt 交易存在且创建了声明的对象，且 settlement shared objects 类型匹配预期。只有 readiness report `ready: true` 时，才可以说当前证据支持正式网资金运行。
 
 Web/Vercel 生产配置防护：
 
