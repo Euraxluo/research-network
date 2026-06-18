@@ -18,10 +18,11 @@
 | 状态 | 事项 | 证据 / 备注 | 来源 |
 | --- | --- | --- | --- |
 | [ ] | 产品审计文档包重新核对。 | 历史上 `docs/product-audit/01..05` 已存在，但需重新逐项核对与当前实现一致性。 | `docs/product-audit/README.md:21,25,26,27,28,29` |
-| [x] | 账户页生产内容重新验收。 | 2026-06-18 重新跑 `rtk npm run test -- tests/web-account-ui.test.ts tests/web-debug-ui.test.ts tests/web-acceptance-session.test.ts` 通过，3 个 test file / 7 个测试；生产 `https://research-network-web.vercel.app/account.html` 重新浏览器核验，无 `Production acceptance session`、`Export buyer session`、`Export agent session`、`Acceptance session`、debug/copy 文案或 `/debug.html` 链接。 | `/Users/echo/project/research-network/PRODUCT.md:36,44,45,46,49,50,52,53`; `docs/product-audit/03-ui-feature-audit.md:183,191,200,201,202,203,204`; `docs/product-audit/05-acceptance-run-report.md:178,190,204,206` |
-| [x] | 工程 debug 路由隔离重新验收。 | 2026-06-18 生产 `https://research-network-web.vercel.app/debug.html` 重新浏览器核验，有 `Acceptance` tab、`Acceptance session`、buyer/agent session export/copy 按钮；正常账户页未链接该路由。 | `docs/product-audit/03-ui-feature-audit.md:61,191`; `web/README.md:55,56,59,60`; `docs/product-audit/05-acceptance-run-report.md:178,190,207` |
-| [ ] | 两个真实 Google zkLogin session 重新收集或重新校验。 | 2026-06-18 已重新做脱敏校验：agent 通过字段、地址绑定、epoch freshness、Google JWT 验签；buyer 字段/地址/epoch 通过但 Google JWT 验签失败 `jwt_expired`，因此两个 session 未完成。 | `docs/product-audit/04-e2e-user-story-scenarios.md:22,26,27,28,34`; `docs/product-audit/05-acceptance-run-report.md:211,213,217,218,219,222` |
-| [ ] | testnet preflight 尚未通过。 | 重新 `vercel env pull` 后 `ZKLOGIN_PROVER_URL` / `ZKLOGIN_SALT_SECRET` 值为空；buyer JWT 已过期；仍需新 buyer session、prover/salt 配置和测试 SUI。 | `docs/product-audit/01-contract-feature-audit.md:267,268,269`; `docs/product-audit/05-acceptance-run-report.md:121,162,217,220,222` |
+| [x] | 账户页生产内容重新验收。 | 2026-06-18 重新跑 `rtk npm run test -- tests/web-account-ui.test.ts tests/web-debug-ui.test.ts tests/web-acceptance-session.test.ts tests/web-e2e.test.ts` 通过，4 个 test file / 19 个测试；生产 `https://research-network-web.vercel.app/account.html` 重新浏览器核验，无 `Production acceptance session`、`Export buyer session`、`Export agent session`、`Acceptance session`、debug/copy 文案或 `/debug.html` 链接。 | `/Users/echo/project/research-network/PRODUCT.md:36,44,45,46,49,50,52,53`; `docs/product-audit/03-ui-feature-audit.md:183,191,200,201,202,203,204`; `docs/product-audit/05-acceptance-run-report.md:178,190,204,207` |
+| [x] | 工程 debug 路由隔离重新验收。 | 2026-06-18 生产 `https://research-network-web.vercel.app/debug.html` 重新浏览器核验，有 `Acceptance` tab、`Acceptance session`、buyer/agent session export/copy 按钮；正常账户页未链接该路由。 | `docs/product-audit/03-ui-feature-audit.md:61,191`; `web/README.md:55,56,59,60`; `docs/product-audit/05-acceptance-run-report.md:178,190,208` |
+| [x] | Callback 敏感 payload 暴露修复重新验收。 | 2026-06-18 重新部署 `dpl_GPuEoWf4yAJ5QiPfGXzVGim1YUXQ`；线上 `/auth/callback.js` 包含 `history.replaceState`，不含 `callback-acceptance-session-payload`、`Hidden acceptance session JSON` 或 `rows="12"`；浏览器已离开带 `id_token` 的 callback URL 到 `/account.html`。 | `docs/product-audit/03-ui-feature-audit.md:50,54,60,61,206,210`; `docs/product-audit/05-acceptance-run-report.md:190,192,208,209` |
+| [ ] | 两个真实 Google zkLogin session 重新收集或重新校验。 | 2026-06-18 已重新做脱敏校验：buyer 通过字段、地址绑定、epoch freshness、Google JWT 验签；agent 字段/地址/epoch 通过但 Google JWT 验签失败 `jwt_expired`，因此两个 session 未完成。 | `docs/product-audit/04-e2e-user-story-scenarios.md:22,26,27,28,34`; `docs/product-audit/05-acceptance-run-report.md:213,215,219,220,221,224` |
+| [ ] | testnet preflight 尚未通过。 | 重新检查 production env 后 `ZKLOGIN_PROVER_URL` / `ZKLOGIN_SALT_SECRET` 值为空；agent JWT 已过期；仍需新 agent session、prover/salt 配置和测试 SUI。 | `docs/product-audit/01-contract-feature-audit.md:267,268,269`; `docs/product-audit/05-acceptance-run-report.md:121,162,220,222,224` |
 | [ ] | testnet capped execute、真实 UI acceptance、mainnet readiness 尚未完成。 | 需要 preflight 通过后继续。 | `docs/product-audit/04-e2e-user-story-scenarios.md:17,18,540,545,546,547`; `docs/product-audit/05-acceptance-run-report.md:121,122,123,162,163` |
 
 ## P0 总门禁
@@ -29,9 +30,10 @@
 | 任务 | 证据要求 | 来源 |
 | --- | --- | --- |
 | [x] 重新跑当前工作树全量质量门禁。 | 2026-06-18 从 clean commit `fdc153a90b80c00b640fdd567d6682ac31b50a52` 重跑：`rtk npm run build` 通过；`rtk env -u NODE_ENV npm test` 通过，22 个 test file / 187 个测试；`rtk env -u NODE_ENV npm run web:vite:build` 通过；`rtk npm run web:build` 通过；`rtk npm run move:build` 通过；`rtk sui move test --path move --silence-warnings` 通过，23/23 Move tests。 | `docs/21-agent-交接清单.md:112,117,118,119,121,122,123,124,125,128`; `docs/product-audit/05-acceptance-run-report.md:27,31,32,33,34,35,36` |
-| [x] 修复用户账户页污染，只保留生产账户内容。 | 2026-06-18 重新跑 Account/Debug UI 单测通过；生产 `/account.html` 只保留账户身份、GitHub 连接和我的发布等产品内容，未暴露验收/debug/copy 按钮。 | `/Users/echo/project/research-network/PRODUCT.md:36,40,41,43,44,45,46,49,50,52,53`; `docs/product-audit/03-ui-feature-audit.md:183,185,187,191,200,201,202,203,204`; `docs/product-audit/05-acceptance-run-report.md:190,204,206` |
-| [x] 把验收/调试工具隔离到独立路由。 | 2026-06-18 生产 `/debug.html` 重新核验：工程页含 Acceptance tab 和导出/复制工具；正常 `/account.html` 没有 debug 链接。 | `docs/product-audit/03-ui-feature-audit.md:11,61,191,206,210,217,226`; `docs/product-audit/05-acceptance-run-report.md:190,206,207` |
-| [x] 更新验收报告到当前基线。 | `docs/product-audit/05-acceptance-run-report.md` 已追加“重新验收基线：UI 隔离”和“真实 session 校验尝试”章节，记录当前 git 起点、部署、测试命令、生产 URL 核验、buyer JWT 过期和 prover/salt 空值。 | `docs/product-audit/05-acceptance-run-report.md:178,180,184,190,192,204,205,206,207,209,211,217,218,220,222` |
+| [x] 修复用户账户页污染，只保留生产账户内容。 | 2026-06-18 重新跑 Account/Debug/Callback UI 单测通过；生产 `/account.html` 只保留账户身份、GitHub 连接和我的发布等产品内容，未暴露验收/debug/copy 按钮。 | `/Users/echo/project/research-network/PRODUCT.md:36,40,41,43,44,45,46,49,50,52,53`; `docs/product-audit/03-ui-feature-audit.md:183,185,187,191,200,201,202,203,204`; `docs/product-audit/05-acceptance-run-report.md:190,204,207` |
+| [x] 把验收/调试工具隔离到独立路由。 | 2026-06-18 生产 `/debug.html` 重新核验：工程页含 Acceptance tab 和导出/复制工具；正常 `/account.html` 没有 debug 链接。 | `docs/product-audit/03-ui-feature-audit.md:11,61,191,206,210,217,226`; `docs/product-audit/05-acceptance-run-report.md:190,206,208` |
+| [x] 修复 callback 页暴露验收 payload / URL token。 | callback 页不再生成可见或隐藏 payload textarea；OAuth fragment 读取后立即 `history.replaceState` 清理；验收导出只从 `/debug.html` 走。 | `docs/product-audit/03-ui-feature-audit.md:50,54,60,61,206,210`; `docs/product-audit/05-acceptance-run-report.md:190,192,208,209` |
+| [x] 更新验收报告到当前基线。 | `docs/product-audit/05-acceptance-run-report.md` 已追加“重新验收基线：UI 隔离”和“真实 session 校验尝试”章节，记录当前 git 起点、部署、测试命令、生产 URL 核验、callback 修复、agent JWT 过期和 prover/salt 空值。 | `docs/product-audit/05-acceptance-run-report.md:178,180,184,190,192,204,205,206,207,208,209,211,213,219,220,222,224` |
 
 ## P0 真实 Testnet Acceptance
 
@@ -90,7 +92,7 @@
 | [ ] 访问/会员/订阅/解密 UI。 | 外人拒绝、会员解密+receipt、订阅解密但不占平台池、重复 receipt 说明、错误原因用户友好。 | `docs/product-audit/03-ui-feature-audit.md:129,133,134,135,136,140,141,142,144,146,147,148,150,152,153,154,155`; `docs/product-audit/04-e2e-user-story-scenarios.md:187,241,279` |
 | [ ] 私有委托 UI。 | buyer/agent/arbitrator/outsider 分权视图；deadline/budget/status/result/dispute 清楚分区；资金变化可见。 | `docs/product-audit/03-ui-feature-audit.md:157,161,162,163,167,168,170,172,173,174,176,178,179,180,181`; `docs/product-audit/04-e2e-user-story-scenarios.md:309,364` |
 | [ ] Account/Dashboard 完整化。 | 同一 Sui address 看到自己的 pass/subscription/receipt/delegation/earnings；切换账户隔离；sign out 清敏感 sessionStorage。 | `docs/product-audit/03-ui-feature-audit.md:183,187,191,194,196,197,198,200,202,203,204`; `/Users/echo/project/research-network/PRODUCT.md:36,40,41,42,43,44,45,46,49,50,51,52,53,57` |
-| [x] Debug/验收工具不污染用户界面。 | 2026-06-18 重新执行 UI 单测和生产浏览器核验：`/account.html` 无验收工具或 debug 链接，`/debug.html` 独立承载工程 Acceptance tab、导出和复制按钮。 | `docs/product-audit/03-ui-feature-audit.md:11,61,191,206,210`; `web/README.md:55,56,59,60`; `docs/product-audit/05-acceptance-run-report.md:190,204,206,207` |
+| [x] Debug/验收工具不污染用户界面。 | 2026-06-18 重新执行 UI 单测和生产浏览器核验：`/account.html` 无验收工具或 debug 链接，`/debug.html` 独立承载工程 Acceptance tab、导出和复制按钮；callback 页不暴露 payload。 | `docs/product-audit/03-ui-feature-audit.md:11,61,191,206,210`; `web/README.md:55,56,59,60`; `docs/product-audit/05-acceptance-run-report.md:190,204,207,208,209` |
 
 ## E2E 场景任务板
 
@@ -121,8 +123,8 @@
 
 | 路径 | 用途 | 状态 |
 | --- | --- | --- |
-| `.research-network/secrets/acceptance-buyer.json` | buyer zkLogin session，敏感，不提交。 | [ ] 待重新生成或重新校验 |
-| `.research-network/secrets/acceptance-agent.json` | agent zkLogin session，敏感，不提交。 | [ ] 待重新生成或重新校验 |
+| `.research-network/secrets/acceptance-buyer.json` | buyer zkLogin session，敏感，不提交。 | [x] 2026-06-18 脱敏校验通过，`localMockOnly: false` |
+| `.research-network/secrets/acceptance-agent.json` | agent zkLogin session，敏感，不提交。 | [ ] 2026-06-18 脱敏校验失败：Google JWT `jwt_expired`，待重新生成 |
 | `.research-network/acceptance/testnet-preflight.json` | testnet no-spend preflight receipt。 | [ ] 待生成 |
 | `.research-network/acceptance/testnet-execute.json` | testnet capped execute receipt。 | [ ] 待生成 |
 | `.research-network/acceptance/testnet-ui.json` | normal-user-ui-acceptance receipt。 | [ ] 待生成 |
@@ -139,7 +141,7 @@
 | `docs/product-audit/02-indexer-feature-audit.md` | 27-42,44-79,81-130,146-206,208-228 | Indexer 当前能力、缺口、搜索边界、生产门禁。 |
 | `docs/product-audit/03-ui-feature-audit.md` | 3-12,25-49,50-75,76-103,104-128,129-156,157-181,183-204,206-226 | UI 审计、用户旅程、风险、UI 门禁。 |
 | `docs/product-audit/04-e2e-user-story-scenarios.md` | 3-18,20-34,36-478,480-538,540-547 | E2E 三层、公共前置、S0-S10、证据包格式、发布门禁。 |
-| `docs/product-audit/05-acceptance-run-report.md` | 27-57,59-102,104-128,132-149,151-176,178-222 | 已执行门禁、dry-run、本地 UI E2E、readiness 失败项、未完成项、本轮重新验收基线、真实 session 校验尝试。 |
+| `docs/product-audit/05-acceptance-run-report.md` | 27-57,59-102,104-128,132-149,151-176,178-224 | 已执行门禁、dry-run、本地 UI E2E、readiness 失败项、未完成项、本轮重新验收基线、真实 session 校验尝试。 |
 | `docs/19-session-019ebec9-review-and-misalignment.md` | 130-144,176-181,199-220,226-247 | 为什么不能把原始 plan 的本地测试当作生产验收。 |
 | `docs/20-修复-plan-功能缺口与前端生产化.md` | 55-80,84-115,118-145,149-163 | GitHub、真实 Walrus/Seal/Sui、E2E、上生产执行计划。 |
 | `docs/21-agent-交接清单.md` | 112-128,132-140 | 接手验证命令、危险信号、mainnet 未验收提醒。 |

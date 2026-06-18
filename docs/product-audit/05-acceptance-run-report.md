@@ -192,8 +192,8 @@ fdc153a chore: reset acceptance checklist and isolate debug tools
 本轮更新后已重新部署到生产：
 
 ```text
-deployment: dpl_3UQ7aFFSw7QGDtujKpivPyYjPK7z
-url: https://research-network-ht16csj1x-euraxluos-projects.vercel.app
+deployment: dpl_GPuEoWf4yAJ5QiPfGXzVGim1YUXQ
+url: https://research-network-7dqhlpyzf-euraxluos-projects.vercel.app
 alias: https://research-network-web.vercel.app
 ```
 
@@ -201,12 +201,14 @@ alias: https://research-network-web.vercel.app
 
 | 项 | 结果 | 证据摘要 |
 | --- | --- | --- |
-| Account/Debug UI 单测 | 通过 | `rtk npm run test -- tests/web-account-ui.test.ts tests/web-debug-ui.test.ts tests/web-acceptance-session.test.ts` 通过，3 个 test file / 7 个测试。 |
+| Account/Debug/Callback UI 单测 | 通过 | `rtk npm run test -- tests/web-account-ui.test.ts tests/web-debug-ui.test.ts tests/web-acceptance-session.test.ts tests/web-e2e.test.ts` 通过，4 个 test file / 19 个测试。 |
+| TypeScript build | 通过 | `rtk npm run build` 通过。 |
 | Debug copy 工具构建 | 通过 | `rtk npm run web:vite:build` 通过，`debug-*.js` 已包含 copy session 工具。 |
 | 生产 `/account.html` | 通过 | 浏览器打开 `https://research-network-web.vercel.app/account.html`，页面没有 `Production acceptance session`、`Export buyer session`、`Export agent session`、`Acceptance session`、debug 文案或 `/debug.html` 链接。 |
 | 生产 `/debug.html` | 通过 | 浏览器打开 `https://research-network-web.vercel.app/debug.html`，工程页有 `Acceptance` tab、`Acceptance session`、buyer/agent session export/copy 按钮，并标注工程用途；正常产品账户页未链接到该路由。 |
+| 生产 `/auth/callback.js` | 通过 | 线上脚本包含 `history.replaceState` 清理 OAuth fragment；包含 `/debug.html` 工程入口；不再包含 `callback-acceptance-session-payload`、`Hidden acceptance session JSON` 或 `rows="12"`。浏览器当前地址已从带 `id_token` 的 callback URL 切到 `/account.html`，地址栏不再含 `id_token`。 |
 
-边界说明：本节只证明“正常用户账户页不再被验收/调试工具污染、调试工具已隔离到工程路由”。它不证明两个真实 zkLogin session 已重新收集，也不证明 testnet preflight、capped execute、真实 UI acceptance 或 mainnet readiness 已通过。
+边界说明：本节只证明“正常用户账户页不再被验收/调试工具污染、调试工具已隔离到工程路由、callback 页不再暴露验收 payload 或 URL token”。它不证明两个真实 zkLogin session 已全部有效，也不证明 testnet preflight、capped execute、真实 UI acceptance 或 mainnet readiness 已通过。
 
 ## 11. 重新验收基线：真实 session 校验尝试
 
@@ -214,9 +216,9 @@ alias: https://research-network-web.vercel.app
 
 | 项 | 结果 | 证据摘要 |
 | --- | --- | --- |
-| `acceptance-buyer.json` | 未通过 | `localMockOnly: false`、字段完整、地址绑定通过、epoch freshness 通过，但 Google JWT 验签失败：`jwt_expired`。 |
-| `acceptance-agent.json` | 部分通过 | `localMockOnly: false`、字段完整、地址绑定通过、epoch freshness 通过、Google JWT 验签通过。 |
+| `acceptance-buyer.json` | 通过 | `localMockOnly: false`、字段完整、地址绑定通过、current epoch `1134`、maxEpoch `1148`、剩余 `14` epochs、Google JWT 验签通过；公开地址 `0xb178126020d69bb24ecd6a39ac5db18a8badae973dae0e9b20a889a68b609d7f`。 |
+| `acceptance-agent.json` | 未通过 | `localMockOnly: false`、字段完整、地址绑定通过、current epoch `1134`、maxEpoch `1148`、剩余 `14` epochs，但 Google JWT 验签失败：`jwt_expired`；公开地址 `0x5c282a83fcfc9b6479a50dce817c6ed72da53259f76d5bd33a0c822721fba4ea`。 |
 | 两角色地址 | 通过 | buyer/agent 地址不同。 |
-| Vercel production env | 阻塞 | 重新 `vercel env pull` 后 `ZKLOGIN_PROVER_URL` 和 `ZKLOGIN_SALT_SECRET` 键存在但值长度为 `0`，因此不能执行 prover proof 校验或真实 preflight。 |
+| Vercel production env | 阻塞 | 读取 `.research-network/secrets/vercel-production.env` 后确认 `ZKLOGIN_PROVER_URL` 和 `ZKLOGIN_SALT_SECRET` 键存在但值长度为 `0`，因此不能执行 prover proof 校验或真实 preflight。 |
 
-结论：两个真实 session 任务仍未完成。下一步必须重新获取 buyer Google zkLogin session，并补齐生产 `ZKLOGIN_PROVER_URL` / `ZKLOGIN_SALT_SECRET` 后再跑 `acceptance:production --preflight`。
+结论：两个真实 session 任务仍未完成。下一步必须重新获取 agent Google zkLogin session，并补齐生产 `ZKLOGIN_PROVER_URL` / `ZKLOGIN_SALT_SECRET` 后再跑 `acceptance:production --preflight`。

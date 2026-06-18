@@ -260,6 +260,13 @@ describe("static web E2E", () => {
       const loginCallbackJs = await callbackJsResponse.text();
       expect(loginCallbackJs).toContain("session_attestation");
       expect(loginCallbackJs).toContain("rn_zk_attestation");
+      expect(loginCallbackJs).toContain("history.replaceState");
+      expect(loginCallbackJs).toContain("Acceptance session ready");
+      expect(loginCallbackJs).toContain("/debug.html");
+      expect(loginCallbackJs).not.toContain("callback-acceptance-session-payload");
+      expect(loginCallbackJs).not.toContain("Hidden acceptance session JSON");
+      expect(loginCallbackJs).not.toContain("hidden readonly");
+      expect(loginCallbackJs).not.toContain("rows=\"12\"");
 
       const githubCallback = await fetch(sitePath(server.url, "/auth/github-callback.html"));
       expect(githubCallback.status).toBe(200);
