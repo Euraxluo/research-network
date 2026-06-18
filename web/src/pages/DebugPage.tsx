@@ -37,6 +37,24 @@ export function DebugPage() {
     }
   }
 
+  async function copyAcceptanceSession(role: "buyer" | "agent") {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard write is unavailable in this browser.");
+      }
+      const payload = buildAcceptanceSessionExport();
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2) + "\n");
+      setStatus({
+        text: `Copied acceptance-${role}.json payload. Store it under .research-network/secrets/ and clear the clipboard after use.`
+      });
+    } catch (error) {
+      setStatus({
+        text: error instanceof Error ? error.message : String(error),
+        error: true
+      });
+    }
+  }
+
   return (
     <>
       <p>
@@ -104,6 +122,22 @@ export function DebugPage() {
               onClick={() => exportAcceptanceSession("agent")}
             >
               Export agent session
+            </button>
+            <button
+              className="button"
+              type="button"
+              data-testid="debug-copy-acceptance-buyer"
+              onClick={() => void copyAcceptanceSession("buyer")}
+            >
+              Copy buyer session
+            </button>
+            <button
+              className="button"
+              type="button"
+              data-testid="debug-copy-acceptance-agent"
+              onClick={() => void copyAcceptanceSession("agent")}
+            >
+              Copy agent session
             </button>
           </p>
           {status ? (

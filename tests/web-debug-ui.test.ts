@@ -8,6 +8,7 @@ let dom: JSDOM;
 let root: ReturnType<typeof createRoot> | null = null;
 let capturedBlob: Blob | null = null;
 let clickedDownload: { download: string; href: string } | null = null;
+let copiedText: string | null = null;
 
 function installDom(): void {
   dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -40,6 +41,14 @@ function installDom(): void {
     configurable: true
   });
   Object.defineProperty(dom.window.URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
+  Object.defineProperty(dom.window.navigator, "clipboard", {
+    value: {
+      writeText: vi.fn(async (text: string) => {
+        copiedText = text;
+      })
+    },
+    configurable: true
+  });
   vi.spyOn(dom.window.HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
     clickedDownload = { download: this.download, href: this.href };
   });
@@ -103,6 +112,7 @@ describe("DebugPage acceptance tools", () => {
     vi.restoreAllMocks();
     capturedBlob = null;
     clickedDownload = null;
+    copiedText = null;
     root = null;
     installDom();
   });
@@ -141,6 +151,24 @@ describe("DebugPage acceptance tools", () => {
     expect(exported.rn_zk_eph.secret).toBe("suiprivkey1secret");
     expect(exported.rn_zk_session.id_token).toBe("header.payload.sig");
     expect(byTestId("debug-acceptance-session-export-status").textContent).toContain("acceptance-agent.json");
+  });
+
+  it("copies the current same-tab zkLogin session from the debug route", async () => {
+    seedSignedInSession();
+    await renderDebugPage();
+
+    await clickByTestId("debug-copy-acceptance-buyer");
+
+    expect(copiedText).toBeTruthy();
+    const copied = JSON.parse(copiedText!) as {
+      address: string;
+      ephemeralSecretKey: string;
+      idToken: string;
+    };
+    expect(copied.address).toBe("0x" + "12".repeat(32));
+    expect(copied.ephemeralSecretKey).toBe("suiprivkey1secret");
+    expect(copied.idToken).toBe("header.payload.sig");
+    expect(byTestId("debug-acceptance-session-export-status").textContent).toContain("Copied acceptance-buyer.json");
   });
 
   it("fails closed when the same-tab ephemeral key is unavailable", async () => {
