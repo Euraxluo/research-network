@@ -23,12 +23,16 @@ import { promisify } from "node:util";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import {
   assertProductionAcceptanceSessionAddress,
+  normalizeProductionAcceptanceBalanceChanges,
   normalizeProductionAcceptanceSession,
+  productionAcceptanceDelegationFundingMeta,
+  productionAcceptanceSuiSpentMist,
   type ProductionAcceptanceReceipt,
   type ProductionAcceptanceSession,
   type ProductionAcceptanceSessionInput
 } from "../src/core/production-acceptance.js";
 import { deriveZkLoginAddress } from "../src/core/zklogin.js";
+import { getSuiClient } from "../web/src/lib/sui-client.js";
 import {
   defaultUiAcceptanceReceiptPath,
   type UiAcceptanceReceipt,
@@ -147,6 +151,7 @@ async function main() {
   const startedAt = new Date().toISOString();
   const steps: UiAcceptanceStep[] = [];
   const config = activeM3Config(args.network);
+  (globalThis as unknown as { __RN_M3_CONFIG__?: M3Config }).__RN_M3_CONFIG__ = config;
   const receipt: UiAcceptanceReceipt = {
     kind: "normal-user-ui-acceptance/v1",
     network: args.network,
@@ -211,7 +216,7 @@ async function main() {
 
       const membership = await buyMembershipAndDecrypt(buyerPage, buyer.address, encryptedReport.reportId, steps);
       const subscription = await subscribeAndDecrypt(buyerPage, buyer.address, encryptedReport.reportId, steps);
-      const delegation = await createDelegation(buyerPage, buyer.address, steps);
+      const delegation = await createDelegation(buyerPage, buyer.address, config, steps);
       totalEventsIngested += await syncIndexedState(args, "after buyer membership/subscription/delegation");
 
       await agentPage.reload({ waitUntil: "networkidle" });
@@ -457,10 +462,12 @@ async function subscribeAndDecrypt(page: Page, buyerAddress: string, reportId: s
   return { objectId: stringField(subscription, "pass_id") };
 }
 
-async function createDelegation(page: Page, buyerAddress: string, steps: UiAcceptanceStep[]) {
+async function createDelegation(page: Page, buyerAddress: string, config: M3Config, steps: UiAcceptanceStep[]) {
   await clickAndWait(page, "create-delegation", /Private delegation job created and funded on-chain/);
   const state = await readWorkbenchState(page);
   const delegation = last(state.delegations, "delegation");
+  const fundDigest = stringField(delegation, "fund_tx_digest");
+  const fundMeta = await fetchDelegationFundingMeta(fundDigest, buyerAddress, config);
   pass(steps, "buyer.create_and_fund_delegation", {
     actor: "buyer",
     route: route(page),
@@ -470,11 +477,40 @@ async function createDelegation(page: Page, buyerAddress: string, steps: UiAccep
     digest: stringField(delegation, "tx_digest"),
     objectId: stringField(delegation, "id"),
     meta: {
-      fundDigest: stringField(delegation, "fund_tx_digest"),
-      fundSignerAddress: buyerAddress
+      ...fundMeta
     }
   });
   return { objectId: stringField(delegation, "id") };
+}
+
+async function fetchDelegationFundingMeta(fundDigest: string, buyerAddress: string, config: M3Config): Promise<Record<string, unknown>> {
+  const tx = await getSuiClient().getTransactionBlock({
+    digest: fundDigest,
+    options: {
+      showEffects: true,
+      showBalanceChanges: true,
+      showEvents: true
+    }
+  });
+  const balanceChanges = normalizeProductionAcceptanceBalanceChanges(tx.balanceChanges);
+  const eventTypes = Array.isArray(tx.events)
+    ? tx.events.flatMap((event) => typeof event.type === "string" ? [event.type] : [])
+    : [];
+  return productionAcceptanceDelegationFundingMeta({
+    fundDigest,
+    fundSpend: {
+      digest: fundDigest,
+      signerLabel: "buyer",
+      signerAddress: buyerAddress,
+      suiSpentMist: String(productionAcceptanceSuiSpentMist(balanceChanges, buyerAddress)),
+      balanceChanges,
+      eventTypes,
+      txStatus: tx.effects?.status?.status ?? "unknown",
+      ...(tx.effects?.status?.error ? { txError: tx.effects.status.error } : {})
+    },
+    buyerAddress,
+    packageId: config.packageId
+  });
 }
 
 async function publishPrivateResult(page: Page, agentAddress: string, steps: UiAcceptanceStep[]) {

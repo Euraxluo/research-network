@@ -190,7 +190,12 @@ function steps(): UiAcceptanceStep[] {
         transactionStep.meta = {
           ...(transactionStep.meta ?? {}),
           fundDigest: digest(index + 100),
-          fundSignerAddress: BUYER
+          fundSigner: "buyer",
+          fundSignerAddress: BUYER,
+          fundSuiSpentMist: "1000",
+          fundBalanceChanges: [{ owner: BUYER, coinType: "0x2::sui::SUI", amount: "-1000" }],
+          fundEventTypes: [`${PACKAGE}::delegation::DelegationFunded`],
+          fundTxStatus: "success"
         };
       }
       return transactionStep;

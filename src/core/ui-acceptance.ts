@@ -1,10 +1,12 @@
 import path from "node:path";
 import { checkBoolean, fail, type ReadinessCheck } from "./mainnet-readiness.js";
 import type {
+  ProductionAcceptanceDelegationFundingEvidence,
   ProductionAcceptanceNetwork,
   ProductionAcceptanceReceipt,
   ProductionAcceptanceReceiptProvenance
 } from "./production-acceptance.js";
+import { productionAcceptanceDelegationFundingMeta } from "./production-acceptance.js";
 
 export interface UiAcceptanceReceipt {
   kind: "normal-user-ui-acceptance/v1";
@@ -234,11 +236,12 @@ export function checkUiAcceptanceReceipt(
     { buyerAddress: receipt.buyerAddress, agentAddress: receipt.agentAddress }
   ));
   checks.push(checkBoolean(
-    `${baseName}.transactions.fund_digest`,
-    isSuiDigest(step(receipt, "buyer.create_and_fund_delegation")?.meta?.fundDigest),
-    `${expectation.label} UI receipt records the delegation funding transaction digest`,
-    `${expectation.label} UI receipt is missing a valid delegation funding digest`,
-    expectation.required
+    `${baseName}.transactions.fund_evidence`,
+    hasDelegationFundingEvidence(receipt),
+    `${expectation.label} UI receipt proves the delegation funding transaction succeeded on-chain`,
+    `${expectation.label} UI receipt is missing successful delegation funding transaction evidence`,
+    expectation.required,
+    { funding: step(receipt, "buyer.create_and_fund_delegation")?.meta }
   ));
   checks.push(checkBoolean(
     `${baseName}.seal.decrypts`,
@@ -352,6 +355,48 @@ function stepSignerMatchesRole(receipt: UiAcceptanceReceipt, name: string): bool
 function delegationFundSignerMatchesBuyer(receipt: UiAcceptanceReceipt): boolean {
   const item = step(receipt, "buyer.create_and_fund_delegation");
   return sameSuiAddress(item?.meta?.fundSignerAddress, receipt.buyerAddress);
+}
+
+function hasDelegationFundingEvidence(receipt: UiAcceptanceReceipt): boolean {
+  const meta = step(receipt, "buyer.create_and_fund_delegation")?.meta;
+  if (!meta || typeof meta !== "object") return false;
+  const item = meta as Record<string, unknown>;
+  const fundDigest = item.fundDigest;
+  const fundSignerAddress = item.fundSignerAddress;
+  const fundSuiSpentMist = item.fundSuiSpentMist;
+  const fundBalanceChanges = item.fundBalanceChanges;
+  const fundEventTypes = item.fundEventTypes;
+  const fundTxStatus = item.fundTxStatus;
+  const fundTxError = item.fundTxError;
+  if (!isSuiDigest(fundDigest) ||
+      !isSuiObjectId(fundSignerAddress) ||
+      typeof fundSuiSpentMist !== "string" ||
+      !Array.isArray(fundBalanceChanges) ||
+      !Array.isArray(fundEventTypes) ||
+      typeof fundTxStatus !== "string" ||
+      (fundTxError !== undefined && typeof fundTxError !== "string")) {
+    return false;
+  }
+  try {
+    productionAcceptanceDelegationFundingMeta({
+      fundDigest,
+      fundSpend: {
+        digest: fundDigest,
+        signerLabel: typeof item.fundSigner === "string" ? item.fundSigner : undefined,
+        signerAddress: fundSignerAddress,
+        suiSpentMist: fundSuiSpentMist,
+        balanceChanges: fundBalanceChanges as ProductionAcceptanceDelegationFundingEvidence["balanceChanges"],
+        eventTypes: fundEventTypes.filter((value): value is string => typeof value === "string"),
+        txStatus: fundTxStatus,
+        ...(typeof fundTxError === "string" ? { txError: fundTxError } : {})
+      },
+      buyerAddress: receipt.buyerAddress ?? "",
+      packageId: receipt.config.packageId
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function hasDecryptEvidence(meta: unknown): boolean {
