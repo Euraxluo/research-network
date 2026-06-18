@@ -26,6 +26,7 @@
 | `02-indexer-feature-audit.md` | Indexer 功能审计，检查事件投影、搜索、图谱、权限边界和生产化缺口。 |
 | `03-ui-feature-audit.md` | UI 功能审计，覆盖游客、登录、GitHub 授权、发布、访问、委托、账户页和 mainnet guard。 |
 | `04-e2e-user-story-scenarios.md` | E2E 用户故事场景，按“前端操作 - 合约事件 - Indexer 投影 - UI 断言”设计验收流程。 |
+| `05-acceptance-run-report.md` | 本轮测试、dry-run、浏览器 UI E2E 和 readiness gate 的实际执行记录。 |
 
 ## 状态标记
 
