@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 // The login page is a React shell that reproduces the exact DOM the existing
 // bundle (auth/login.js + zklogin-browser.js + auth/config.js) expects.
@@ -8,27 +8,37 @@ import { useEffect, useRef } from "react";
 //
 // The scripts are emitted to .vercel-shell by buildVercelAuthShell and proxied
 // to the prod host in dev (see vite.config.ts server.proxy).
-function useExternalScript(src: string) {
-  const ref = useRef<HTMLScriptElement | null>(null);
+const LOGIN_SCRIPT_SRCS = ["/zklogin-browser.js", "/auth/config.js", "/auth/login.js"];
+
+function useExternalScripts(srcs: string[]) {
   useEffect(() => {
-    // Avoid duplicate injection across React strict-mode remounts.
-    const existing = document.querySelector(`script[data-ext="${src}"]`);
-    if (existing) return;
-    const s = document.createElement("script");
-    s.src = src;
-    s.dataset.ext = src;
-    document.body.appendChild(s);
+    let cancelled = false;
+    async function loadScripts() {
+      for (const src of srcs) {
+        if (cancelled) return;
+        const existing = document.querySelector(`script[data-ext="${src}"]`);
+        if (existing) continue;
+        await new Promise<void>((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = src;
+          s.dataset.ext = src;
+          s.async = false;
+          s.addEventListener("load", () => resolve(), { once: true });
+          s.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), { once: true });
+          document.body.appendChild(s);
+        });
+      }
+    }
+    void loadScripts();
     return () => {
+      cancelled = true;
       // Leave the script in place; removing it would break re-mounts in dev.
     };
-  }, [src]);
-  void ref;
+  }, [srcs]);
 }
 
 export function LoginPage() {
-  useExternalScript("/zklogin-browser.js");
-  useExternalScript("/auth/config.js");
-  useExternalScript("/auth/login.js");
+  useExternalScripts(LOGIN_SCRIPT_SRCS);
 
   return (
     <>
