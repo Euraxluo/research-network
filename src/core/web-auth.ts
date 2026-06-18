@@ -624,6 +624,7 @@ const LOGIN_JS = `(function(){
 
 const CALLBACK_JS = `(function(){
   function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){ return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]; }); }
+  function attr(v){ return esc(v).replace(/\\n/g,"&#10;"); }
   function out(html){ document.getElementById("out").innerHTML = html; }
   function fail(msg){ out('<h2>Sign-in failed</h2><p class="error">' + esc(msg) + '</p><p><a href="/login.html">Try again</a></p>'); }
   function decode(t){ var seg = t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"); var pad = "=".repeat((4 - seg.length % 4) % 4); return JSON.parse(decodeURIComponent(escape(atob(seg + pad)))); }
@@ -683,7 +684,24 @@ const CALLBACK_JS = `(function(){
       localStorage.removeItem("rn_zk_attestation");
     }
     sessionStorage.setItem("rn_zk_session", JSON.stringify({ id_token: idToken, salt: salt, maxEpoch: eph.maxEpoch, randomness: eph.randomness }));
-    out('<h2>Signed in &#10003;</h2><p>Your Sui zkLogin address:</p><p><code class="addr">' + esc(address) + '</code></p><p class="muted">' + esc(claims.email || claims.sub) + ' · ' + esc(claims.iss) + '</p><p class="muted">Same Google account &rArr; same address on every device (server-side deterministic salt).</p><p><a href="/account.html">Account &rarr;</a> &nbsp; <a href="/login.html">Connect GitHub</a> &nbsp; <a href="/">&larr; Back to site</a></p>');
+    var acceptanceRole = sessionStorage.getItem("rn_acceptance_debug_role") || "";
+    var acceptanceHtml = "";
+    if (acceptanceRole === "buyer" || acceptanceRole === "agent") {
+      var payload = {
+        address: address,
+        ephemeralSecretKey: eph.secret,
+        idToken: idToken,
+        salt: salt,
+        maxEpoch: eph.maxEpoch,
+        randomness: eph.randomness,
+        rn_zk_eph: { secret: eph.secret, maxEpoch: eph.maxEpoch, randomness: eph.randomness },
+        rn_zk_session: { id_token: idToken, salt: salt, maxEpoch: eph.maxEpoch, randomness: eph.randomness },
+        exportedAt: new Date().toISOString(),
+        warning: "Sensitive zkLogin acceptance session. Keep under .research-network/secrets/, never commit, and use only for capped production acceptance."
+      };
+      acceptanceHtml = '<section aria-labelledby="acceptance-session-heading"><h2 id="acceptance-session-heading">Acceptance ' + esc(acceptanceRole) + ' session</h2><p class="muted">Engineering-only payload from the same callback tab. Store it under .research-network/secrets/ and clear it after use.</p><textarea data-testid="callback-acceptance-session-payload" aria-label="Acceptance session JSON" rows="12" readonly style="width:100%;font-family:monospace;font-size:12px">' + attr(JSON.stringify(payload, null, 2) + "\\n") + '</textarea><p><button class="button" type="button" onclick="var el=document.querySelector(\\'[data-testid=callback-acceptance-session-payload]\\'); if(el) el.value=\\'\\'; sessionStorage.removeItem(\\'rn_acceptance_debug_role\\');">Clear acceptance payload</button></p></section>';
+    }
+    out('<h2>Signed in &#10003;</h2><p>Your Sui zkLogin address:</p><p><code class="addr">' + esc(address) + '</code></p><p class="muted">' + esc(claims.email || claims.sub) + ' · ' + esc(claims.iss) + '</p><p class="muted">Same Google account &rArr; same address on every device (server-side deterministic salt).</p>' + acceptanceHtml + '<p><a href="/account.html">Account &rarr;</a> &nbsp; <a href="/login.html">Connect GitHub</a> &nbsp; <a href="/">&larr; Back to site</a></p>');
   }).catch(function(e){
     fail((e && e.message) ? e.message : String(e));
   });

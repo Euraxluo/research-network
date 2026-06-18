@@ -19,6 +19,7 @@ function downloadJson(filename: string, value: unknown): void {
 export function DebugPage() {
   const [tab, setTab] = useState<DebugTab>("acceptance");
   const [status, setStatus] = useState<{ text: string; error?: boolean } | null>(null);
+  const [revealedPayload, setRevealedPayload] = useState<string>("");
   const session = readSession();
 
   function exportAcceptanceSession(role: "buyer" | "agent") {
@@ -53,6 +54,32 @@ export function DebugPage() {
         error: true
       });
     }
+  }
+
+  function revealAcceptanceSession(role: "buyer" | "agent") {
+    try {
+      const payload = buildAcceptanceSessionExport();
+      setRevealedPayload(JSON.stringify(payload, null, 2) + "\n");
+      setStatus({
+        text: `Revealed acceptance-${role}.json payload in this page. Save it under .research-network/secrets/ and clear it after use.`
+      });
+    } catch (error) {
+      setRevealedPayload("");
+      setStatus({
+        text: error instanceof Error ? error.message : String(error),
+        error: true
+      });
+    }
+  }
+
+  function clearRevealedPayload() {
+    setRevealedPayload("");
+    setStatus({ text: "Cleared revealed acceptance session payload." });
+  }
+
+  function startAcceptanceLogin(role: "buyer" | "agent") {
+    sessionStorage.setItem("rn_acceptance_debug_role", role);
+    location.href = "/login.html";
   }
 
   return (
@@ -139,7 +166,58 @@ export function DebugPage() {
             >
               Copy agent session
             </button>
+            <button
+              className="button"
+              type="button"
+              data-testid="debug-reveal-acceptance-buyer"
+              onClick={() => revealAcceptanceSession("buyer")}
+            >
+              Reveal buyer session
+            </button>
+            <button
+              className="button"
+              type="button"
+              data-testid="debug-reveal-acceptance-agent"
+              onClick={() => revealAcceptanceSession("agent")}
+            >
+              Reveal agent session
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              data-testid="debug-clear-acceptance-session"
+              onClick={clearRevealedPayload}
+            >
+              Clear revealed session
+            </button>
+            <button
+              className="button"
+              type="button"
+              data-testid="debug-start-acceptance-buyer-login"
+              onClick={() => startAcceptanceLogin("buyer")}
+            >
+              Start buyer acceptance login
+            </button>
+            <button
+              className="button"
+              type="button"
+              data-testid="debug-start-acceptance-agent-login"
+              onClick={() => startAcceptanceLogin("agent")}
+            >
+              Start agent acceptance login
+            </button>
           </p>
+          {revealedPayload ? (
+            <textarea
+              aria-label="Revealed acceptance session JSON"
+              data-testid="debug-acceptance-session-payload"
+              readOnly
+              rows={12}
+              spellCheck={false}
+              value={revealedPayload}
+              style={{ width: "100%", fontFamily: "var(--mono)", fontSize: "12px" }}
+            />
+          ) : null}
           {status ? (
             <p
               id="debug-acceptance-session-export-status"

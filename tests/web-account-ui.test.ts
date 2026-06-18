@@ -90,7 +90,12 @@ describe("AccountPage production UI", () => {
     expect(text).not.toContain("Production acceptance session");
     expect(text).not.toContain("Export buyer session");
     expect(text).not.toContain("Export agent session");
+    expect(text).not.toContain("Copy buyer session");
+    expect(text).not.toContain("Reveal buyer session");
+    expect(text).not.toContain("Start buyer acceptance login");
     expect(dom.window.document.querySelector('[data-testid="export-acceptance-buyer"]')).toBeNull();
     expect(dom.window.document.querySelector('[data-testid="export-acceptance-agent"]')).toBeNull();
+    expect(dom.window.document.querySelector('[data-testid="debug-reveal-acceptance-buyer"]')).toBeNull();
+    expect(dom.window.document.querySelector('[data-testid="debug-start-acceptance-buyer-login"]')).toBeNull();
   });
 });

@@ -157,6 +157,9 @@ describe("DebugPage acceptance tools", () => {
     seedSignedInSession();
     await renderDebugPage();
 
+    expect(dom.window.document.querySelector('[data-testid="debug-start-acceptance-buyer-login"]')).toBeTruthy();
+    expect(dom.window.document.querySelector('[data-testid="debug-start-acceptance-agent-login"]')).toBeTruthy();
+
     await clickByTestId("debug-copy-acceptance-buyer");
 
     expect(copiedText).toBeTruthy();
@@ -169,6 +172,32 @@ describe("DebugPage acceptance tools", () => {
     expect(copied.ephemeralSecretKey).toBe("suiprivkey1secret");
     expect(copied.idToken).toBe("header.payload.sig");
     expect(byTestId("debug-acceptance-session-export-status").textContent).toContain("Copied acceptance-buyer.json");
+  });
+
+  it("reveals and clears the current same-tab zkLogin session in the debug route", async () => {
+    seedSignedInSession();
+    await renderDebugPage();
+
+    await clickByTestId("debug-reveal-acceptance-buyer");
+
+    const textarea = dom.window.document.querySelector(
+      '[data-testid="debug-acceptance-session-payload"]'
+    ) as HTMLTextAreaElement | null;
+    expect(textarea).toBeTruthy();
+    const revealed = JSON.parse(textarea!.value) as {
+      address: string;
+      ephemeralSecretKey: string;
+      idToken: string;
+    };
+    expect(revealed.address).toBe("0x" + "12".repeat(32));
+    expect(revealed.ephemeralSecretKey).toBe("suiprivkey1secret");
+    expect(revealed.idToken).toBe("header.payload.sig");
+    expect(byTestId("debug-acceptance-session-export-status").textContent).toContain("Revealed acceptance-buyer.json");
+
+    await clickByTestId("debug-clear-acceptance-session");
+
+    expect(dom.window.document.querySelector('[data-testid="debug-acceptance-session-payload"]')).toBeNull();
+    expect(byTestId("debug-acceptance-session-export-status").textContent).toContain("Cleared revealed");
   });
 
   it("fails closed when the same-tab ephemeral key is unavailable", async () => {

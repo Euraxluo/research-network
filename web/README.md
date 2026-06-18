@@ -56,8 +56,8 @@ The user-facing account page contains production account content only. Acceptanc
 is an engineering operation under `/debug.html`, outside the normal product flow; the resulting
 files belong under `.research-network/secrets/acceptance-buyer.json` and
 `.research-network/secrets/acceptance-agent.json`, contain ephemeral zkLogin material, and must never
-be committed. The debug route offers download and clipboard copy paths because some browser automation
-surfaces cannot save downloads.
+be committed. The debug route offers download, clipboard copy, and in-page reveal paths because some
+browser automation surfaces cannot save downloads or write to the clipboard.
 
 ```bash
 npm run acceptance:production -- --network testnet
