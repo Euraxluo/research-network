@@ -222,3 +222,27 @@ alias: https://research-network-web.vercel.app
 | Vercel production env | 阻塞 | 读取 `.research-network/secrets/vercel-production.env` 后确认 `ZKLOGIN_PROVER_URL` 和 `ZKLOGIN_SALT_SECRET` 键存在但值长度为 `0`，因此不能执行 prover proof 校验或真实 preflight。 |
 
 结论：两个真实 session 任务仍未完成。下一步必须重新获取 agent Google zkLogin session，并补齐生产 `ZKLOGIN_PROVER_URL` / `ZKLOGIN_SALT_SECRET` 后再跑 `acceptance:production --preflight`。
+
+## 12. 重新验收基线：合约与 Indexer 审查
+
+用户指出不能只做前端。本节记录本轮重新核对合约与 Indexer 的证据；它只证明本地源码、事件矩阵和测试基线，不替代真实 testnet transaction receipt 或生产 index poll。
+
+已重新执行：
+
+| 项 | 结果 | 证据摘要 |
+| --- | --- | --- |
+| Move build | 通过 | `rtk npm run move:build` 通过，Sui Move package `research_protocol` build 成功。 |
+| Move 单测 | 通过 | `rtk sui move test --path move --silence-warnings` 通过，23/23 Move tests passed。覆盖 research asset、skill、revenue、payment、access/delegation、重复 receipt、重复 settlement、过期会员拒绝、private delegation 授权/拒绝等。 |
+| Indexer/acceptance Vitest | 通过 | `rtk npm run test -- tests/indexer-events.test.ts tests/protocol-kit.test.ts tests/production-acceptance.test.ts tests/ui-acceptance.test.ts` 通过，4 个 test file / 55 个测试。覆盖事件投影、幂等 replay、private delegation 不进搜索、Sui event normalization/poll cursor、production acceptance guardrail、UI acceptance receipt guardrail。 |
+| 合约源码核对 | 完成 | 重新核对 `access.move`、`delegation.move`、`settlement.move`：Seal policy、会员/订阅 pass、receipt、委托状态机、争议仲裁临时解密、重复结算保护、claim earnings 均有链上入口和事件。 |
+| Indexer 源码核对 | 完成 | 重新核对 `src/core/indexer.ts`：`private_delegation` report 删除 public search doc；`processed_event_keys` 做幂等；`ResearchReportPublished`、`AccessReceiptRecorded`、delegation、settlement、earnings、payment 等事件有投影。 |
+| Move event -> Indexer case 机械比对 | 发现缺口 | 从 `move/sources/*.move` 抽取 `public struct ... has copy, drop` 事件，共 `31` 个；从 `src/core/indexer.ts` 抽取 switch case，共 `31` 个。缺失 handler：`PlatformMembershipPaid`。额外本地兼容 case：`AssetRelationshipRegistered`。 |
+
+仍保留的审查缺口：
+
+1. `PlatformMembershipPaid` 在 `settlement.move` 中发事件，但 `src/core/indexer.ts` 目前没有单独投影 handler；机械比对已确认这是唯一 Move event -> Indexer case 缺口。如果产品要展示平台会员支付金额、platform fee、duration，必须补投影或明确只以 `PlatformMembershipPurchased` pass 作为 UI 事实。
+2. `DelegationCreated` 当前会创建 delegation search doc，body 包含 buyer/agent。private result 不进公共搜索已成立，但“委托存在本身是否公开”仍需产品裁决和 API 授权过滤。
+3. Walrus manifest fetcher、生产常驻 index worker、生产数据库、retry/dead-letter、权限过滤 API 仍未落地。
+4. 本轮未执行真实 `research index:poll --package-id ...` 从 testnet 读取事件；也未生成真实 testnet preflight/execute/UI receipt。
+
+结论：合约与 Indexer 的本地审查基线已重新完成，但只能勾“本地源码/测试审查”。真实 testnet 合约功能验收、生产 Indexer 验收和 mainnet readiness 仍保持未完成。

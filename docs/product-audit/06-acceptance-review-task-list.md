@@ -18,6 +18,8 @@
 | 状态 | 事项 | 证据 / 备注 | 来源 |
 | --- | --- | --- | --- |
 | [ ] | 产品审计文档包重新核对。 | 历史上 `docs/product-audit/01..05` 已存在，但需重新逐项核对与当前实现一致性。 | `docs/product-audit/README.md:21,25,26,27,28,29` |
+| [x] | 合约本地源码/事件审查重新核对。 | 2026-06-18 重新核对 Move 源码和测试：`rtk npm run move:build` 通过；`rtk sui move test --path move --silence-warnings` 通过，23/23 Move tests；并从 Move 事件结构体做机械抽取。只证明本地合约基线，不证明 testnet execute。 | `docs/product-audit/01-contract-feature-audit.md:19,37,68,100,134,171,234,267,268,269`; `docs/product-audit/05-acceptance-run-report.md:226,234,235,237,239,248` |
+| [x] | Indexer 本地投影/事件覆盖审查重新核对。 | 2026-06-18 重新核对 `src/core/indexer.ts` 和事件测试；`rtk npm run test -- tests/indexer-events.test.ts tests/protocol-kit.test.ts tests/production-acceptance.test.ts tests/ui-acceptance.test.ts` 通过，4 个 test file / 55 个测试；Move event -> Indexer case 机械比对确认唯一缺口是 `PlatformMembershipPaid`。 | `docs/product-audit/02-indexer-feature-audit.md:27,35,44,57,81,146,197,208`; `docs/product-audit/05-acceptance-run-report.md:226,236,238,239,243` |
 | [x] | 账户页生产内容重新验收。 | 2026-06-18 重新跑 `rtk npm run test -- tests/web-account-ui.test.ts tests/web-debug-ui.test.ts tests/web-acceptance-session.test.ts tests/web-e2e.test.ts` 通过，4 个 test file / 19 个测试；生产 `https://research-network-web.vercel.app/account.html` 重新浏览器核验，无 `Production acceptance session`、`Export buyer session`、`Export agent session`、`Acceptance session`、debug/copy 文案或 `/debug.html` 链接。 | `/Users/echo/project/research-network/PRODUCT.md:36,44,45,46,49,50,52,53`; `docs/product-audit/03-ui-feature-audit.md:183,191,200,201,202,203,204`; `docs/product-audit/05-acceptance-run-report.md:178,190,204,207` |
 | [x] | 工程 debug 路由隔离重新验收。 | 2026-06-18 生产 `https://research-network-web.vercel.app/debug.html` 重新浏览器核验，有 `Acceptance` tab、`Acceptance session`、buyer/agent session export/copy 按钮；正常账户页未链接该路由。 | `docs/product-audit/03-ui-feature-audit.md:61,191`; `web/README.md:55,56,59,60`; `docs/product-audit/05-acceptance-run-report.md:178,190,208` |
 | [x] | Callback 敏感 payload 暴露修复重新验收。 | 2026-06-18 重新部署 `dpl_GPuEoWf4yAJ5QiPfGXzVGim1YUXQ`；线上 `/auth/callback.js` 包含 `history.replaceState`，不含 `callback-acceptance-session-payload`、`Hidden acceptance session JSON` 或 `rows="12"`；浏览器已离开带 `id_token` 的 callback URL 到 `/account.html`。 | `docs/product-audit/03-ui-feature-audit.md:50,54,60,61,206,210`; `docs/product-audit/05-acceptance-run-report.md:190,192,208,209` |
@@ -34,6 +36,7 @@
 | [x] 把验收/调试工具隔离到独立路由。 | 2026-06-18 生产 `/debug.html` 重新核验：工程页含 Acceptance tab 和导出/复制工具；正常 `/account.html` 没有 debug 链接。 | `docs/product-audit/03-ui-feature-audit.md:11,61,191,206,210,217,226`; `docs/product-audit/05-acceptance-run-report.md:190,206,208` |
 | [x] 修复 callback 页暴露验收 payload / URL token。 | callback 页不再生成可见或隐藏 payload textarea；OAuth fragment 读取后立即 `history.replaceState` 清理；验收导出只从 `/debug.html` 走。 | `docs/product-audit/03-ui-feature-audit.md:50,54,60,61,206,210`; `docs/product-audit/05-acceptance-run-report.md:190,192,208,209` |
 | [x] 更新验收报告到当前基线。 | `docs/product-audit/05-acceptance-run-report.md` 已追加“重新验收基线：UI 隔离”和“真实 session 校验尝试”章节，记录当前 git 起点、部署、测试命令、生产 URL 核验、callback 修复、agent JWT 过期和 prover/salt 空值。 | `docs/product-audit/05-acceptance-run-report.md:178,180,184,190,192,204,205,206,207,208,209,211,213,219,220,222,224` |
+| [x] 更新合约与 Indexer 重新审查结果。 | `docs/product-audit/05-acceptance-run-report.md` 已追加“重新验收基线：合约与 Indexer 审查”章节，记录 Move build/test、Indexer/acceptance Vitest、源码核对、机械事件覆盖比对、仍保留缺口和真实 testnet 边界。 | `docs/product-audit/05-acceptance-run-report.md:226,234,235,236,237,238,239,243,244,245,246,248` |
 
 ## P0 真实 Testnet Acceptance
 
@@ -59,6 +62,7 @@
 
 | 任务 | 证据要求 | 来源 |
 | --- | --- | --- |
+| [x] 合约本地源码/测试审查。 | 2026-06-18 重新跑 Move build 和 Move 单测；本地确认核心合约入口、事件和 negative tests 存在；机械抽取 Move event catalog。真实 testnet execute 仍未完成。 | `docs/product-audit/05-acceptance-run-report.md:226,234,235,237,239,248`; `move/sources/access.move:86,111,152,161,178,199,215,232,246`; `move/sources/delegation.move:137,175,191,213,231,253,276,297`; `move/sources/settlement.move:160,186,220,246,281` |
 | [ ] Research Asset 完整发布验收。 | 发布含 paper + skill + workflow 的 repo；链上 `ResearchAssetPublished`、`SkillPublished`；UI 显示 object id、blob id、commit、manifest hash。 | `docs/product-audit/01-contract-feature-audit.md:37,41,42,43,52,53,54,58,59,61,63,64,65,66`; `docs/product-audit/04-e2e-user-story-scenarios.md:406,410,414,415,416,417,418,419,420,421,422,423,424,426,428,429,434,438,442,444,445,446` |
 | [ ] ResearchReport + Seal Access 验收。 | public/encrypted/private 三类报告均真实发布；Walrus readback hash 匹配；作者/会员/订阅者/买家/agent/outsider/arbitrator 权限符合预期。 | `docs/product-audit/01-contract-feature-audit.md:68,72,73,74,78,79,80,84,85,86,90,91,92,94,96,97,98`; `docs/product-audit/04-e2e-user-story-scenarios.md:111,148,187,241,279,309,364` |
 | [ ] 平台会员、agent 订阅、receipt、结算、claim 验收。 | 购买 pass、解密、记录唯一 receipt、settle、claim；重复 receipt/重复结算失败；余额变化写入 acceptance receipt。 | `docs/product-audit/01-contract-feature-audit.md:100,104,105,106,107,117,118,119,123,124,125,127,129,130,131,132`; `docs/product-audit/04-e2e-user-story-scenarios.md:187,191,195,196,197,198,199,200,201,202,203,205,207,208,209,210,211,220,222,223,224,225,226,228,230,231,232,233,234,236,238,239` |
@@ -72,9 +76,10 @@
 
 | 任务 | 证据要求 | 来源 |
 | --- | --- | --- |
+| [x] Indexer 本地事件投影/搜索边界审查。 | 2026-06-18 重新跑 indexer/acceptance 相关 Vitest，55 tests passed；确认事件幂等、Sui normalization/poll cursor、private delegation report 不进入 public search、agent earnings/receipt projection 可用；机械比对 Move event -> Indexer case。真实 testnet poll 仍未完成。 | `docs/product-audit/05-acceptance-run-report.md:226,236,238,239,243`; `src/core/indexer.ts:285,308,360,385,417,446,485,508,529,658,688,721`; `tests/indexer-events.test.ts:85,102,112,178,236,251,278` |
 | [ ] `research index:poll` 从当前 testnet package 读到真实事件。 | 记录 package id、RPC、checkpoint/cursor、raw events。 | `docs/product-audit/02-indexer-feature-audit.md:27,31,32,208,210,214,222,224` |
 | [ ] 同一事件重复 poll/replay 不重复投影。 | `processed_event_keys` 证明幂等；重复 replay 后 reports/receipts/earnings 不增长。 | `docs/product-audit/02-indexer-feature-audit.md:29,210,216,222,225,228` |
-| [ ] 补或明确 `PlatformMembershipPaid` 投影策略。 | 若 UI 展示支付金额/fee/duration，则补 handler；否则明确只展示 pass/payment split 口径。 | `docs/product-audit/01-contract-feature-audit.md:123,238,240,241`; `docs/product-audit/02-indexer-feature-audit.md:57` |
+| [ ] 补或明确 `PlatformMembershipPaid` 投影策略。 | 2026-06-18 机械比对确认缺口成立：`settlement.move` 发 `PlatformMembershipPaid`，但 `src/core/indexer.ts` switch 未单独处理；若 UI 展示支付金额/fee/duration，则补 handler；否则明确只展示 pass/payment split 口径。 | `docs/product-audit/01-contract-feature-audit.md:123,238,240,241`; `docs/product-audit/02-indexer-feature-audit.md:57`; `docs/product-audit/05-acceptance-run-report.md:239,243` |
 | [ ] Walrus manifest fetcher 验证 hash。 | 拉取 blob、校验 manifest hash、校验 schema、失败标记 `invalid` 或 `pending_manifest`，不能当真。 | `docs/product-audit/02-indexer-feature-audit.md:35,39,137,179,181,188,190,191,192,193,194,195,222,226` |
 | [ ] Public/encrypted/private 搜索边界验收。 | public 可搜；encrypted 仅 preview 可搜；private result 不进游客搜索/API；demo plaintext 不进入公共 index。 | `docs/product-audit/02-indexer-feature-audit.md:81,83,87,88,92,97,99,103,104,108,109,113,115,119,120,124,129,130,218,227` |
 | [ ] API 授权过滤验收。 | `/api/search`、`/api/reports`、`/api/delegations`、`/api/assets/:id/economics` 对 caller address 做正确过滤。 | `docs/product-audit/02-indexer-feature-audit.md:197,199,201,202,203,204,206,220` |
@@ -141,7 +146,7 @@
 | `docs/product-audit/02-indexer-feature-audit.md` | 27-42,44-79,81-130,146-206,208-228 | Indexer 当前能力、缺口、搜索边界、生产门禁。 |
 | `docs/product-audit/03-ui-feature-audit.md` | 3-12,25-49,50-75,76-103,104-128,129-156,157-181,183-204,206-226 | UI 审计、用户旅程、风险、UI 门禁。 |
 | `docs/product-audit/04-e2e-user-story-scenarios.md` | 3-18,20-34,36-478,480-538,540-547 | E2E 三层、公共前置、S0-S10、证据包格式、发布门禁。 |
-| `docs/product-audit/05-acceptance-run-report.md` | 27-57,59-102,104-128,132-149,151-176,178-224 | 已执行门禁、dry-run、本地 UI E2E、readiness 失败项、未完成项、本轮重新验收基线、真实 session 校验尝试。 |
+| `docs/product-audit/05-acceptance-run-report.md` | 27-57,59-102,104-128,132-149,151-176,178-224,226-248 | 已执行门禁、dry-run、本地 UI E2E、readiness 失败项、未完成项、本轮重新验收基线、真实 session 校验尝试、合约与 Indexer 重新审查。 |
 | `docs/19-session-019ebec9-review-and-misalignment.md` | 130-144,176-181,199-220,226-247 | 为什么不能把原始 plan 的本地测试当作生产验收。 |
 | `docs/20-修复-plan-功能缺口与前端生产化.md` | 55-80,84-115,118-145,149-163 | GitHub、真实 Walrus/Seal/Sui、E2E、上生产执行计划。 |
 | `docs/21-agent-交接清单.md` | 112-128,132-140 | 接手验证命令、危险信号、mainnet 未验收提醒。 |
