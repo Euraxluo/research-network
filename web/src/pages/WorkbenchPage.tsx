@@ -299,14 +299,16 @@ function ReportCard({ report }: { report: ResearchReport }) {
           {decision.allowed ? "Ready to decrypt" : "Locked: " + decision.reason}
         </p>
       )}
-      <button
-        className="button decrypt-report"
-        type="button"
-        disabled={!decision.allowed}
-        onClick={() => decrypt(report.id)}
-      >
-        Decrypt report
-      </button>
+      {report.visibility !== "public" ? (
+        <button
+          className="button decrypt-report"
+          type="button"
+          disabled={!decision.allowed}
+          onClick={() => decrypt(report.id)}
+        >
+          Decrypt report
+        </button>
+      ) : null}
     </article>
   );
 }

@@ -56,7 +56,7 @@ export function LoginPage() {
           <p className="muted">
             Sign in with Google → get a Sui address derived in-browser via @mysten/sui.
           </p>
-          <button id="google" className="btn">
+          <button id="google" className="button">
             Sign in with Google
           </button>
           <p id="google-status" className="muted"></p>
@@ -67,7 +67,7 @@ export function LoginPage() {
             Authorize the GitHub App on only the repos you choose. Least-privilege, read-only. Repos
             are bound to your Sui address.
           </p>
-          <a id="github" className="btn" href="#">
+          <a id="github" className="button" href="#">
             Connect GitHub repos
           </a>
           <p id="github-status" className="muted"></p>

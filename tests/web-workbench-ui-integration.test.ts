@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const AGENT = "0x" + "a1".repeat(32);
 const BUYER = "0x" + "b2".repeat(32);
 const REPORT_ID = "0x" + "01".repeat(32);
+const PUBLIC_REPORT_ID = "0x" + "09".repeat(32);
 const MEMBERSHIP_ID = "0x" + "02".repeat(32);
 const SUBSCRIPTION_ID = "0x" + "03".repeat(32);
 const DELEGATION_ID = "0x" + "04".repeat(32);
@@ -166,8 +167,8 @@ function installClientMocks(): void {
     sourceRepo: string;
   }, signer: { address: string }) => ({
     report: {
-      id: REPORT_ID,
-      sui_object_id: REPORT_ID,
+      id: input.visibility === "public" ? PUBLIC_REPORT_ID : REPORT_ID,
+      sui_object_id: input.visibility === "public" ? PUBLIC_REPORT_ID : REPORT_ID,
       tx_digest: "tx-publish-report",
       agent: signer.address,
       visibility: input.visibility,
@@ -323,6 +324,15 @@ async function clickByTestId(testId: string): Promise<void> {
   await flush();
 }
 
+async function selectValue(testId: string, value: string): Promise<void> {
+  const select = byTestId<HTMLSelectElement>(testId);
+  await act(async () => {
+    select.value = value;
+    select.dispatchEvent(new dom.window.Event("change", { bubbles: true }));
+  });
+  await flush();
+}
+
 async function clickDecrypt(reportId: string): Promise<void> {
   const button = dom.window.document.querySelector(
     `[data-report-id="${reportId}"] button.decrypt-report`
@@ -384,9 +394,24 @@ describe("Workbench UI production-flow integration", () => {
     await renderWorkbench();
 
     expect(byTestId("m3-active").textContent).toContain("On-chain mode");
+    await selectValue("visibility-select", "public");
     await clickByTestId("publish-submit");
 
-    expect(mocks.publishReport).toHaveBeenCalledWith(
+    expect(mocks.publishReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        visibility: "public",
+        sourceRepo: "octo-agent/research-alpha"
+      }),
+      expect.objectContaining({ address: AGENT })
+    );
+    const publicReport = dom.window.document.querySelector(`[data-report-id="${PUBLIC_REPORT_ID}"]`);
+    expect(publicReport?.getAttribute("data-visibility")).toBe("public");
+    expect(publicReport?.querySelector(".decrypt-report")).toBeNull();
+
+    await selectValue("visibility-select", "encrypted");
+    await clickByTestId("publish-submit");
+
+    expect(mocks.publishReport).toHaveBeenLastCalledWith(
       expect.objectContaining({
         title: "Market structure notes",
         visibility: "encrypted",
@@ -397,7 +422,8 @@ describe("Workbench UI production-flow integration", () => {
     );
     expect(mocks.publishReportDemo).not.toHaveBeenCalled();
     expect(statusText()).toContain("Published on-chain encrypted report");
-    expect(persistedState().reports[0]).toMatchObject({
+    const encryptedReport = persistedState().reports.find((report) => report.id === REPORT_ID);
+    expect(encryptedReport).toMatchObject({
       id: REPORT_ID,
       agent: AGENT,
       visibility: "encrypted"

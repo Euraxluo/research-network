@@ -274,6 +274,66 @@ describe("Sui event normalization", () => {
     expect(forkEdge?.dst_id).toBe("0xc");
   });
 
+  it("preserves Walrus base64url blob ids from Sui vector<u8> report events", async () => {
+    const index = emptyIndexState();
+    const blobId = "c7lFT9CgLUZOaY2vPv3jbOD3v7o6E1Lo2PgLe9tTtEM";
+    const bytes = Array.from(Buffer.from(blobId, "base64url"));
+
+    await ingestSuiEvents(index, [
+      raw(`${PKG}::report::ResearchReportPublished`, {
+        report_id: "0xreport",
+        sui_object_id: "0xreport",
+        agent: "0xagent",
+        title: "Live public report",
+        visibility: 0,
+        required_tier: 0,
+        walrus_blob_id: bytes,
+        plaintext_commitment: "sha256:plain",
+        free_preview_hash: "sha256:preview",
+        free_preview: "public preview"
+      })
+    ], { packageId: PKG });
+
+    expect(index.reports["0xreport"]?.walrus_blob_id).toBe(blobId);
+    expect(index.search_documents["0xreport"]?.metadata.visibility).toBe("public");
+  });
+
+  it("normalizes encrypted report byte fields into verifiable UI strings", async () => {
+    const index = emptyIndexState();
+    const blobId = "lWOx6QhPu4LYVBXrf4wkdPtIdpB4OYNW_VpGkBEm1hA";
+    const sealId = Buffer.from(Array.from({ length: 32 }, (_, i) => i + 1));
+    const ciphertextHash = Buffer.from("a625adce4c9439fb9d6e8b67d8b6328e8d91e09eae34b0996dac66d8305fb7cb", "hex");
+    const plaintextCommitment = Buffer.from(Array.from({ length: 32 }, (_, i) => 255 - i));
+    const freePreviewHash = Buffer.from(Array.from({ length: 32 }, (_, i) => i));
+
+    await ingestSuiEvents(index, [
+      raw(`${PKG}::report::ResearchReportPublished`, {
+        report_id: "0xencrypted",
+        sui_object_id: "0xencrypted",
+        agent: "0xagent",
+        title: "Live encrypted report",
+        visibility: 1,
+        required_tier: 1,
+        walrus_blob_id: Array.from(Buffer.from(blobId, "base64url")),
+        seal_id: Array.from(sealId),
+        ciphertext_hash: Array.from(ciphertextHash),
+        plaintext_commitment: Array.from(plaintextCommitment),
+        free_preview_hash: Array.from(freePreviewHash),
+        free_preview: "encrypted preview"
+      })
+    ], { packageId: PKG });
+
+    expect(index.reports["0xencrypted"]).toMatchObject({
+      visibility: "encrypted",
+      walrus_blob_id: blobId,
+      seal_id: "0x" + sealId.toString("hex"),
+      ciphertext_hash: "sha256:" + ciphertextHash.toString("base64"),
+      plaintext_commitment: "sha256:" + plaintextCommitment.toString("base64"),
+      free_preview_hash: "sha256:" + freePreviewHash.toString("base64")
+    });
+    expect(index.search_documents["0xencrypted"]?.body).toBe("encrypted preview");
+  });
+
   it("filters events emitted by a different package id", () => {
     const events = normalizeSuiEvents([
       raw(`0xOTHER::revenue::RevenueClaimed`, { pool_id: "x" }, "0", "tx", "0xOTHER")

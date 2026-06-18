@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { readGithub, readSession, writeJson } from "../lib/storage";
 import {
   accountItems,
@@ -20,6 +20,14 @@ interface AssetDirectoryItem {
 function readDirectory(): AssetDirectoryItem[] {
   const w = window as unknown as { __ASSET_DIRECTORY__?: AssetDirectoryItem[] };
   return w.__ASSET_DIRECTORY__ || [];
+}
+
+function storageItem(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
 function hasServerAttestation(gh: GithubBinding | null): boolean {
@@ -63,6 +71,8 @@ async function verifyServerAttestation(gh: GithubBinding | null): Promise<boolea
 export function AccountPage() {
   const [session, setSession] = useState<ZkLoginSession | null>(() => readSession());
   const [gh, setGh] = useState<GithubBinding | null>(() => readGithub());
+  const sessionRaw = useRef<string | null>(storageItem("rn_session"));
+  const githubRaw = useRef<string | null>(storageItem("rn_github"));
   const [attested, setAttested] = useState<boolean>(() => hasServerAttestation(readGithub()));
   const [checking, setChecking] = useState<boolean>(() => hasServerAttestation(readGithub()));
   const directory = useMemo(() => readDirectory(), []);
@@ -87,8 +97,16 @@ export function AccountPage() {
   // Periodically re-sync from localStorage so post-OAuth redirect writes show up.
   useEffect(() => {
     const id = window.setInterval(() => {
-      setSession(readSession());
-      setGh(readGithub());
+      const nextSessionRaw = storageItem("rn_session");
+      if (nextSessionRaw !== sessionRaw.current) {
+        sessionRaw.current = nextSessionRaw;
+        setSession(readSession());
+      }
+      const nextGithubRaw = storageItem("rn_github");
+      if (nextGithubRaw !== githubRaw.current) {
+        githubRaw.current = nextGithubRaw;
+        setGh(readGithub());
+      }
     }, 1000);
     return () => window.clearInterval(id);
   }, []);

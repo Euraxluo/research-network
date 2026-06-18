@@ -121,6 +121,10 @@ export interface GithubBinding {
   organization_scopes?: GithubOrganizationScope[];
   binding_attestation?: string;
   binding_attestation_payload?: unknown;
+  binding_attestations?: Record<string, {
+    binding_attestation?: string;
+    binding_attestation_payload?: unknown;
+  }>;
 }
 
 export interface ZkLoginSession {

@@ -331,6 +331,16 @@ describe("static web E2E", () => {
     personalScope!.click();
     expect(testId(dom, "selected-repo").textContent).toBe("research-org/encrypted-lab");
 
+    selectValue(dom, '[data-testid="visibility-select"]', "public");
+    testId(dom, "publish-title").value = "Public Alpha Note";
+    testId(dom, "publish-preview").value = "Public preview visible to everyone.";
+    testId(dom, "publish-plaintext").value = "Public body readable without Seal.";
+    submit(dom, "#publish-form");
+    const publicReport = doc.querySelector('[data-visibility="public"]');
+    expect(publicReport?.textContent).toContain("Public Alpha Note");
+    expect(publicReport?.querySelector(".decrypt-report")).toBeNull();
+
+    selectValue(dom, '[data-testid="visibility-select"]', "encrypted");
     testId(dom, "publish-title").value = "Encrypted Alpha Memo";
     testId(dom, "publish-preview").value = "Preview visible to everyone.";
     testId(dom, "publish-plaintext").value = "Confidential encrypted memo body.";

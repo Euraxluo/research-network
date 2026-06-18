@@ -134,12 +134,27 @@ function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   return true;
 }
 
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function readBlobAfterUpload(blobId: string): Promise<Uint8Array | null> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const readback = await readBlob(blobId);
+    if (readback) return readback;
+    if (attempt < 9) {
+      await delay(Math.min(500 + attempt * 500, 3000));
+    }
+  }
+  return null;
+}
+
 async function verifyWalrusUploadReadback(
   blobId: string,
   expectedBytes: Uint8Array,
   label: string
 ): Promise<WalrusReadbackEvidence> {
-  const readback = await readBlob(blobId);
+  const readback = await readBlobAfterUpload(blobId);
   if (!readback) {
     throw new Error(`Walrus ${label} blob ${blobId} was not readable after upload`);
   }

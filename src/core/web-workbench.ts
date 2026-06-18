@@ -758,13 +758,14 @@ export const WORKBENCH_JS = `
       var body = unlocked && decision.allowed
         ? '<div class="decrypted" data-testid="decrypted-' + esc(report.id) + '">' + esc(reportPlaintext(state, report)) + '</div>'
         : '<p class="muted access-state" data-testid="access-state">' + esc(decision.allowed ? "Ready to decrypt" : "Locked: " + decision.reason) + '</p>';
+      var decryptButton = report.visibility === "public" ? "" : '<button class="button decrypt-report" type="button" data-report-id="' + esc(report.id) + '"' + (decision.allowed ? "" : " disabled") + '>Decrypt report</button>';
       return '<article class="workbench-report ' + accessClass + '" data-report-id="' + esc(report.id) + '" data-visibility="' + esc(report.visibility) + '">' +
         '<div class="report-head"><strong>' + esc(report.title || report.id) + '</strong><span class="pill">' + esc(report.visibility) + '</span></div>' +
         '<p class="muted">' + esc(report.free_preview || report.free_preview_hash || "No public preview.") + '</p>' +
         '<p class="muted">Agent <code>' + esc(report.agent) + '</code>' + (report.source_repo ? ' · Repo <code>' + esc(report.source_repo) + '</code>' : '') + '</p>' +
         sealMeta +
         body +
-        '<button class="button decrypt-report" type="button" data-report-id="' + esc(report.id) + '"' + (decision.allowed ? "" : " disabled") + '>Decrypt report</button>' +
+        decryptButton +
         '</article>';
     }).join("") + '</div>';
   }

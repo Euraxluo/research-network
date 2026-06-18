@@ -211,13 +211,13 @@ ${csp}
   <div class="auth-card">
     <h2>1 · Sui identity · zkLogin</h2>
     <p class="muted">Sign in with Google → get a Sui address derived in-browser via @mysten/sui.</p>
-    <button id="google" class="btn">Sign in with Google</button>
+    <button id="google" class="button btn">Sign in with Google</button>
     <p id="google-status" class="muted"></p>
   </div>
   <div class="auth-card">
     <h2>2 · Connect GitHub</h2>
     <p class="muted">Authorize the GitHub App on only the repos you choose. Least-privilege, read-only. Repos are bound to your Sui address.</p>
-    <a id="github" class="btn" href="#">Connect GitHub repos</a>
+    <a id="github" class="button btn" href="#">Connect GitHub repos</a>
     <p id="github-status" class="muted"></p>
   </div>
 </div>
@@ -612,7 +612,7 @@ const LOGIN_JS = `(function(){
       html += '<br><span class="muted">GitHub: ' + esc(binding.login || "") + '<span id="rn-attestation-status">' + (hasServerAttestation(binding) ? ' · checking attestation…' : '') + '</span></span>';
       html += '<div style="margin-top:10px">' + accountSelectorHtml(binding) + '<div id="rn-session-repo-picker">' + repoSelectorHtml(binding, "rn-session-repo-select") + '</div></div>';
     }
-    html += '<br><a href="/account.html">Account →</a></div>';
+    html += '<p class="repo-actions"><a class="button" href="/account.html">Account &rarr;</a></p></div>';
     document.getElementById("session").innerHTML = html;
     wireRepoControls(binding, "rn-session-repo-select", "rn-session-repo-picker");
     verifyServerAttestation(binding, function(valid){
@@ -625,7 +625,7 @@ const LOGIN_JS = `(function(){
 const CALLBACK_JS = `(function(){
   function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){ return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]; }); }
   function out(html){ document.getElementById("out").innerHTML = html; }
-  function fail(msg){ out('<h2>Sign-in failed</h2><p class="error">' + esc(msg) + '</p><p><a href="/login.html">Try again</a></p>'); }
+  function fail(msg){ out('<h2>Sign-in failed</h2><p class="error">' + esc(msg) + '</p><p><a class="button" href="/login.html">Try again</a></p>'); }
   function decode(t){ var seg = t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"); var pad = "=".repeat((4 - seg.length % 4) % 4); return JSON.parse(decodeURIComponent(escape(atob(seg + pad)))); }
   var CFG = window.RN_AUTH_CONFIG || {};
   var p = new URLSearchParams(location.hash.slice(1));
@@ -692,7 +692,7 @@ const CALLBACK_JS = `(function(){
       sessionStorage.setItem("rn_acceptance_last_role", acceptanceRole);
       acceptanceHtml = '<section aria-labelledby="acceptance-session-heading"><h2 id="acceptance-session-heading">Acceptance session ready</h2><p class="muted">This ' + esc(acceptanceRole) + ' session is available only in the dedicated debug tools for this browser tab.</p><p><a class="button" href="/debug.html">Open debug tools</a></p></section>';
     }
-    out('<h2>Signed in &#10003;</h2><p>Your Sui zkLogin address:</p><p><code class="addr">' + esc(address) + '</code></p><p class="muted">' + esc(claims.email || claims.sub) + ' · ' + esc(claims.iss) + '</p><p class="muted">Same Google account &rArr; same address on every device (server-side deterministic salt).</p>' + acceptanceHtml + '<p><a href="/account.html">Account &rarr;</a> &nbsp; <a href="/login.html">Connect GitHub</a> &nbsp; <a href="/">&larr; Back to site</a></p>');
+    out('<h2>Signed in &#10003;</h2><p>Your Sui zkLogin address:</p><p><code class="addr">' + esc(address) + '</code></p><p class="muted">' + esc(claims.email || claims.sub) + ' · ' + esc(claims.iss) + '</p><p class="muted">Same Google account &rArr; same address on every device (server-side deterministic salt).</p>' + acceptanceHtml + '<p class="repo-actions"><a class="button" href="/account.html">Account &rarr;</a><a class="button" href="/login.html">Connect GitHub</a><a class="button" href="/">&larr; Back to site</a></p>');
   }).catch(function(e){
     fail((e && e.message) ? e.message : String(e));
   });
@@ -701,7 +701,7 @@ const CALLBACK_JS = `(function(){
 const GITHUB_CALLBACK_JS = `(function(){
   function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){ return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]; }); }
   function out(h){ document.getElementById("out").innerHTML = h; }
-  function fail(msg){ out('<h2>GitHub connection failed</h2><p class="error">' + esc(msg) + '</p><p><a href="/login.html">Back to sign in</a></p>'); }
+  function fail(msg){ out('<h2>GitHub connection failed</h2><p class="error">' + esc(msg) + '</p><p><a class="button" href="/login.html">Back to sign in</a></p>'); }
   function randomHex(n){ var b = crypto.getRandomValues(new Uint8Array(n)); var h = ""; for (var i = 0; i < b.length; i++) h += ("0" + b[i].toString(16)).slice(-2); return h; }
   function repoOwner(name){ var parts = String(name || "").split("/"); return parts.length > 1 ? parts[0] : ""; }
   function syntheticScopeId(account){ return "owner:" + String(account || "GitHub"); }
@@ -1116,9 +1116,9 @@ const GITHUB_CALLBACK_JS = `(function(){
       + '<p class="repo-summary">' + accountCount + ' GitHub account/org scope(s), ' + repoCount + ' authorized repo(s).</p>'
       + accountSelectorHtml(binding)
       + '<div id="rn-repo-picker">' + repoSelectorHtml(binding, "rn-repo-select") + '</div>'
-      + '<p><a href="/account.html">Account &rarr;</a> &nbsp; '
-      + (manageUrl ? '<a href="' + esc(manageUrl) + '" rel="noopener">Add GitHub account/org access &rarr;</a> &nbsp; ' : '')
-      + '<a href="/">&larr; Back to site</a></p>');
+      + '<p class="repo-actions"><a class="button" href="/account.html">Account &rarr;</a>'
+      + (manageUrl ? '<a class="button" href="' + esc(manageUrl) + '" rel="noopener">Add GitHub account/org access &rarr;</a>' : '')
+      + '<a class="button" href="/">&larr; Back to site</a></p>');
     wireRepoControls(binding, "rn-repo-select", "rn-repo-picker");
   }).catch(function(e){
     fail((e && e.message) ? e.message : String(e));

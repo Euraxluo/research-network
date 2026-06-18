@@ -69,6 +69,47 @@ function bytesToText(value: unknown): string {
   return String(value);
 }
 
+function bytesToBase64Url(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    try {
+      return Buffer.from(value as number[]).toString("base64url");
+    } catch {
+      return "";
+    }
+  }
+  return String(value);
+}
+
+function bytesToObjectId(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    try {
+      const bytes = Buffer.from(value as number[]);
+      return bytes.length ? `0x${bytes.toString("hex")}` : "";
+    } catch {
+      return "";
+    }
+  }
+  return String(value);
+}
+
+function bytesToSha256Base64(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    try {
+      const bytes = Buffer.from(value as number[]);
+      return bytes.length ? `sha256:${bytes.toString("base64")}` : "";
+    } catch {
+      return "";
+    }
+  }
+  return String(value);
+}
+
 function visibilityFromEvent(value: unknown): ResearchAccessVisibility {
   if (value === "encrypted" || value === 1 || value === "1") return "encrypted";
   if (value === "private_delegation" || value === 2 || value === "2") return "private_delegation";
@@ -293,11 +334,11 @@ function handleResearchReportPublished(index: IndexState, event: ProtocolEvent):
     agent: String(event.payload.agent ?? event.payload.owner ?? "0x0"),
     visibility,
     required_tier: Number(event.payload.required_tier ?? 0),
-    walrus_blob_id: bytesToText(event.payload.walrus_blob_id),
-    seal_id: bytesToText(event.payload.seal_id) || undefined,
-    ciphertext_hash: bytesToText(event.payload.ciphertext_hash) || undefined,
-    plaintext_commitment: bytesToText(event.payload.plaintext_commitment) || undefined,
-    free_preview_hash: bytesToText(event.payload.free_preview_hash) || undefined,
+    walrus_blob_id: bytesToBase64Url(event.payload.walrus_blob_id),
+    seal_id: bytesToObjectId(event.payload.seal_id) || undefined,
+    ciphertext_hash: bytesToSha256Base64(event.payload.ciphertext_hash) || undefined,
+    plaintext_commitment: bytesToSha256Base64(event.payload.plaintext_commitment) || undefined,
+    free_preview_hash: bytesToSha256Base64(event.payload.free_preview_hash) || undefined,
     delegation_job_id: event.payload.delegation_job_id ? String(event.payload.delegation_job_id) : undefined,
     asset_id: assetId,
     title: String(event.payload.title ?? asset?.title ?? `Report ${id}`),

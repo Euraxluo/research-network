@@ -2,7 +2,7 @@
 // Ported verbatim from web-workbench.ts accountItems/repoItems/selectedRepo so
 // the org-multiselect -> repo-dropdown UX stays byte-identical during M2.
 
-import type { GithubBinding, GithubInstallation, GithubRepoRef } from "./types";
+import type { GithubBinding, GithubInstallation, GithubRepoRef } from "./types.js";
 
 export function repoOwner(name: string): string {
   const parts = String(name || "").split("/");
@@ -218,6 +218,7 @@ export function selectedRepo(gh: GithubBinding | null): RepoItem | null {
 export function persistRepoSelection(gh: GithubBinding | null, repo: RepoItem | null): GithubBinding | null {
   if (!gh || !repo) return gh;
   gh.selected_repo = repo.full_name;
+  const installationKey = repo.installation_id ? String(repo.installation_id) : "";
   if (repo.installation_id && !String(repo.installation_id).startsWith("owner:")) {
     gh.installation_id = Number(repo.installation_id || gh.installation_id || 0);
   }
@@ -227,6 +228,11 @@ export function persistRepoSelection(gh: GithubBinding | null, repo: RepoItem | 
     (item) => String(item.id) === String(repo.installation_id)
   );
   if (installation && installation.repos) gh.repos = installation.repos;
+  const attestation = installationKey ? gh.binding_attestations?.[installationKey] : null;
+  if (attestation) {
+    gh.binding_attestation = attestation.binding_attestation || gh.binding_attestation;
+    gh.binding_attestation_payload = attestation.binding_attestation_payload || gh.binding_attestation_payload;
+  }
   localStorage.setItem("rn_github", JSON.stringify(gh));
   return gh;
 }
