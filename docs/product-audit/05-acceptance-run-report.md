@@ -129,7 +129,28 @@ rtk npx tsx scripts/mainnet-readiness.ts --stage mainnet-config \
 
 ## 7. 未完成项
 
-真实 testnet/mainnet 验收仍需以下非代码材料：
+## 7. 自动补齐的本地材料
+
+已新增脚本：
+
+```bash
+rtk npm run acceptance:local-materials
+```
+
+该脚本会自动生成：
+
+```text
+.research-network/secrets/acceptance-buyer.json
+.research-network/secrets/acceptance-agent.json
+.research-network/acceptance/local-preflight.json
+.research-network/acceptance/local-materials.json
+```
+
+并启动本地 mock zkLogin prover + mock Sui JSON-RPC，执行 `acceptance:production --preflight`。生成的 session 文件包含 `localMockOnly: true` 和 warning 字段，只能证明本地 session/prover/balance/preflight 编排可自举，不能作为真实 testnet/mainnet readiness 证据。
+
+## 8. 未完成项
+
+真实 testnet/mainnet 验收仍需以下外部真实材料：
 
 1. 两个不同真实 Google zkLogin session：
    - `.research-network/secrets/acceptance-buyer.json`
@@ -141,7 +162,7 @@ rtk npx tsx scripts/mainnet-readiness.ts --stage mainnet-config \
 6. testnet preflight receipt、testnet execute receipt、testnet UI receipt 全部来自当前 clean HEAD。
 7. mainnet 配置和小额 mainnet preflight/execute receipt。只有 readiness report `ready: true` 后，才可声称支持 mainnet 资金运行。
 
-## 8. 结论
+## 9. 结论
 
 本轮已经完成：
 
@@ -149,6 +170,7 @@ rtk npx tsx scripts/mainnet-readiness.ts --stage mainnet-config \
 - 本地 TS/Web/Move 测试和构建门禁已通过。
 - production acceptance dry-run 已通过并绑定 clean HEAD。
 - 本地浏览器 UI E2E 已通过，覆盖 encrypted report、membership、subscription、private delegation、settlement 和 claim 的 demo fallback 路径。
+- local acceptance materials 可由 `acceptance:local-materials` 自动生成，并可跑通本地 mock preflight。
 - readiness gate 已结构化证明正式 testnet/mainnet 验收仍缺真实 session、真实 UI acceptance receipt 和 mainnet 配置。
 
 因此，当前状态可以作为本地开发和产品审计回归基线，但不能作为 testnet production acceptance 或 mainnet readiness 通过证据。
