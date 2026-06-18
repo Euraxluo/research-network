@@ -92,6 +92,23 @@ delegation completion. It must also prove indexer/Walrus Site sync and a buyer r
 indexed state with `localStorageOnly: false`. The jsdom/mock UI tests in `tests/` are regression
 tests only; they are not production user-flow evidence.
 
+Run the browser receipt with Playwright after installing the browser runtime:
+
+```bash
+npx playwright install chromium
+ZKLOGIN_PROVER_URL=https://<prover> npm run acceptance:ui -- \
+  --network testnet \
+  --url https://<testnet-site>/workbench.html \
+  --buyer-session .research-network/secrets/acceptance-buyer.json \
+  --agent-session .research-network/secrets/acceptance-agent.json \
+  --sync-command "npm run sync:testnet-site" \
+  --walrus-site-object-id 0x...
+```
+
+The `--url` must be a deployed or locally served Workbench that receives the indexed
+`window.__WORKBENCH_INDEX__` snapshot after `--sync-command` runs. A bare Vite `workbench.html`
+without the refreshed index will fail on purpose because it would only prove local browser state.
+
 Only after that receipt passes should production config be switched to mainnet object ids/RPC/Walrus/Seal endpoints and re-run with a small mainnet cap. The acceptance guard rejects known testnet ids/endpoints when `--network mainnet`.
 
 Use the readiness gate before approving mainnet config:

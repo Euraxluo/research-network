@@ -3,7 +3,7 @@
 > 本文档是交给**下一个接手 agent / 开发者**的导航清单。
 > 按"先读什么、各文档作用、必须遵守的约束、当前危险信号"组织。
 >
-> 一句话现状：**Web/Vite 前端与真实 Walrus + Seal + Sui 交易路径已经接入，最新 Seal Access 包已重新发布到 testnet 并完成 M4 author decrypt 回归；但 mainnet 仍未放行，还需要两个真实 zkLogin 账号跑带资金上限的 production acceptance，并补自动化浏览器 UI 验收收据证明普通用户全流程。**
+> 一句话现状：**Web/Vite 前端与真实 Walrus + Seal + Sui 交易路径已经接入，最新 Seal Access 包已重新发布到 testnet 并完成 M4 author decrypt 回归；但 mainnet 仍未放行，还需要两个真实 zkLogin 账号跑带资金上限的 production acceptance，并用 `npm run acceptance:ui` 生成自动化浏览器 UI 验收收据证明普通用户全流程。**
 
 ---
 
@@ -134,7 +134,7 @@ rtk npm run web:build
 | 信号 | 说明 | 出处 |
 |---|---|---|
 | 🔴 HANDOFF.md 第1行声明失实 | 声称"生产化/真实数据验证/多身份 Seal 访问验证"，实际 workbench 用 `hash(id)` 拼字符串、GitHub 无组织枚举、无 e2e | 已在第2行加纠偏段，以纠偏段为准 |
-| 🔴 mainnet 未验收 | 最新源码已发布 testnet，但仍需两个真实 zkLogin 账号跑 preflight + production acceptance，并生成 `normal-user-ui-acceptance/v1` 自动化浏览器收据；mainnet object ids/RPC/Walrus/Seal 未切换验收，脚本会拒绝 testnet 配置混入 mainnet | docs/17 |
+| 🔴 mainnet 未验收 | 最新源码已发布 testnet，但仍需两个真实 zkLogin 账号跑 preflight + production acceptance，并用 `npm run acceptance:ui` 在带 indexer/Walrus Site 同步的 Workbench URL 上生成 `normal-user-ui-acceptance/v1` 自动化浏览器收据；mainnet object ids/RPC/Walrus/Seal 未切换验收，脚本会拒绝 testnet 配置混入 mainnet | docs/17 |
 | 🟡 前端仍保留静态 legacy workbench | React/Vite workbench 已接入真实路径，但 `src/core/web-workbench.ts` 仍用于静态站点兼容，需继续保持语义同步 | 代码 |
 | 🟡 NODE_ENV 污染 | 当前 shell 有 `NODE_ENV=production`，直接跑 test 会假红 | 实测 |
 | 🟢 协议层稳固 | Move 合约 + indexer + schema 切换已验证，是可靠地基 | move test 20/20 |

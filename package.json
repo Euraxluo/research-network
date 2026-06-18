@@ -27,6 +27,7 @@
     "web:portal": "docker rm -f research-walrus-portal 2>/dev/null; docker run --rm --name research-walrus-portal -v /tmp/walrus-portal-config.yaml:/portal-config.yaml:ro -e PORTAL_CONFIG=/portal-config.yaml -p 3010:3000 mysten/walrus-sites-server-portal:mainnet-v2.10.0",
     "web:deploy": "vercel deploy --prod",
     "acceptance:production": "tsx scripts/production-acceptance.ts",
+    "acceptance:ui": "tsx scripts/ui-production-acceptance.ts",
     "readiness:mainnet": "tsx scripts/mainnet-readiness.ts"
   },
   "dependencies": {
@@ -41,6 +42,7 @@
     "@types/node": "^22.5.4",
     "esbuild": "^0.28.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.61.0",
     "tsx": "^4.19.1",
     "typescript": "^5.5.4",
     "vitest": "^4.1.8"
