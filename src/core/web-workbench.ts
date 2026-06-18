@@ -1,6 +1,6 @@
 import type { IndexState } from "./types.js";
 
-const WORKBENCH_SCRIPT_VERSION = "20260615-scope-dedupe";
+const WORKBENCH_SCRIPT_VERSION = "20260618-demo-flow-closure";
 
 function escapeHtml(input: unknown): string {
   return String(input ?? "")
@@ -378,6 +378,7 @@ export const WORKBENCH_JS = `
     if (report.visibility === "private_delegation") {
       var job = jobForReport(view, report);
       if (job && actor.address === job.buyer) return { allowed: true, reason: "delegation_buyer" };
+      if (job && actor.address === job.agent) return { allowed: true, reason: "delegation_agent" };
       if (job && job.status === "disputed" && actor.address === job.arbitrator) return { allowed: true, reason: "dispute_arbitrator" };
       return { allowed: false, reason: "private_delegation" };
     }
@@ -399,7 +400,8 @@ export const WORKBENCH_JS = `
       report_id: report.id,
       agent: report.agent,
       access_type: type,
-      created_at: now()
+      created_at: now(),
+      source: "demo"
     });
   }
   function maybeSelectedReport(view, state) {
@@ -441,6 +443,10 @@ export const WORKBENCH_JS = `
       binding_attestation: "demo-attestation",
       binding_attestation_payload: { sub: "0xAGENT", installation_id: 101 }
     });
+    var state = readWorkbench();
+    state.actor = "agent";
+    saveWorkbench(state);
+    setStatus("Local demo identity seeded; publishing as Publishing agent.");
     render();
   }
   function publishReport(event) {
@@ -490,6 +496,7 @@ export const WORKBENCH_JS = `
       state.plaintexts[id] = plaintext || "Encrypted research body for " + title + ".";
     }
     state.selected_report_id = id;
+    state.actor = "agent";
     saveWorkbench(state);
     setStatus("Published " + visibility + " report from " + repo.full_name + ".");
     form.reset();
@@ -515,7 +522,8 @@ export const WORKBENCH_JS = `
       owner_address: actor.address,
       tier: 1,
       started_at: now(),
-      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      source: "demo"
     });
     saveWorkbench(state);
     setStatus("Platform membership active for " + actor.label + ".");
@@ -536,7 +544,8 @@ export const WORKBENCH_JS = `
       agent: agent,
       tier: 1,
       started_at: now(),
-      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      source: "demo"
     });
     saveWorkbench(state);
     setStatus("Agent subscription active for " + actor.label + ".");
@@ -553,12 +562,13 @@ export const WORKBENCH_JS = `
       buyer: "0xBUYER",
       agent: agent,
       budget: 1200,
-      status: "open",
+      status: "funded",
+      source: "demo",
       created_at: now(),
       updated_at: now()
     });
     saveWorkbench(state);
-    setStatus("Private delegation job created.");
+    setStatus("Private delegation job created and funded (demo).");
     render();
   }
   function submitDelegationResult() {
@@ -651,10 +661,46 @@ export const WORKBENCH_JS = `
     render();
   }
   function claimAgentEarnings() {
-    setStatus("Claim requires an on-chain signer.", true);
+    if (blockMainnetDemoFallback("earnings claim")) return;
+    var session = readSession();
+    var view = stateView();
+    var actor = activeActor(view.state, session && session.address);
+    var claimable = view.access_receipts.filter(function (receipt) {
+      return receipt.access_type === "platform_member" &&
+        receipt.source !== "sui" &&
+        !!receipt.settlement_tx_digest &&
+        receipt.agent === actor.address;
+    });
+    if (!claimable.length) {
+      setStatus("Settle a demo membership receipt for this agent before claiming earnings.", true);
+      return;
+    }
+    setStatus("Agent earnings claimed (demo) from " + claimable.length + " settled receipt(s).");
   }
   function settleLatestMembershipReceipt() {
-    setStatus("Settlement requires an on-chain signer.", true);
+    if (blockMainnetDemoFallback("receipt settlement")) return;
+    var session = readSession();
+    var view = stateView();
+    var state = view.state;
+    var actor = activeActor(state, session && session.address);
+    var receipt = view.access_receipts.filter(function (item) {
+      return item.access_type === "platform_member" &&
+        item.source !== "sui" &&
+        !item.settlement_tx_digest &&
+        item.user === actor.address;
+    }).reverse()[0];
+    if (!receipt) {
+      setStatus("Buy and decrypt with a demo platform membership before settling.", true);
+      return;
+    }
+    var localReceipt = state.access_receipts.filter(function (item) { return item.id === receipt.id; })[0];
+    if (localReceipt) {
+      localReceipt.settlement_tx_digest = "demo:settle:" + hash(receipt.id + ":" + Date.now());
+      localReceipt.settled_at = now();
+      saveWorkbench(state);
+    }
+    setStatus("Membership receipt settled (demo); agent earnings are ready to claim.");
+    render();
   }
   function decryptReport(id) {
     var session = readSession();
@@ -696,9 +742,9 @@ export const WORKBENCH_JS = `
   }
   function receiptRows(receipts) {
     if (!receipts.length) return '<p class="muted">No access receipts recorded.</p>';
-    return '<table class="data-table"><thead><tr><th>Receipt</th><th>User</th><th>Report</th><th>Type</th></tr></thead><tbody>' +
+    return '<table class="data-table"><thead><tr><th>Receipt</th><th>User</th><th>Report</th><th>Type</th><th>Source</th><th>Settlement</th></tr></thead><tbody>' +
       receipts.map(function (receipt) {
-        return '<tr><td>' + esc(receipt.id) + '</td><td>' + esc(receipt.user) + '</td><td>' + esc(receipt.report_id) + '</td><td>' + esc(receipt.access_type) + '</td></tr>';
+        return '<tr><td>' + esc(receipt.id) + '</td><td>' + esc(receipt.user) + '</td><td>' + esc(receipt.report_id) + '</td><td>' + esc(receipt.access_type) + '</td><td>' + esc(receipt.source || "") + '</td><td>' + esc(receipt.settlement_tx_digest ? "settled" : "pending") + '</td></tr>';
       }).join("") +
       '</tbody></table>';
   }
@@ -730,6 +776,9 @@ export const WORKBENCH_JS = `
     var signedIn = session && session.address;
     root.innerHTML =
       '<div id="workbench-status" class="notice" aria-live="polite"></div>' +
+      (demoMode
+        ? '<p class="notice muted" data-testid="m3-demo">Local demo mode: browser acceptance uses synthetic Walrus, Seal, and Sui ids. Mainnet actions still require a live zkLogin signer.</p>'
+        : '<p class="notice muted" data-testid="m3-demo">Sign in in this tab before using signer-backed protocol actions.</p>') +
       (!signedIn
         ? '<section class="workbench-panel"><h2>Identity</h2><p class="muted">No browser session is active.</p><a class="button" href="/login.html">Sign in</a>' + (demoMode ? '<button class="button" id="seed-demo" type="button" data-testid="seed-demo">Seed local test identity</button>' : '') + '</section>'
         : '<section class="workbench-panel"><h2>Identity</h2><dl class="verification"><div><dt>zkLogin address</dt><dd>' + esc(session.address) + '</dd></div><div><dt>GitHub</dt><dd>' + esc((gh && gh.login) || "not connected") + '</dd></div></dl></section>') +

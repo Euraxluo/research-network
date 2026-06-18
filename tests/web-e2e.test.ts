@@ -329,6 +329,7 @@ describe("static web E2E", () => {
     testId(dom, "publish-plaintext").value = "Confidential encrypted memo body.";
     submit(dom, "#publish-form");
 
+    selectValue(dom, "#actor-select", "outsider");
     const encryptedReport = doc.querySelector('[data-visibility="encrypted"]');
     expect(encryptedReport?.textContent).toContain("Encrypted Alpha Memo");
     expect(encryptedReport?.textContent).toContain("Locked: needs_membership_or_subscription");
@@ -353,6 +354,12 @@ describe("static web E2E", () => {
     testId(dom, "submit-private-result").click();
     const privateReport = doc.querySelector('[data-visibility="private_delegation"]');
     expect(privateReport?.textContent).toContain("Private result");
+
+    selectValue(dom, "#actor-select", "agent");
+    const agentPrivateDecrypt = doc.querySelector('[data-visibility="private_delegation"] .decrypt-report') as HTMLButtonElement | null;
+    expect(agentPrivateDecrypt?.disabled).toBe(false);
+    agentPrivateDecrypt!.click();
+    expect(doc.body.textContent).toContain("delegation_agent");
 
     selectValue(dom, "#actor-select", "outsider");
     const outsiderPrivateDecrypt = doc.querySelector('[data-visibility="private_delegation"] .decrypt-report') as HTMLButtonElement | null;
@@ -379,10 +386,13 @@ describe("static web E2E", () => {
     testId(dom, "submit-private-result").click();
     testId(dom, "complete-delegation").click();
     expect(doc.body.textContent).toContain("Delegation completed (demo).");
+    selectValue(dom, "#actor-select", "member");
     testId(dom, "settle-membership-receipt").click();
-    expect(doc.body.textContent).toContain("Settlement requires an on-chain signer.");
+    expect(doc.body.textContent).toContain("Membership receipt settled (demo)");
+    expect(doc.body.textContent).toContain("settled");
+    selectValue(dom, "#actor-select", "agent");
     testId(dom, "claim-agent-earnings").click();
-    expect(doc.body.textContent).toContain("Claim requires an on-chain signer.");
+    expect(doc.body.textContent).toContain("Agent earnings claimed (demo)");
 
     dom.window.close();
   });
@@ -413,6 +423,12 @@ describe("static web E2E", () => {
 
     testId(dom, "create-delegation").click();
     expect(doc.body.textContent).toContain("Mainnet delegation creation requires a live zkLogin signer.");
+
+    testId(dom, "settle-membership-receipt").click();
+    expect(doc.body.textContent).toContain("Mainnet receipt settlement requires a live zkLogin signer.");
+
+    testId(dom, "claim-agent-earnings").click();
+    expect(doc.body.textContent).toContain("Mainnet earnings claim requires a live zkLogin signer.");
 
     testId(dom, "publish-title").value = "Mainnet blocked report";
     submit(dom, "#publish-form");

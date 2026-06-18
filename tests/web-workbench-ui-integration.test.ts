@@ -184,6 +184,31 @@ function installClientMocks(): void {
     plaintext: input.plaintext,
     txDigest: "tx-publish-report"
   }));
+  mocks.publishReportDemo.mockImplementation((input: {
+    title: string;
+    visibility: "public" | "encrypted" | "private_delegation";
+    requiredTier: number;
+    freePreview: string;
+    plaintext: string;
+    agent: string;
+    sourceRepo: string;
+  }) => ({
+    report: {
+      id: "report:demo",
+      agent: input.agent,
+      visibility: input.visibility,
+      required_tier: input.requiredTier,
+      walrus_blob_id: "walrus:demo-report",
+      seal_id: "seal:demo-report",
+      ciphertext_hash: "sha256:demo-cipher",
+      plaintext_commitment: "sha256:demo-plain",
+      title: input.title,
+      free_preview: input.freePreview,
+      created_at: "2026-06-17T00:00:00.000Z",
+      source_repo: input.sourceRepo
+    },
+    plaintext: input.plaintext
+  }));
   mocks.buyPlatformMembershipOnChain.mockResolvedValue({
     digest: "tx-buy-membership",
     objectId: MEMBERSHIP_ID
@@ -236,6 +261,26 @@ function installClientMocks(): void {
   mocks.settleMembershipReportOnChain.mockResolvedValue("tx-settle-receipt");
   mocks.claimAgentEarningsOnChain.mockResolvedValue("tx-claim-earnings");
   mocks.completeDelegationJobOnChain.mockResolvedValue("tx-complete-delegation");
+  mocks.submitPrivateResultDemo.mockImplementation((input: {
+    jobId: string;
+    agent: string;
+  }) => ({
+    report: {
+      id: "report:private-demo",
+      agent: input.agent,
+      visibility: "private_delegation",
+      required_tier: 0,
+      walrus_blob_id: "walrus:private-demo",
+      seal_id: "seal:private-demo",
+      ciphertext_hash: "sha256:private-demo-cipher",
+      plaintext_commitment: "sha256:private-demo-plain",
+      delegation_job_id: input.jobId,
+      title: "Private result for " + input.jobId,
+      free_preview: "Private delegation result metadata only.",
+      created_at: "2026-06-17T00:00:01.000Z"
+    },
+    plaintext: "Private delegation research result. Buyer and agent can decrypt by default."
+  }));
 }
 
 async function renderWorkbench() {
@@ -307,8 +352,8 @@ function persistedState(): {
   reports: Array<{ id: string; visibility: string; agent: string }>;
   platform_memberships: Array<{ pass_id: string; owner_address: string }>;
   agent_subscriptions: Array<{ pass_id: string; owner_address: string; agent: string }>;
-  access_receipts: Array<{ id: string; settlement_tx_digest?: string }>;
-  delegations: Array<{ id: string; status: string; buyer: string; agent: string; result_report_id?: string }>;
+  access_receipts: Array<{ id: string; source?: string; settlement_tx_digest?: string }>;
+  delegations: Array<{ id: string; status: string; buyer: string; agent: string; result_report_id?: string; source?: string }>;
   unlocked: Record<string, boolean>;
   plaintexts: Record<string, string>;
 } {
@@ -507,5 +552,53 @@ describe("Workbench UI production-flow integration", () => {
       })
     );
     expect(persistedState().delegations[0].status).toBe("completed");
+  });
+
+  it("runs the local demo user story through settlement and claim without a signer", async () => {
+    mocks.state.currentSigner = null;
+    await renderWorkbench();
+
+    expect(byTestId("m3-demo").textContent).toContain("Local demo mode");
+    await selectActor("agent");
+    await clickByTestId("publish-submit");
+    expect(mocks.publishReportDemo).toHaveBeenCalled();
+    expect(mocks.publishReport).not.toHaveBeenCalled();
+
+    await selectActor("buyer");
+    await clickByTestId("buy-membership");
+    await clickDecrypt("report:demo");
+    expect(persistedState().access_receipts[0].source).toBe("demo");
+    expect(persistedState().access_receipts[0].settlement_tx_digest).toBeUndefined();
+
+    await clickByTestId("settle-membership-receipt");
+    expect(persistedState().access_receipts[0].settlement_tx_digest).toMatch(/^demo:settle:/);
+    expect(statusText()).toContain("Membership receipt settled (demo)");
+
+    await clickByTestId("create-delegation");
+    expect(persistedState().delegations[0]).toMatchObject({
+      buyer: "0xBUYER",
+      agent: AGENT,
+      status: "funded",
+      source: "demo"
+    });
+
+    await selectActor("agent");
+    await clickByTestId("submit-private-result");
+    expect(persistedState().delegations[0]).toMatchObject({
+      status: "submitted",
+      result_report_id: "report:private-demo"
+    });
+    await clickDecrypt("report:private-demo");
+    expect(persistedState().unlocked[AGENT + ":report:private-demo"]).toBe(true);
+
+    await selectActor("buyer");
+    await clickDecrypt("report:private-demo");
+    await clickByTestId("complete-delegation");
+    expect(persistedState().delegations[0].status).toBe("completed");
+
+    await selectActor("agent");
+    await clickByTestId("claim-agent-earnings");
+    expect(mocks.claimAgentEarningsOnChain).not.toHaveBeenCalled();
+    expect(statusText()).toContain("Agent earnings claimed (demo)");
   });
 });

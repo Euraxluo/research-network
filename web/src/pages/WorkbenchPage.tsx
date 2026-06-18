@@ -432,7 +432,7 @@ function ReceiptsPanel() {
       ) : (
         <table className="data-table">
           <thead>
-            <tr><th>Receipt</th><th>User</th><th>Report</th><th>Type</th></tr>
+            <tr><th>Receipt</th><th>User</th><th>Report</th><th>Type</th><th>Source</th><th>Settlement</th></tr>
           </thead>
           <tbody>
             {receipts.map((r) => (
@@ -441,6 +441,8 @@ function ReceiptsPanel() {
                 <td>{r.user}</td>
                 <td>{r.report_id}</td>
                 <td>{r.access_type}</td>
+                <td>{r.source || ""}</td>
+                <td>{r.settlement_tx_digest ? "settled" : "pending"}</td>
               </tr>
             ))}
           </tbody>
@@ -453,6 +455,7 @@ function ReceiptsPanel() {
 export function WorkbenchPage() {
   useSignerBootstrap();
   const hasSigner = useWorkbench((s) => Boolean(s.signer));
+  const demoMode = useWorkbench((s) => s.demoMode);
   return (
     <>
       <StatusBanner />
@@ -460,9 +463,13 @@ export function WorkbenchPage() {
         <p className="notice success" data-testid="m3-active">
           On-chain mode: signer-backed actions use real Walrus + Seal + Sui when the selected actor matches the signer.
         </p>
+      ) : demoMode ? (
+        <p className="notice muted" data-testid="m3-demo">
+          Local demo mode: browser acceptance uses synthetic Walrus, Seal, and Sui ids. Mainnet actions still require a live zkLogin signer.
+        </p>
       ) : (
         <p className="notice muted" data-testid="m3-demo">
-          Demo mode: re-run Google sign-in in this tab to enable signer-backed on-chain actions.
+          Sign in in this tab to enable signer-backed Walrus, Seal, and Sui actions.
         </p>
       )}
       <IdentityPanel />

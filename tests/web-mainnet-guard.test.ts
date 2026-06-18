@@ -69,6 +69,12 @@ describe("mainnet workbench demo fallback guard", () => {
     await state.createDelegation();
     expect(useWorkbench.getState().statusText).toContain("Mainnet delegation creation requires a live zkLogin signer");
 
+    await state.settleLatestMembershipReceipt();
+    expect(useWorkbench.getState().statusText).toContain("Mainnet receipt settlement requires a live zkLogin signer");
+
+    await state.claimAgentEarnings();
+    expect(useWorkbench.getState().statusText).toContain("Mainnet earnings claim requires a live zkLogin signer");
+
     await state.publish({
       title: "Mainnet report",
       visibility: "encrypted",

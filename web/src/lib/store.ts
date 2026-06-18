@@ -255,6 +255,7 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     next.reports.push(report);
     if (visibility !== "public") next.plaintexts[report.id] = stored;
     next.selected_report_id = report.id;
+    next.actor = "agent";
     saveWorkbench(next);
     get().reload();
     get().setStatus(
@@ -429,14 +430,14 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       buyer: "0xBUYER",
       agent,
       budget: 1200,
-      status: "open",
+      status: "funded",
       source: "demo",
       created_at: nowIso(),
       updated_at: nowIso()
     });
     saveWorkbench(next);
     get().reload();
-    get().setStatus("Private delegation job created.");
+    get().setStatus("Private delegation job created and funded (demo).");
   },
 
   submitPrivateResult: async () => {
@@ -670,7 +671,34 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
   settleLatestMembershipReceipt: async () => {
     const signer = get().signer;
     if (!signer) {
-      get().setStatus("Settlement requires an on-chain signer.", true);
+      if (shouldBlockMainnetDemoFallback(signer)) {
+        get().setStatus("Mainnet receipt settlement requires a live zkLogin signer.", true);
+        return;
+      }
+      const actor = get().activeActor();
+      const receipt = get()
+        .view()
+        .access_receipts.filter(
+          (item) =>
+            item.access_type === "platform_member" &&
+            item.source !== "sui" &&
+            !item.settlement_tx_digest &&
+            sameAddress(item.user, actor.address)
+        )
+        .reverse()[0];
+      if (!receipt) {
+        get().setStatus("Buy and decrypt with a demo platform membership before settling.", true);
+        return;
+      }
+      const next = readWorkbench();
+      const localReceipt = next.access_receipts.find((item) => item.id === receipt.id);
+      if (localReceipt) {
+        localReceipt.settlement_tx_digest = "demo:settle:" + hash(receipt.id + ":" + Date.now());
+        localReceipt.settled_at = nowIso();
+        saveWorkbench(next);
+        get().reload();
+      }
+      get().setStatus("Membership receipt settled (demo); agent earnings are ready to claim.");
       return;
     }
     const actor = get().activeActor();
@@ -712,7 +740,25 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
   claimAgentEarnings: async () => {
     const signer = get().signer;
     if (!signer) {
-      get().setStatus("Claim requires an on-chain signer.", true);
+      if (shouldBlockMainnetDemoFallback(signer)) {
+        get().setStatus("Mainnet earnings claim requires a live zkLogin signer.", true);
+        return;
+      }
+      const actor = get().activeActor();
+      const claimable = get()
+        .view()
+        .access_receipts.filter(
+          (receipt) =>
+            receipt.access_type === "platform_member" &&
+            receipt.source !== "sui" &&
+            Boolean(receipt.settlement_tx_digest) &&
+            sameAddress(receipt.agent, actor.address)
+        );
+      if (claimable.length === 0) {
+        get().setStatus("Settle a demo membership receipt for this agent before claiming earnings.", true);
+        return;
+      }
+      get().setStatus("Agent earnings claimed (demo) from " + claimable.length + " settled receipt(s).");
       return;
     }
     const actor = get().activeActor();
@@ -912,8 +958,11 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
       binding_attestation: "demo-attestation",
       binding_attestation_payload: { sub: "0xAGENT", installation_id: 101 }
     });
+    const state = readWorkbench();
+    state.actor = "agent";
+    saveWorkbench(state);
     get().reload();
-    get().setStatus("Local test identity seeded.");
+    get().setStatus("Local demo identity seeded; publishing as Publishing agent.");
   }
 }));
 
