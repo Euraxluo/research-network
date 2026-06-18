@@ -408,6 +408,25 @@ describe("web M3/M4 client publish path", () => {
     await expect(buyPlatformMembershipOnChain({ signer })).rejects.toThrow("typed PlatformMembershipPass");
   });
 
+  it("rejects multi-report membership settlement through the high-level client", async () => {
+    const clientModulePath = "../web/src/lib/clients.ts";
+    const { settleMembershipReportOnChain } = await import(clientModulePath);
+    const signer = {
+      address: "0x" + "ef".repeat(32),
+      signAndExecuteTransaction: vi.fn(),
+      signPersonalMessage: vi.fn()
+    };
+
+    await expect(
+      settleMembershipReportOnChain({
+        signer,
+        receiptObjectId: "0x" + "04".repeat(32),
+        reportCount: 2
+      })
+    ).rejects.toThrow("reportCount must be 1");
+    expect(signer.signAndExecuteTransaction).not.toHaveBeenCalled();
+  });
+
   it("rejects failed Sui effects before treating a digest as accepted", async () => {
     const clientModulePath = "../web/src/lib/clients.ts";
     const { claimAgentEarningsOnChain } = await import(clientModulePath);

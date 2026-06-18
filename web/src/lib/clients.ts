@@ -549,6 +549,9 @@ export async function settleMembershipReportOnChain(input: {
   amountMist?: string | number | bigint;
   reportCount?: number;
 }): Promise<string> {
+  if (input.reportCount !== undefined && input.reportCount !== 1) {
+    throw new Error("Membership receipt settlement is one receipt per transaction; reportCount must be 1");
+  }
   const config = loadM3Config();
   const tx = buildSettleMembershipReport({
     earningsObjectId: config.agentEarningsId,

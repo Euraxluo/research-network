@@ -61,7 +61,7 @@ module research_protocol::access_delegation_tests {
             let agent_pass = ts::take_from_sender<AgentSubscriptionPass>(&sc);
             let ctx = ts::ctx(&mut sc);
             let clk = clock_at(ctx, T0 + 10);
-            // seal_approve now takes the Seal identity (report object id bytes)
+            // seal_approve takes the publisher-chosen Seal identity bytes
             // as its first arg and aborts on denial; calling it succeeds here.
             let id = report::seal_id(&report);
             access::seal_approve_report_with_platform_membership(id, &report, &platform_pass, &clk, ctx);
@@ -74,7 +74,7 @@ module research_protocol::access_delegation_tests {
         ts::end(sc);
     }
 
-    #[test, expected_failure(abort_code = 23)]
+    #[test, expected_failure(abort_code = research_protocol::access::E_NOT_AUTHORIZED)]
     fun expired_platform_membership_denies_encrypted_report() {
         let mut sc = ts::begin(AGENT);
         init_settlement(&mut sc);
@@ -193,7 +193,7 @@ module research_protocol::access_delegation_tests {
 
     /// Separated deny case: an outsider calling seal_approve_private_result must
     /// abort (E_NOT_AUTHORIZED = 23), since seal_approve now denies via abort.
-    #[test, expected_failure(abort_code = 23)]
+    #[test, expected_failure(abort_code = research_protocol::access::E_NOT_AUTHORIZED)]
     fun private_delegation_denies_outsider() {
         let mut sc = ts::begin(BUYER);
         {
@@ -366,6 +366,60 @@ module research_protocol::access_delegation_tests {
             settlement::settle_membership_report(&mut earnings, &receipt, first_share, 1, &clk, ctx);
             let replay_share = coin::mint_for_testing<SUI>(500, ctx);
             settlement::settle_membership_report(&mut earnings, &receipt, replay_share, 1, &clk, ctx);
+            clock::destroy_for_testing(clk);
+            ts::return_shared(earnings);
+            ts::return_to_sender(&sc, receipt);
+        };
+        ts::end(sc);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = research_protocol::settlement::E_BAD_SETTLEMENT_INPUT)]
+    fun membership_settlement_rejects_multi_report_count() {
+        let mut sc = ts::begin(AGENT);
+        init_settlement(&mut sc);
+
+        ts::next_tx(&mut sc, AGENT);
+        {
+            let ctx = ts::ctx(&mut sc);
+            let clk = clock_at(ctx, T0);
+            report::publish_encrypted_report(b"walrus", b"seal", b"cipher", b"plain", b"preview", 1, &clk, ctx);
+            clock::destroy_for_testing(clk);
+        };
+
+        ts::next_tx(&mut sc, BUYER);
+        {
+            let config = ts::take_shared<SettlementConfig>(&sc);
+            let ctx = ts::ctx(&mut sc);
+            let clk = clock_at(ctx, T0);
+            let pay = coin::mint_for_testing<SUI>(1000, ctx);
+            settlement::buy_platform_membership(&config, pay, 1, 1_000, &clk, ctx);
+            clock::destroy_for_testing(clk);
+            ts::return_shared(config);
+        };
+
+        ts::next_tx(&mut sc, BUYER);
+        {
+            let mut registry = ts::take_shared<MembershipReceiptRegistry>(&sc);
+            let report = ts::take_from_address<ResearchReport>(&sc, AGENT);
+            let pass = ts::take_from_sender<PlatformMembershipPass>(&sc);
+            let ctx = ts::ctx(&mut sc);
+            let clk = clock_at(ctx, T0 + 10);
+            settlement::record_platform_access_receipt(&mut registry, &pass, &report, 202606, &clk, ctx);
+            clock::destroy_for_testing(clk);
+            ts::return_shared(registry);
+            ts::return_to_address(AGENT, report);
+            ts::return_to_sender(&sc, pass);
+        };
+
+        ts::next_tx(&mut sc, BUYER);
+        {
+            let mut earnings = ts::take_shared<AgentEarnings>(&sc);
+            let receipt = ts::take_from_sender<access::AccessReceipt>(&sc);
+            let ctx = ts::ctx(&mut sc);
+            let clk = clock_at(ctx, T0 + 20);
+            let share = coin::mint_for_testing<SUI>(500, ctx);
+            settlement::settle_membership_report(&mut earnings, &receipt, share, 2, &clk, ctx);
             clock::destroy_for_testing(clk);
             ts::return_shared(earnings);
             ts::return_to_sender(&sc, receipt);

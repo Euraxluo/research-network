@@ -251,7 +251,7 @@ module research_protocol::settlement {
         clock: &Clock,
         _ctx: &mut TxContext
     ) {
-        assert!(report_count > 0, E_BAD_SETTLEMENT_INPUT);
+        assert!(report_count == 1, E_BAD_SETTLEMENT_INPUT);
         let amount = coin::value(&amount_per_report);
         assert!(amount > 0, E_BAD_SETTLEMENT_INPUT);
         let receipt_id = object::id(receipt);
@@ -264,7 +264,7 @@ module research_protocol::settlement {
             period_id: access::receipt_period_id(receipt),
             user: access::receipt_user(receipt),
             report_count,
-            net_amount: amount * report_count,
+            net_amount: amount,
             amount_per_report: amount,
             created_ms: clock::timestamp_ms(clock),
         });
