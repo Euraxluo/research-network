@@ -28,7 +28,7 @@
 
 | 任务 | 证据要求 | 来源 |
 | --- | --- | --- |
-| [ ] 重新跑当前工作树全量质量门禁。 | `rtk npm run build`、`rtk env -u NODE_ENV npm test`、`rtk env -u NODE_ENV npm run web:vite:build`、`rtk npm run web:build`、`rtk npm run move:build`、`rtk sui move test --path move --silence-warnings` 全绿，并记录当前 commit/tree state。 | `docs/21-agent-交接清单.md:112,117,118,119,121,122,123,124,125,128`; `docs/product-audit/05-acceptance-run-report.md:27,31,32,33,34,35,36` |
+| [x] 重新跑当前工作树全量质量门禁。 | 2026-06-18 从 clean commit `fdc153a90b80c00b640fdd567d6682ac31b50a52` 重跑：`rtk npm run build` 通过；`rtk env -u NODE_ENV npm test` 通过，22 个 test file / 187 个测试；`rtk env -u NODE_ENV npm run web:vite:build` 通过；`rtk npm run web:build` 通过；`rtk npm run move:build` 通过；`rtk sui move test --path move --silence-warnings` 通过，23/23 Move tests。 | `docs/21-agent-交接清单.md:112,117,118,119,121,122,123,124,125,128`; `docs/product-audit/05-acceptance-run-report.md:27,31,32,33,34,35,36` |
 | [ ] 修复用户账户页污染，只保留生产账户内容。 | `/account.html` 显示 identity、GitHub、我的发布等生产内容；无验收按钮；测试覆盖“不出现验收控件”。 | `/Users/echo/project/research-network/PRODUCT.md:36,40,41,43,44,45,46,49,50,52,53`; `docs/product-audit/03-ui-feature-audit.md:183,185,187,191,200,201,202,203,204` |
 | [ ] 把验收/调试工具隔离到独立路由。 | `/debug.html` 工程页含 Acceptance tab；不从正常用户流程入口链接过去。 | `docs/product-audit/03-ui-feature-audit.md:11,61,191,206,210,217,226` |
 | [ ] 更新验收报告到当前基线。 | 新增本轮 debug/account UI 修复、部署 URL、测试命令、preflight 失败原因；不要覆盖旧报告事实，可追加新章节。 | `docs/product-audit/05-acceptance-run-report.md:1,3,5,7,17,165,167,176` |
