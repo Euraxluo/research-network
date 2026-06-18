@@ -88,6 +88,15 @@ export interface ProductionAcceptanceTransactionSpendEvidence {
   balanceChanges: ProductionAcceptanceBalanceChange[];
 }
 
+export interface ProductionAcceptanceDelegationFundingEvidence extends ProductionAcceptanceTransactionSpendEvidence {
+  signerLabel?: string;
+  signerAddress: string;
+  suiSpentMist: string;
+  eventTypes: string[];
+  txStatus: string;
+  txError?: string;
+}
+
 export interface ProductionAcceptanceSpendSummary {
   buyerSpentMist: string;
   agentSpentMist: string;
@@ -539,6 +548,50 @@ export function summarizeProductionAcceptanceSpend(input: {
   };
 }
 
+export function productionAcceptanceDelegationFundingMeta(input: {
+  fundDigest: string;
+  fundSpend?: ProductionAcceptanceDelegationFundingEvidence;
+  buyerAddress: string;
+  packageId?: string;
+}): Record<string, unknown> {
+  const { fundDigest, fundSpend, buyerAddress, packageId } = input;
+  if (!fundSpend) {
+    throw new Error(`delegation funding transaction ${fundDigest} is missing from the acceptance transaction ledger`);
+  }
+  if (fundSpend.digest !== fundDigest) {
+    throw new Error(`delegation funding ledger digest ${fundSpend.digest} does not match ${fundDigest}`);
+  }
+  if (fundSpend.txStatus !== "success" || fundSpend.txError) {
+    throw new Error(`delegation funding transaction ${fundDigest} did not succeed`);
+  }
+  if (normalizeSuiTypeAddress(fundSpend.signerAddress) !== normalizeSuiTypeAddress(buyerAddress)) {
+    throw new Error(`delegation funding signer ${fundSpend.signerAddress} does not match buyer ${buyerAddress}`);
+  }
+  if (!productionAcceptanceEventTypesInclude(fundSpend.eventTypes, "DelegationFunded", packageId)) {
+    throw new Error(`delegation funding transaction ${fundDigest} is missing DelegationFunded event evidence`);
+  }
+  if (!hasSignerSuiBalanceChange(fundSpend.balanceChanges, fundSpend.signerAddress)) {
+    throw new Error(`delegation funding transaction ${fundDigest} has no SUI balance change for signer ${fundSpend.signerAddress}`);
+  }
+  const computedSpend = productionAcceptanceSuiSpentMist(fundSpend.balanceChanges, fundSpend.signerAddress);
+  if (computedSpend <= 0n) {
+    throw new Error(`delegation funding transaction ${fundDigest} records no positive buyer SUI spend`);
+  }
+  if (String(computedSpend) !== fundSpend.suiSpentMist) {
+    throw new Error(`delegation funding transaction ${fundDigest} spend metadata does not match balanceChanges`);
+  }
+  return {
+    fundDigest,
+    fundSigner: fundSpend.signerLabel,
+    fundSignerAddress: fundSpend.signerAddress,
+    fundSuiSpentMist: fundSpend.suiSpentMist,
+    fundBalanceChanges: fundSpend.balanceChanges,
+    fundEventTypes: fundSpend.eventTypes,
+    fundTxStatus: fundSpend.txStatus,
+    ...(fundSpend.txError ? { fundTxError: fundSpend.txError } : {})
+  };
+}
+
 export function hasSignerSuiBalanceChange(
   balanceChanges: ProductionAcceptanceBalanceChange[],
   address: string
@@ -549,6 +602,19 @@ export function hasSignerSuiBalanceChange(
     normalizeSuiTypeAddress(change.owner) === normalizedAddress &&
     isProductionAcceptanceSuiCoinType(change.coinType)
   );
+}
+
+function productionAcceptanceEventTypesInclude(
+  eventTypes: string[],
+  eventName: string,
+  packageId?: string
+): boolean {
+  const packagePrefix = packageId ? `${packageId.toLowerCase()}::` : undefined;
+  return eventTypes.some((type) => {
+    const normalized = type.toLowerCase();
+    if (packagePrefix && !normalized.startsWith(packagePrefix)) return false;
+    return type.endsWith(`::${eventName}`);
+  });
 }
 
 function mainnetTestnetLeaks(config: ProductionAcceptanceConfig): string[] {

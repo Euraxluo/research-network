@@ -11,6 +11,7 @@ import {
   normalizeProductionAcceptanceSession,
   parseProductionAcceptanceArgs,
   productionAcceptanceFreshnessEvidence,
+  productionAcceptanceDelegationFundingMeta,
   productionAcceptanceProverEvidence,
   productionAcceptanceSuiSpentMist,
   summarizeProductionAcceptanceSpend,
@@ -447,5 +448,77 @@ describe("production acceptance guardrails", () => {
         }]
       })
     ).toThrow(/has no SUI balance change/);
+  });
+
+  it("requires successful buyer-signed delegation funding evidence before issuing execute receipts", () => {
+    const buyer = "0x" + "aa".repeat(32);
+    const packageId = "0x" + "11".repeat(32);
+    const fundSpend = {
+      digest: "fundtx",
+      signerLabel: "buyer",
+      signerAddress: buyer,
+      suiSpentMist: "1000",
+      balanceChanges: [{ owner: buyer, coinType: "0x2::sui::SUI", amount: "-1000" }],
+      eventTypes: [`${packageId}::delegation::DelegationFunded`],
+      txStatus: "success"
+    };
+
+    expect(productionAcceptanceDelegationFundingMeta({
+      fundDigest: "fundtx",
+      fundSpend,
+      buyerAddress: buyer,
+      packageId
+    })).toMatchObject({
+      fundDigest: "fundtx",
+      fundSigner: "buyer",
+      fundSignerAddress: buyer,
+      fundSuiSpentMist: "1000",
+      fundEventTypes: [`${packageId}::delegation::DelegationFunded`],
+      fundTxStatus: "success"
+    });
+
+    expect(() =>
+      productionAcceptanceDelegationFundingMeta({
+        fundDigest: "fundtx",
+        buyerAddress: buyer,
+        packageId
+      })
+    ).toThrow(/missing from the acceptance transaction ledger/);
+
+    expect(() =>
+      productionAcceptanceDelegationFundingMeta({
+        fundDigest: "fundtx",
+        fundSpend: { ...fundSpend, txStatus: "failure" },
+        buyerAddress: buyer,
+        packageId
+      })
+    ).toThrow(/did not succeed/);
+
+    expect(() =>
+      productionAcceptanceDelegationFundingMeta({
+        fundDigest: "fundtx",
+        fundSpend: { ...fundSpend, signerAddress: "0x" + "bb".repeat(32) },
+        buyerAddress: buyer,
+        packageId
+      })
+    ).toThrow(/does not match buyer/);
+
+    expect(() =>
+      productionAcceptanceDelegationFundingMeta({
+        fundDigest: "fundtx",
+        fundSpend: { ...fundSpend, eventTypes: [`${packageId}::delegation::DelegationCreated`] },
+        buyerAddress: buyer,
+        packageId
+      })
+    ).toThrow(/missing DelegationFunded/);
+
+    expect(() =>
+      productionAcceptanceDelegationFundingMeta({
+        fundDigest: "fundtx",
+        fundSpend: { ...fundSpend, suiSpentMist: "999" },
+        buyerAddress: buyer,
+        packageId
+      })
+    ).toThrow(/spend metadata does not match/);
   });
 });

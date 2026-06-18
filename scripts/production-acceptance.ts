@@ -44,6 +44,7 @@ import {
   createProductionAcceptanceReceipt,
   normalizeProductionAcceptanceBalanceChanges,
   normalizeProductionAcceptanceSession,
+  productionAcceptanceDelegationFundingMeta,
   parseProductionAcceptanceArgs,
   productionAcceptanceFreshnessEvidence,
   productionAcceptanceProverEvidence,
@@ -301,20 +302,17 @@ async function main() {
       budgetMist: config.delegationBudgetMist
     });
     const fundSpend = transactionLedger.get(fundDigest);
+    const fundMeta = productionAcceptanceDelegationFundingMeta({
+      fundDigest,
+      fundSpend,
+      buyerAddress: buyer.address,
+      packageId: activeConfig().packageId
+    });
     pass("buyer.create_and_fund_delegation", {
       digest: job.digest,
       objectId: job.objectId,
       meta: {
-        fundDigest,
-        ...(fundSpend ? {
-          fundSigner: fundSpend.signerLabel,
-          fundSignerAddress: fundSpend.signerAddress,
-          fundSuiSpentMist: fundSpend.suiSpentMist,
-          fundBalanceChanges: fundSpend.balanceChanges,
-          fundEventTypes: fundSpend.eventTypes,
-          fundTxStatus: fundSpend.txStatus,
-          ...(fundSpend.txError ? { fundTxError: fundSpend.txError } : {})
-        } : {})
+        ...fundMeta
       }
     });
 
