@@ -58,7 +58,7 @@ UI 审计面向用户可感知的产品闭环：
 当前状态：
 
 - Google zkLogin 地址派生、deterministic salt service、session attestation、CLI login 和 Web signer 已实现。
-- `AccountPage` 支持导出 buyer/agent production acceptance session。
+- `/debug.html` 独立承载 buyer/agent production acceptance session 导出，正常 `AccountPage` 不暴露验收工具。
 - `web/src/lib/signer.ts` 从同 tab sessionStorage 重建 ephemeral keypair，调用 prover 并组装 composite zkLogin signature。
 
 缺口/风险：
@@ -188,7 +188,7 @@ UI 审计面向用户可感知的产品闭环：
 
 当前状态：
 
-- `AccountPage` 展示 zkLogin identity、GitHub repo controls、我的发布、acceptance session export。
+- `AccountPage` 展示 zkLogin identity、GitHub repo controls、我的发布；验收/调试工具隔离到 `/debug.html`。
 - 静态/dashboard/membership/delegations 页面可展示 indexed commerce state。
 
 缺口：
@@ -224,4 +224,3 @@ UI 审计面向用户可感知的产品闭环：
 4. Workbench 顶部显示当前 network、package id、signer 状态。
 5. 无 signer 时所有链上动作在 mainnet 被阻止。
 6. `npm run acceptance:ui` 生成 UI acceptance receipt，包含截图/trace、普通用户操作步骤和关键 UI 文案。
-

@@ -6,8 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let dom: JSDOM;
 let root: ReturnType<typeof createRoot> | null = null;
-let capturedBlob: Blob | null = null;
-let clickedDownload: { download: string; href: string } | null = null;
 
 function installDom(): void {
   dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -32,22 +30,11 @@ function installDom(): void {
   for (const [key, value] of Object.entries(globals)) {
     Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
   }
-  Object.defineProperty(dom.window.URL, "createObjectURL", {
-    value: vi.fn((blob: Blob) => {
-      capturedBlob = blob;
-      return "blob:acceptance-session";
-    }),
-    configurable: true
-  });
-  Object.defineProperty(dom.window.URL, "revokeObjectURL", { value: vi.fn(), configurable: true });
-  vi.spyOn(dom.window.HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
-    clickedDownload = { download: this.download, href: this.href };
-  });
 }
 
 async function renderAccountPage(): Promise<void> {
-  const modulePath = "../web/src/pages/AccountPage.tsx";
-  const { AccountPage } = await import(modulePath);
+  const pageModulePath = "../web/src/pages/AccountPage.tsx";
+  const { AccountPage } = await import(pageModulePath);
   const rootEl = dom.window.document.getElementById("root");
   expect(rootEl).toBeTruthy();
   root = createRoot(rootEl!);
@@ -56,53 +43,20 @@ async function renderAccountPage(): Promise<void> {
   });
 }
 
-function seedSignedInSession(includeEphemeralKey = true): void {
+function seedSignedInSession(): void {
   dom.window.localStorage.setItem(
     "rn_session",
     JSON.stringify({
       address: "0x" + "12".repeat(32),
-      email: "buyer@example.com",
+      email: "reader@example.com",
       provider: "google"
     })
   );
-  dom.window.sessionStorage.setItem(
-    "rn_zk_session",
-    JSON.stringify({
-      id_token: "header.payload.sig",
-      salt: "123456",
-      maxEpoch: 321,
-      randomness: "999"
-    })
-  );
-  if (includeEphemeralKey) {
-    dom.window.sessionStorage.setItem(
-      "rn_zk_eph",
-      JSON.stringify({
-        secret: "suiprivkey1secret",
-        maxEpoch: 321,
-        randomness: "999"
-      })
-    );
-  }
 }
 
-function byTestId(testId: string): { textContent: string | null; dispatchEvent(event: Event): boolean } {
-  const el = dom.window.document.querySelector(`[data-testid="${testId}"]`);
-  expect(el, `missing [data-testid="${testId}"]`).toBeTruthy();
-  return el as unknown as { textContent: string | null; dispatchEvent(event: Event): boolean };
-}
-
-async function clickByTestId(testId: string): Promise<void> {
-  await act(async () => {
-    byTestId(testId).dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
-  });
-}
-
-describe("AccountPage acceptance session export UI", () => {
+describe("AccountPage production UI", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    capturedBlob = null;
-    clickedDownload = null;
     root = null;
     installDom();
   });
@@ -117,42 +71,26 @@ describe("AccountPage acceptance session export UI", () => {
     vi.restoreAllMocks();
   });
 
-  it("downloads the current same-tab zkLogin session from the buyer button", async () => {
+  it("shows product account sections for a signed-in user", async () => {
     seedSignedInSession();
     await renderAccountPage();
 
-    await clickByTestId("export-acceptance-buyer");
-
-    expect(clickedDownload).toEqual({
-      download: "acceptance-buyer.json",
-      href: "blob:acceptance-session"
-    });
-    expect(capturedBlob).toBeTruthy();
-    const exported = JSON.parse(await capturedBlob!.text()) as {
-      address: string;
-      ephemeralSecretKey: string;
-      idToken: string;
-      rn_zk_eph: { secret: string };
-      rn_zk_session: { id_token: string };
-    };
-    expect(exported.address).toBe("0x" + "12".repeat(32));
-    expect(exported.ephemeralSecretKey).toBe("suiprivkey1secret");
-    expect(exported.idToken).toBe("header.payload.sig");
-    expect(exported.rn_zk_eph.secret).toBe("suiprivkey1secret");
-    expect(exported.rn_zk_session.id_token).toBe("header.payload.sig");
-    expect(byTestId("acceptance-session-export-status").textContent).toContain(
-      ".research-network/secrets/acceptance-buyer.json"
-    );
+    const text = dom.window.document.body.textContent || "";
+    expect(text).toContain("Sui identity");
+    expect(text).toContain("Connected GitHub repositories");
+    expect(text).toContain("My publications");
+    expect(text).toContain("reader@example.com");
   });
 
-  it("shows a closed-fail status when the same-tab ephemeral key is unavailable", async () => {
-    seedSignedInSession(false);
+  it("does not expose production acceptance controls in the user account page", async () => {
+    seedSignedInSession();
     await renderAccountPage();
 
-    await clickByTestId("export-acceptance-agent");
-
-    expect(clickedDownload).toBeNull();
-    expect(capturedBlob).toBeNull();
-    expect(byTestId("acceptance-session-export-status").textContent).toContain("rn_zk_eph.secret");
+    const text = dom.window.document.body.textContent || "";
+    expect(text).not.toContain("Production acceptance session");
+    expect(text).not.toContain("Export buyer session");
+    expect(text).not.toContain("Export agent session");
+    expect(dom.window.document.querySelector('[data-testid="export-acceptance-buyer"]')).toBeNull();
+    expect(dom.window.document.querySelector('[data-testid="export-acceptance-agent"]')).toBeNull();
   });
 });

@@ -18,6 +18,7 @@ export default defineConfig({
       input: {
         login: resolve(__dirname, "login.html"),
         account: resolve(__dirname, "account.html"),
+        debug: resolve(__dirname, "debug.html"),
         workbench: resolve(__dirname, "workbench.html")
       },
       output: {

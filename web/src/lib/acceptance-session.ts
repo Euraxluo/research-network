@@ -75,21 +75,6 @@ export function buildAcceptanceSessionExport(now = new Date()): AcceptanceSessio
   };
 }
 
-export function downloadAcceptanceSession(role: "buyer" | "agent"): string {
-  const payload = buildAcceptanceSessionExport();
-  const blob = new Blob([JSON.stringify(payload, null, 2) + "\n"], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  const filename = `acceptance-${role}.json`;
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  return filename;
-}
-
 function readSessionJson<T>(key: string, storage: Storage): T | null {
   try {
     const raw = storage.getItem(key);
