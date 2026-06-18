@@ -1730,10 +1730,16 @@ function uiSteps(packageId: string): UiAcceptanceStep[] {
       item.meta = { eventTypes: eventTypesFor(uiProductionStepName(name), packageId) };
       if (uiObjectSteps().includes(name)) item.objectId = uiObjectIdFor(name);
       if (name === "buyer.create_and_fund_delegation") {
+        const buyerAddress = "0x" + "aa".repeat(32);
         item.meta = {
           ...(item.meta ?? {}),
           fundDigest: digestFor("ui:fund"),
-          fundSignerAddress: "0x" + "aa".repeat(32)
+          fundSigner: "buyer",
+          fundSignerAddress: buyerAddress,
+          fundSuiSpentMist: "2000000",
+          fundBalanceChanges: [{ owner: buyerAddress, coinType: "0x2::sui::SUI", amount: "-2000000" }],
+          fundEventTypes: eventTypesFor("buyer.fund_delegation", packageId),
+          fundTxStatus: "success"
         };
       }
     }
