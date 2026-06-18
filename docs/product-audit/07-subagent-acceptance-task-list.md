@@ -27,6 +27,7 @@
 - `acceptance:ui` headful 自动脚本未通过：独立 Playwright Chromium 访问 `https://research-network-web.vercel.app/workbench.html` 返回 `net::ERR_CONNECTION_TIMED_OUT`，因此没有生成可接受的 `testnet-ui.json` pass receipt。
 - 用户 Chrome 可打开生产页面，不等同于 UI 链上验收通过。当前截图确认 Workbench 有 `zkLogin address 0xb178...9d7f`、GitHub `Euraxluo`、scope `Euraxluo · User`、163 repo options、selected repo `Euraxluo/research-network`，且无 debug/acceptance 控件污染；但顶部显示 `Sign in in this tab to enable signer-backed Walrus, Seal, and Sui actions`，不是 `On-chain mode`，所以当前标签缺真实 zkLogin signer，S3 真实 UI publish 仍需同标签 Google zkLogin 后重跑。
 - 2026-06-19 继续串行复验：Chrome 仍停在生产 `/login.html`，可见 `Sign in with Google`、已持久化 Sui address `0xb178...9d7f`、GitHub `Euraxluo · server-attested`、163 repos；Chrome extension 能列标签/claim tab，但 Playwright locator、CUA click、DOM CUA read 均超时，自动点击 Google 按钮未生效。该轮仍缺同标签 zkLogin signer，不能执行 S3 UI publish；需要用户在当前 Chrome 标签手动完成 Google 授权后继续。
+- 2026-06-19 00:12 CST 只读复核：工作区 clean，最新提交 `c62e139`；Chrome 相关标签仍是生产 `/login.html` 和旧 Workbench，未出现新的 `/auth/callback.html` 成功页，旧 Google 标签仍是 `redirect_uri_mismatch` for `http://localhost:8765/callback`。因此 UI 验收仍停在同一真实外部动作：当前 Chrome 标签需要手动完成 Google zkLogin 授权。
 
 ## P0 总门禁
 
