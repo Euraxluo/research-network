@@ -386,6 +386,11 @@ describe("static web E2E", () => {
     testId(dom, "submit-private-result").click();
     testId(dom, "complete-delegation").click();
     expect(doc.body.textContent).toContain("Delegation completed (demo).");
+    selectValue(dom, "#actor-select", "agent");
+    testId(dom, "settle-membership-receipt").click();
+    expect(doc.body.textContent).toContain("Switch to Platform member");
+    testId(dom, "claim-agent-earnings").click();
+    expect(doc.body.textContent).toContain("Settle the pending membership receipt as Platform member first");
     selectValue(dom, "#actor-select", "member");
     testId(dom, "settle-membership-receipt").click();
     expect(doc.body.textContent).toContain("Membership receipt settled (demo)");

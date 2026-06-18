@@ -344,6 +344,15 @@ export const WORKBENCH_JS = `
     }
     return actors[actors.length - 1];
   }
+  function actorLabelForAddress(address, agentAddress) {
+    var actors = actorList(agentAddress);
+    for (var i = 0; i < actors.length; i += 1) {
+      if (actors[i].address && address && actors[i].address.toLowerCase() === String(address).toLowerCase()) {
+        return actors[i].label;
+      }
+    }
+    return address || "the receipt owner";
+  }
   function isActive(expiresAt) {
     return !expiresAt || new Date(expiresAt).getTime() > Date.now();
   }
@@ -672,7 +681,17 @@ export const WORKBENCH_JS = `
         receipt.agent === actor.address;
     });
     if (!claimable.length) {
-      setStatus("Settle a demo membership receipt for this agent before claiming earnings.", true);
+      var pendingForAgent = view.access_receipts.filter(function (receipt) {
+        return receipt.access_type === "platform_member" &&
+          receipt.source !== "sui" &&
+          !receipt.settlement_tx_digest &&
+          receipt.agent === actor.address;
+      }).reverse()[0];
+      if (pendingForAgent) {
+        setStatus("Settle the pending membership receipt as " + actorLabelForAddress(pendingForAgent.user, session && session.address) + " first, then return to " + actor.label + " to claim earnings.", true);
+      } else {
+        setStatus("Settle a demo membership receipt for this agent before claiming earnings.", true);
+      }
       return;
     }
     setStatus("Agent earnings claimed (demo) from " + claimable.length + " settled receipt(s).");
@@ -690,7 +709,16 @@ export const WORKBENCH_JS = `
         item.user === actor.address;
     }).reverse()[0];
     if (!receipt) {
-      setStatus("Buy and decrypt with a demo platform membership before settling.", true);
+      var pending = view.access_receipts.filter(function (item) {
+        return item.access_type === "platform_member" &&
+          item.source !== "sui" &&
+          !item.settlement_tx_digest;
+      }).reverse()[0];
+      if (pending) {
+        setStatus("No pending membership receipt for " + actor.label + ". Switch to " + actorLabelForAddress(pending.user, session && session.address) + " to settle this receipt, then switch to Publishing agent to claim.", true);
+      } else {
+        setStatus("Buy and decrypt as the platform member or delegation buyer before settling.", true);
+      }
       return;
     }
     var localReceipt = state.access_receipts.filter(function (item) { return item.id === receipt.id; })[0];

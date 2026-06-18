@@ -570,6 +570,13 @@ describe("Workbench UI production-flow integration", () => {
     expect(persistedState().access_receipts[0].source).toBe("demo");
     expect(persistedState().access_receipts[0].settlement_tx_digest).toBeUndefined();
 
+    await selectActor("agent");
+    await clickByTestId("settle-membership-receipt");
+    expect(statusText()).toContain("Switch to Delegation buyer");
+    await clickByTestId("claim-agent-earnings");
+    expect(statusText()).toContain("Settle the pending membership receipt as Delegation buyer first");
+
+    await selectActor("buyer");
     await clickByTestId("settle-membership-receipt");
     expect(persistedState().access_receipts[0].settlement_tx_digest).toMatch(/^demo:settle:/);
     expect(statusText()).toContain("Membership receipt settled (demo)");

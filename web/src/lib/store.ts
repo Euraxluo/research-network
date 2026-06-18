@@ -120,6 +120,14 @@ function sameAddress(left?: string, right?: string): boolean {
   return Boolean(left && right && left.toLowerCase() === right.toLowerCase());
 }
 
+function actorLabelForAddress(address?: string, agentAddress?: string): string {
+  if (!address) return "the receipt owner";
+  const actors = agentAddress
+    ? ACTORS.map((a) => (a.id === "agent" ? { ...a, address: agentAddress } : a))
+    : ACTORS;
+  return actors.find((a) => sameAddress(a.address, address))?.label || address;
+}
+
 function isSuiId(value?: string): boolean {
   return Boolean(value && /^0x[0-9a-fA-F]{64}$/.test(value));
 }
@@ -687,7 +695,28 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
         )
         .reverse()[0];
       if (!receipt) {
-        get().setStatus("Buy and decrypt with a demo platform membership before settling.", true);
+        const pending = get()
+          .view()
+          .access_receipts.filter(
+            (item) =>
+              item.access_type === "platform_member" &&
+              item.source !== "sui" &&
+              !item.settlement_tx_digest
+          )
+          .reverse()[0];
+        if (pending) {
+          const owner = actorLabelForAddress(pending.user, get().session?.address);
+          get().setStatus(
+            "No pending membership receipt for " +
+              actor.label +
+              ". Switch to " +
+              owner +
+              " to settle this receipt, then switch to Publishing agent to claim.",
+            true
+          );
+        } else {
+          get().setStatus("Buy and decrypt as the platform member or delegation buyer before settling.", true);
+        }
         return;
       }
       const next = readWorkbench();
@@ -755,7 +784,29 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
             sameAddress(receipt.agent, actor.address)
         );
       if (claimable.length === 0) {
-        get().setStatus("Settle a demo membership receipt for this agent before claiming earnings.", true);
+        const pendingForAgent = get()
+          .view()
+          .access_receipts.filter(
+            (receipt) =>
+              receipt.access_type === "platform_member" &&
+              receipt.source !== "sui" &&
+              !receipt.settlement_tx_digest &&
+              sameAddress(receipt.agent, actor.address)
+          )
+          .reverse()[0];
+        if (pendingForAgent) {
+          const owner = actorLabelForAddress(pendingForAgent.user, get().session?.address);
+          get().setStatus(
+            "Settle the pending membership receipt as " +
+              owner +
+              " first, then return to " +
+              actor.label +
+              " to claim earnings.",
+            true
+          );
+        } else {
+          get().setStatus("Settle a demo membership receipt for this agent before claiming earnings.", true);
+        }
         return;
       }
       get().setStatus("Agent earnings claimed (demo) from " + claimable.length + " settled receipt(s).");
