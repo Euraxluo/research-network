@@ -334,8 +334,8 @@ function AccessSimulatorPanel() {
 
   return (
     <section className="workbench-panel">
-      <h2>Access and subscriptions</h2>
-      <label className="field-label" htmlFor="actor-select">Current role</label>
+      <h2>Access Simulator</h2>
+      <label className="field-label" htmlFor="actor-select">View as</label>
       <select
         id="actor-select"
         className="repo-select"
@@ -463,15 +463,15 @@ export function WorkbenchPage() {
       <StatusBanner />
       {hasSigner ? (
         <p className="notice success" data-testid="m3-active">
-          Connected to Sui: publishing, access, and settlement actions use Walrus, Seal, and Sui when your session can sign.
+          On-chain mode: signer-backed actions use real Walrus + Seal + Sui when the selected actor matches the signer.
         </p>
       ) : demoMode ? (
         <p className="notice muted" data-testid="m3-demo">
-          Demo session: actions use local sample records until this browser tab has a live zkLogin signer.
+          Local demo mode: browser acceptance uses synthetic Walrus, Seal, and Sui ids. Mainnet actions still require a live zkLogin signer.
         </p>
       ) : (
         <p className="notice muted" data-testid="m3-demo">
-          Sign in to publish research assets and unlock signer-backed Walrus, Seal, and Sui actions.
+          Sign in in this tab to enable signer-backed Walrus, Seal, and Sui actions.
         </p>
       )}
       <IdentityPanel />

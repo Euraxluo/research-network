@@ -393,7 +393,7 @@ describe("Workbench UI production-flow integration", () => {
   it("publishes from the page through the signer-backed Walrus + Seal + Sui client path", async () => {
     await renderWorkbench();
 
-    expect(byTestId("m3-active").textContent).toContain("Connected to Sui");
+    expect(byTestId("m3-active").textContent).toContain("On-chain mode");
     await selectValue("visibility-select", "public");
     await clickByTestId("publish-submit");
 
@@ -584,7 +584,7 @@ describe("Workbench UI production-flow integration", () => {
     mocks.state.currentSigner = null;
     await renderWorkbench();
 
-    expect(byTestId("m3-demo").textContent).toContain("Demo session");
+    expect(byTestId("m3-demo").textContent).toContain("Local demo mode");
     await selectActor("agent");
     await clickByTestId("publish-submit");
     expect(mocks.publishReportDemo).toHaveBeenCalled();

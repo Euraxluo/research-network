@@ -3,7 +3,7 @@ import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
 // M2: multi-page build. Output lands in ../.vercel-shell so Vercel serves the
-// Vite-built index/login/account/workbench pages as static files (Vercel checks static
+// Vite-built login/account/workbench pages as static files (Vercel checks static
 // output before the catch-all Walrus rewrite). auth/* + zklogin-browser.js are
 // produced separately by buildVercelAuthShell and must already be present in the
 // output dir, so we set emptyOutDir:false to avoid wiping them.
@@ -16,7 +16,6 @@ export default defineConfig({
     // Keep asset filenames stable and content-hashed for JS/CSS chunks.
     rollupOptions: {
       input: {
-        index: resolve(__dirname, "index.html"),
         login: resolve(__dirname, "login.html"),
         account: resolve(__dirname, "account.html"),
         debug: resolve(__dirname, "debug.html"),
