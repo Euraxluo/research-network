@@ -150,11 +150,13 @@ export async function buildAuthAssets(
   await fs.writeFile(path.join(outputDir, "auth", "github-callback.html"), githubCallbackHtml(csp), "utf8");
 }
 
-/** Build the Vercel-only auth shell. Content pages (index/dashboard/abs/*) intentionally
+/** Build the Vercel-only auth shell. Content pages (dashboard/abs/*) intentionally
  *  stay absent so Vercel's catch-all rewrite proxies them to the current Walrus Site.
+ *  index.html is a stable static product entrypoint so the bare production domain
+ *  does not depend on the Walrus proxy health.
  *  The three interactive pages (login/account/workbench) + styles.css + workbench.js +
  *  assets/ are produced by the Vite build (web/), which runs AFTER this in the Vercel
- *  buildCommand. auth/* + zklogin-browser.js + health.txt are owned here and emitted
+ *  buildCommand. auth/* + zklogin-browser.js + index.html + health.txt are owned here and emitted
  *  with emitLoginHtml:false so the legacy string login.html does not clobber Vite's. */
 export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteConfig | null): Promise<string> {
   const authConfig = config ?? await loadAuthSiteConfig();
@@ -162,7 +164,7 @@ export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteC
     throw new Error("Vercel auth shell requires GOOGLE_CLIENT_ID or GitHub auth env/secrets");
   }
   // The shell dir is co-owned by this function (auth/* + zklogin-browser.js +
-  // health.txt) and the Vite build (login.html / account.html / workbench.html /
+  // index.html / health.txt) and the Vite build (login.html / account.html / workbench.html /
   // workbench.js / styles.css + assets/). Wiping the whole dir would delete the
   // Vite output when both run in sequence, so we only remove known auth-owned
   // files and leave everything else intact. emptyOutDir:false on the Vite side
@@ -170,9 +172,24 @@ export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteC
   await fs.mkdir(outputDir, { recursive: true });
   await fs.rm(path.join(outputDir, "auth"), { recursive: true, force: true });
   await fs.rm(path.join(outputDir, "zklogin-browser.js"), { force: true });
+  await fs.rm(path.join(outputDir, "index.html"), { force: true });
   await fs.writeFile(path.join(outputDir, "health.txt"), "ok\n", "utf8");
+  await fs.writeFile(path.join(outputDir, "index.html"), vercelIndexHtml(), "utf8");
   await buildAuthAssets(outputDir, authConfig, { emitLoginHtml: false });
   return outputDir;
+}
+
+function vercelIndexHtml(): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Research Network</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="0; url=/workbench.html">
+<link rel="stylesheet" href="/styles.css">
+</head><body><main class="container" style="max-width:860px;margin:0 auto;padding:28px 18px">
+<h1>Research Network</h1>
+<p class="muted">Opening the protocol workbench...</p>
+<p><a class="button" href="/workbench.html">Open Workbench</a></p>
+</main></body></html>`;
 }
 
 const AUTH_STYLE = `<style>
