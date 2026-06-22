@@ -63,7 +63,7 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
     <a href="/">Browse</a>
     <a href="/search.html">Search</a>
     <a href="/dashboard.html">Dashboard</a>
-    <a href="/workbench.html">Workbench</a>
+    <a href="/workbench.html">DApp</a>
     <a href="/membership.html">Membership</a>
     <a href="/delegations.html">Delegations</a>
     <a href="/account.html">Account</a>
@@ -1555,7 +1555,7 @@ ${receiptRows ? `<table class="data-table"><thead><tr><th>Receipt</th><th>Period
 <p class="muted">Private Delegation results are encrypted on Walrus and decryptable only by the buyer and agent, with temporary arbitration access during disputes.</p>
 ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status</th><th>Buyer</th><th>Agent</th><th>Budget</th></tr></thead><tbody>${delegationRows}</tbody></table>` : `<p class="muted">No private delegation jobs indexed yet.</p>`}`;
   await fs.writeFile(path.join(outputDir, "delegations.html"), shell("Delegations", delegationsBody, { subject: "Delegations" }), "utf8");
-  await fs.writeFile(path.join(outputDir, "workbench.html"), shell("Protocol Workbench", renderWorkbenchBody(index), { subject: "Protocol Workbench" }), "utf8");
+  await fs.writeFile(path.join(outputDir, "workbench.html"), shell("Research Network", renderWorkbenchBody(index), { subject: "Research Network" }), "utf8");
 
   for (const asset of assets) {
     const seg = routeSegment(asset.id);

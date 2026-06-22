@@ -36,9 +36,9 @@ export function renderWorkbenchBody(index: IndexState): string {
     agent_earnings: Object.values(index.agent_earnings)
   };
   return `
-<h1>Protocol Workbench</h1>
-<p class="muted">Publish reports, select GitHub org/repo scope, and verify Seal access modes from the same browser session.</p>
-<div id="workbench-root" class="workbench-root"><p class="muted">Loading workbench...</p></div>
+<h1>Research Network</h1>
+<p class="muted">Publish encrypted research assets, connect GitHub scope, manage access, and settle research payments.</p>
+<div id="workbench-root" class="workbench-root"><p class="muted">Loading Research Network...</p></div>
 <script>window.__WORKBENCH_INDEX__ = ${jsonForInlineScript(data)};</script>
 <script src="/workbench.js?v=${WORKBENCH_SCRIPT_VERSION}" defer></script>`;
 }
@@ -787,7 +787,7 @@ export const WORKBENCH_JS = `
   }
   function actorSelectHtml(state, agentAddress) {
     var actors = actorList(agentAddress);
-    return '<label class="field-label" for="actor-select">View as</label>' +
+    return '<label class="field-label" for="actor-select">Current role</label>' +
       '<select id="actor-select" class="repo-select" data-testid="actor-select">' +
       actors.map(function (actor) {
         return '<option value="' + esc(actor.id) + '"' + (state.actor === actor.id ? " selected" : "") + '>' + esc(actor.label + " · " + actor.address) + '</option>';
@@ -806,8 +806,8 @@ export const WORKBENCH_JS = `
     root.innerHTML =
       '<div id="workbench-status" class="notice" aria-live="polite"></div>' +
       (demoMode
-        ? '<p class="notice muted" data-testid="m3-demo">Local demo mode: browser acceptance uses synthetic Walrus, Seal, and Sui ids. Mainnet actions still require a live zkLogin signer.</p>'
-        : '<p class="notice muted" data-testid="m3-demo">Sign in in this tab before using signer-backed protocol actions.</p>') +
+      ? '<p class="notice muted" data-testid="m3-demo">Demo session: actions use local sample records until this browser tab has a live zkLogin signer.</p>'
+        : '<p class="notice muted" data-testid="m3-demo">Sign in to publish research assets and unlock signer-backed Walrus, Seal, and Sui actions.</p>') +
       (!signedIn
         ? '<section class="workbench-panel"><h2>Identity</h2><p class="muted">No browser session is active.</p><a class="button" href="/login.html">Sign in</a>' + (demoMode ? '<button class="button" id="seed-demo" type="button" data-testid="seed-demo">Seed local test identity</button>' : '') + '</section>'
         : '<section class="workbench-panel"><h2>Identity</h2><dl class="verification"><div><dt>zkLogin address</dt><dd>' + esc(session.address) + '</dd></div><div><dt>GitHub</dt><dd>' + esc((gh && gh.login) || "not connected") + '</dd></div></dl></section>') +
@@ -827,7 +827,7 @@ export const WORKBENCH_JS = `
           '<button class="button" type="submit" data-testid="publish-submit">Publish report</button>' +
         '</form>' +
       '</section>' +
-      '<section class="workbench-panel"><h2>Access Simulator</h2>' +
+      '<section class="workbench-panel"><h2>Access and subscriptions</h2>' +
         actorSelectHtml(state, session && session.address) +
         '<p class="workbench-actions"><button class="button" id="buy-membership" type="button" data-testid="buy-membership">Buy platform membership</button><button class="button" id="subscribe-agent" type="button" data-testid="subscribe-agent">Subscribe to agent</button></p>' +
         '<p class="muted">Selected report: <code>' + esc(selectedReport && selectedReport.id || "none") + '</code></p>' +

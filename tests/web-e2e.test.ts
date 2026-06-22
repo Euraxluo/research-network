@@ -107,7 +107,7 @@ describe("static web E2E", () => {
         { path: "/index.html", expect: /logo-chi/ },
         { path: "/search.html", expect: /Filter assets, skills/ },
         { path: "/dashboard.html", expect: /Events/ },
-        { path: "/workbench.html", expect: /Protocol Workbench/ },
+        { path: "/workbench.html", expect: /Research Network/ },
         { path: "/membership.html", expect: /Membership/ },
         { path: "/delegations.html", expect: /Delegations/ },
         { path: "/site-data.json", expect: /"assets"/ },
@@ -603,15 +603,13 @@ describe("static web E2E", () => {
       githubBindingPath: "/api/github-binding"
     });
 
-    // The auth shell owns auth/* + zklogin-browser.js + index.html + health.txt only.
-    // login.html / account.html / workbench.html / styles.css / workbench.js /
+    // The auth shell owns auth/* + zklogin-browser.js + health.txt only.
+    // index.html / login.html / account.html / workbench.html / styles.css / workbench.js /
     // assets/ are produced by the Vite build (web/), which runs AFTER the shell
     // step in vercel.json buildCommand. So the shell step alone must NOT emit
     // the interactive pages (Vite owns them) and must NOT emit content pages
-    // (except the stable root entrypoint; content pages stay proxied from the
-    // Walrus Site via the catch-all rewrite).
+    // (those stay proxied from the Walrus Site via the catch-all rewrite).
     expect(await exists(path.join(shellDir, "health.txt"))).toBe(true);
-    expect(await exists(path.join(shellDir, "index.html"))).toBe(true);
     expect(await exists(path.join(shellDir, "auth", "config.js"))).toBe(true);
     expect(await exists(path.join(shellDir, "auth", "login.js"))).toBe(true);
     expect(await exists(path.join(shellDir, "auth", "callback.js"))).toBe(true);
@@ -620,9 +618,8 @@ describe("static web E2E", () => {
     expect(await exists(path.join(shellDir, "auth", "github-callback.html"))).toBe(true);
     expect(await exists(path.join(shellDir, "zklogin-browser.js"))).toBe(true);
     // Interactive pages are emitted by the Vite build, not by this shell step.
+    expect(await exists(path.join(shellDir, "index.html"))).toBe(false);
     expect(await exists(path.join(shellDir, "login.html"))).toBe(false);
-    const indexHtml = await fs.readFile(path.join(shellDir, "index.html"), "utf8");
-    expect(indexHtml).toContain("/workbench.html");
     // Content pages must never be shadowed — they are served from Walrus.
     expect(await exists(path.join(shellDir, "dashboard.html"))).toBe(false);
     expect(await exists(path.join(shellDir, "search.html"))).toBe(false);
