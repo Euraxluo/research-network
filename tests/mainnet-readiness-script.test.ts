@@ -25,6 +25,7 @@ describe("mainnet readiness script", () => {
         "--stage", "mainnet-config",
         "--testnet-preflight-receipt", ".research-network/acceptance/missing-preflight.json",
         "--testnet-execute-receipt", ".research-network/acceptance/missing-execute.json",
+        "--testnet-ui-receipt", ".research-network/acceptance/missing-ui.json",
         "--skip-chain",
         "--json"
       ], {

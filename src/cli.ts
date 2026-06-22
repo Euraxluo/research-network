@@ -598,7 +598,7 @@ async function run() {
   if (command === "vercel:shell") {
     const outputDir = path.resolve(flagString(flags, "out", ".vercel-shell") ?? ".vercel-shell");
     await buildVercelAuthShell(outputDir);
-    printJson({ outputDir, login: "generated", content: "proxied-to-walrus" });
+    printJson({ outputDir, login: "generated", content: "static-with-walrus-fallback" });
     return;
   }
 

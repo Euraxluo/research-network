@@ -591,6 +591,13 @@ describe("static web E2E", () => {
 
   it("builds a Vercel auth shell without shadowing Walrus content pages", async () => {
     const shellDir = path.join(tempRoot, "vercel-shell");
+    await fs.mkdir(path.join(shellDir, "assets"), { recursive: true });
+    await fs.mkdir(path.join(shellDir, "abs"), { recursive: true });
+    await fs.writeFile(path.join(shellDir, "assets", "old-workbench.js"), "old", "utf8");
+    await fs.writeFile(path.join(shellDir, "index.html"), '<meta http-equiv="refresh" content="0; url=/workbench.html">', "utf8");
+    await fs.writeFile(path.join(shellDir, "login.html"), "old login", "utf8");
+    await fs.writeFile(path.join(shellDir, "dashboard.html"), "old dashboard", "utf8");
+    await fs.writeFile(path.join(shellDir, "abs", "old.html"), "old abs", "utf8");
     await buildVercelAuthShell(shellDir, {
       googleClientId: "test-client.apps.googleusercontent.com",
       callbackPath: "/auth/callback.html",
@@ -603,15 +610,16 @@ describe("static web E2E", () => {
       githubBindingPath: "/api/github-binding"
     });
 
-    // The auth shell owns auth/* + zklogin-browser.js + index.html + health.txt only.
-    // login.html / account.html / workbench.html / styles.css / workbench.js /
-    // assets/ are produced by the Vite build (web/), which runs AFTER the shell
-    // step in vercel.json buildCommand. So the shell step alone must NOT emit
-    // the interactive pages (Vite owns them) and must NOT emit content pages
-    // (except the stable root entrypoint; content pages stay proxied from the
-    // Walrus Site via the catch-all rewrite).
+    // The shell owns public read paths plus auth/* + zklogin-browser.js + health.txt.
+    // login.html / account.html / workbench.html / assets/ are produced by the
+    // Vite build (web/), which runs AFTER the shell step in vercel.json
+    // buildCommand. So the shell step alone must NOT emit the interactive pages
+    // (Vite owns them), but it must emit a real public directory at index.html.
     expect(await exists(path.join(shellDir, "health.txt"))).toBe(true);
     expect(await exists(path.join(shellDir, "index.html"))).toBe(true);
+    expect(await exists(path.join(shellDir, "styles.css"))).toBe(true);
+    expect(await exists(path.join(shellDir, "site.js"))).toBe(true);
+    expect(await exists(path.join(shellDir, "site-data.json"))).toBe(true);
     expect(await exists(path.join(shellDir, "auth", "config.js"))).toBe(true);
     expect(await exists(path.join(shellDir, "auth", "login.js"))).toBe(true);
     expect(await exists(path.join(shellDir, "auth", "callback.js"))).toBe(true);
@@ -621,17 +629,28 @@ describe("static web E2E", () => {
     expect(await exists(path.join(shellDir, "zklogin-browser.js"))).toBe(true);
     // Interactive pages are emitted by the Vite build, not by this shell step.
     expect(await exists(path.join(shellDir, "login.html"))).toBe(false);
+    expect(await exists(path.join(shellDir, "assets", "old-workbench.js"))).toBe(false);
     const indexHtml = await fs.readFile(path.join(shellDir, "index.html"), "utf8");
-    expect(indexHtml).toContain("/workbench.html");
-    // Content pages must never be shadowed — they are served from Walrus.
-    expect(await exists(path.join(shellDir, "dashboard.html"))).toBe(false);
-    expect(await exists(path.join(shellDir, "search.html"))).toBe(false);
+    expect(indexHtml).toContain("Recent submissions");
+    expect(indexHtml).not.toContain("url=/workbench.html");
+    expect(indexHtml).not.toContain("Open Workbench");
+    expect(await exists(path.join(shellDir, "dashboard.html"))).toBe(true);
+    expect(await exists(path.join(shellDir, "search.html"))).toBe(true);
+    expect(await exists(path.join(shellDir, "abs", "old.html"))).toBe(false);
 
     // The auth config injects the runtime endpoints the login page reads.
     const configJs = await fs.readFile(path.join(shellDir, "auth", "config.js"), "utf8");
     expect(configJs).toContain("RN_AUTH_CONFIG");
     expect(configJs).toContain("test-client.apps.googleusercontent.com");
     expect(configJs).toContain("Iv23test");
+  });
+
+  it("routes the production root to the public directory, not the dapp shell", async () => {
+    const config = JSON.parse(await fs.readFile(path.join(process.cwd(), "vercel.json"), "utf8")) as {
+      rewrites: Array<{ source: string; destination: string }>;
+    };
+    const rootRewrite = config.rewrites.find((rewrite) => rewrite.source === "/");
+    expect(rootRewrite?.destination).toBe("/index.html");
   });
 
   it("serves a PDF-only asset with embedded PDF and no TeX source", async () => {
