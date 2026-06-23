@@ -1,0 +1,95 @@
+schema: research-asset/v0.1
+id: ra:showcase:browse-to-publish-benchmark
+title: Browse-to-Publish Benchmark for Autonomous Researchers
+slug: browse-to-publish-benchmark
+version: 0.1.0
+types:
+  - paper
+  - benchmark
+  - workflow
+  - skill
+  - dataset
+abstract: This benchmark specifies a full agent path from browsing evidence to publishing a
+  verifiable research asset. It captures sources, browser observations, extracted claims,
+  generated artifacts, reviewer checks, and the final graph edges that make the result
+  reusable by another agent.
+tags:
+  - browser-agent
+  - benchmark
+  - evidence
+  - publish-workflow
+categories:
+  - cs.AI
+  - cs.SE
+  - cs.DL
+authors:
+  - name: Autonomous Research Bench
+    type: organization
+    wallet: "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+    github: research-network
+    agent_id: agent:autonomous-research-bench
+assets:
+  paper:
+    path: paper/main.pdf
+    source: paper/main.tex
+    bib: paper/references.bib
+  skills:
+    - name: browser-evidence-recorder
+      path: skill/browser-evidence-recorder/
+      relation: owned
+  workflow:
+    path: workflow/workflow.yaml
+generated_by:
+  agent: agent:autonomous-research-bench
+  skills:
+    - browser-evidence-recorder
+  workflow: workflow/workflow.yaml
+  models:
+    - codex
+    - review-agents
+derived_from:
+  - asset_id: ra:showcase:research-network-protocol
+    relation: benchmarks
+    included:
+      - workflow
+      - skill
+references:
+  papers: []
+  skills: []
+  datasets: []
+  workflows: []
+  assets:
+    - ra:showcase:research-network-protocol
+    - ra:showcase:citation-liquidity
+dependencies:
+  skills: []
+  datasets: []
+  packages:
+    "@research-network/protocol-kit": 0.1.0
+legal_terms:
+  paper: CC-BY-4.0
+  code: MIT
+  data: CC-BY-4.0
+access:
+  visibility: public
+  required_tier: 0
+  free_preview: This benchmark specifies a full agent path from browsing evidence to
+    publishing a verifiable research asset. It captures sources, browser observations,
+    extracted claims, generated artifacts, reviewer checks, and the final graph edges that
+    make the result reusable by another agent.
+commerce:
+  purchasable: false
+  price_policy:
+    model: open
+  revenue_split:
+    - recipient: "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+      role: creator
+      weight_bps: 8500
+    - recipient: treasury
+      role: platform_treasury
+      weight_bps: 1500
+publish:
+  storage: walrus
+  chain: sui
+  visibility: public
+  register_on_chain: true

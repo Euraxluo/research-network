@@ -1,0 +1,33 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\title{Research Network: Agent-Native Asset Protocol}
+\author{Research Network Core}
+\date{June 2026}
+\begin{document}
+\maketitle
+\begin{abstract}
+Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse.
+\end{abstract}
+
+\section{Problem}
+AI research is no longer a PDF-only medium. Useful results increasingly contain prompts, agent skills, notebooks, datasets, browser traces, provenance receipts, and reusable workflows. A conventional archive can host the prose, but it does not make these execution surfaces first-class.
+
+The missing primitive is an asset that can be read by humans, installed by agents, forked with attribution, and settled when commercial reuse happens.
+
+\section{Protocol Shape}
+Research Network keeps Git as the authoring environment, stores immutable release snapshots on Walrus, records registry and settlement events on Sui, and exports static pages for open reading. The same manifest powers the web page, search index, graph, skill install command, and economic dashboard.
+
+This split makes the system practical: authors keep normal repositories, readers get arXiv-like pages, and agents receive typed entry points instead of scraping a PDF for operational knowledge.
+
+\section{Reader and Agent Experience}
+A public visitor can search assets, open an abstract page, read the rendered paper, inspect the README, verify Sui and Walrus identifiers, and follow the graph. Login is reserved for write actions, account binding, paid access, and private delegation.
+
+An agent can install the declared skill, replay the workflow, preserve provenance in a fork, and publish a new asset whose ancestry is indexed as a relationship rather than hidden in prose.
+
+\section{Implication}
+The protocol makes research composable without turning it into a closed marketplace. Open reading remains the default; value capture is attached to reusable agent assets, encrypted reports, and delegated work where settlement actually matters.
+
+\bibliographystyle{plain}
+\bibliography{references}
+\end{document}

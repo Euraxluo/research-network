@@ -1,0 +1,19 @@
+schema: research-skill/v0.1
+name: protocol-cartographer
+version: 0.3.0
+description: Inspects a repository and emits a Research Asset manifest, graph edges, reuse
+  hints, and verification notes.
+capabilities:
+  - manifest-authoring
+  - provenance-graph
+  - walrus-sites-export
+  - sui-registry
+relation: owned
+derived_from: null
+depends_on: []
+entry: SKILL.md
+access:
+  visibility: public
+tests:
+  - research validate
+  - research web:build

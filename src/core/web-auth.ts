@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import { buildStaticWeb } from "./web.js";
+import { PUBLIC_SHOWCASE_LOCALNET_DIR } from "./paths.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ZKLOGIN_ENTRY = path.resolve(HERE, "..", "web-auth", "zklogin-entry.ts");
@@ -162,7 +163,7 @@ export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteC
     throw new Error("Vercel auth shell requires GOOGLE_CLIENT_ID or GitHub auth env/secrets");
   }
 
-  await buildStaticWeb(outputDir);
+  await buildStaticWeb(outputDir, PUBLIC_SHOWCASE_LOCALNET_DIR);
 
   // Vite owns these interactive pages and hashed assets. Remove any legacy
   // static versions now; the Vite step recreates the current React pages.

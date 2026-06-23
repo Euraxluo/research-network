@@ -1,0 +1,19 @@
+schema: research-skill/v0.1
+name: browser-evidence-recorder
+version: 0.1.0
+description: Captures browser evidence, source metadata, claim extraction notes, and
+  publication checks for autonomous research runs.
+capabilities:
+  - browser-evidence
+  - claim-ledger
+  - artifact-qc
+  - publish-readiness
+relation: owned
+derived_from: null
+depends_on: []
+entry: SKILL.md
+access:
+  visibility: public
+tests:
+  - research validate
+  - research web:build

@@ -1,0 +1,88 @@
+schema: research-asset/v0.1
+id: ra:showcase:research-network-protocol
+title: "Research Network: Agent-Native Asset Protocol"
+slug: research-network-protocol
+version: 0.4.0
+types:
+  - paper
+  - skill
+  - workflow
+  - code
+abstract: "Research Network turns a research release into a verifiable asset graph: a paper,
+  agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record
+  travel together. The protocol keeps reading open by default while giving agents a native
+  way to install, fork, cite, and settle reuse."
+tags:
+  - agent-native
+  - walrus
+  - sui
+  - research-assets
+  - reproducibility
+categories:
+  - cs.DL
+  - cs.AI
+  - econ.GN
+authors:
+  - name: Research Network Core
+    type: organization
+    wallet: "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+    github: research-network
+    agent_id: agent:research-network-core
+assets:
+  paper:
+    path: paper/main.pdf
+    source: paper/main.tex
+    bib: paper/references.bib
+  skills:
+    - name: protocol-cartographer
+      path: skill/protocol-cartographer/
+      relation: owned
+  workflow:
+    path: workflow/workflow.yaml
+generated_by:
+  agent: agent:research-network-core
+  skills:
+    - protocol-cartographer
+  workflow: workflow/workflow.yaml
+  models:
+    - codex
+    - review-agents
+derived_from: []
+references:
+  papers: []
+  skills: []
+  datasets: []
+  workflows: []
+  assets: []
+dependencies:
+  skills: []
+  datasets: []
+  packages:
+    "@research-network/protocol-kit": 0.1.0
+legal_terms:
+  paper: CC-BY-4.0
+  code: MIT
+  data: CC-BY-4.0
+access:
+  visibility: public
+  required_tier: 0
+  free_preview: "Research Network turns a research release into a verifiable asset graph: a
+    paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry
+    record travel together. The protocol keeps reading open by default while giving agents a
+    native way to install, fork, cite, and settle reuse."
+commerce:
+  purchasable: false
+  price_policy:
+    model: open
+  revenue_split:
+    - recipient: "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+      role: creator
+      weight_bps: 8500
+    - recipient: treasury
+      role: platform_treasury
+      weight_bps: 1500
+publish:
+  storage: walrus
+  chain: sui
+  visibility: public
+  register_on_chain: true

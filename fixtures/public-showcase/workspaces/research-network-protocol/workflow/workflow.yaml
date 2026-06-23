@@ -1,0 +1,41 @@
+schema: research-workflow/v0.1
+name: publish-verifiable-research
+version: 0.4.0
+description: A public workflow for turning a Git repository into a readable, installable,
+  and indexable Research Network asset.
+inputs:
+  - repository
+  - paper source
+  - agent run log
+  - evaluation evidence
+outputs:
+  - asset manifest
+  - static abstract page
+  - skill package
+  - workflow graph
+stages:
+  - id: profile
+    name: Profile the contribution
+    instructions: Identify the scientific claim, executable components, access model, and
+      provenance anchors.
+  - id: package
+    name: Package the asset
+    instructions: Assemble paper, skill, workflow, checksums, license terms, and dependency metadata.
+  - id: verify
+    name: Verify and index
+    instructions: Validate the manifest, render the paper, replay protocol events, and inspect
+      graph edges.
+  - id: reuse
+    name: Prepare reuse
+    instructions: Expose install, fork, citation, and settlement paths for downstream humans and agents.
+quality_gates:
+  - id: manifest-complete
+    check: asset.yaml validates and declares paper, skill, and workflow paths
+  - id: rendered-paper
+    check: abstract page includes HTML rendering or PDF preview
+  - id: agent-assets-visible
+    check: skill cards and graph edges are visible in the static site
+tools:
+  - research validate
+  - research web:build
+  - Research Network indexer

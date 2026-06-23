@@ -14,6 +14,7 @@
     "test": "vitest run",
     "lint": "tsc -p tsconfig.json --noEmit",
     "validate:template": "tsx src/cli.ts validate templates/research-asset-template",
+    "showcase:build": "tsx scripts/build-public-showcase.ts",
     "demo": "tsx src/cli.ts dev:demo",
     "demo:pdf": "tsx src/cli.ts dev:demo-pdf",
     "move:build": "sui move build --path move --silence-warnings",

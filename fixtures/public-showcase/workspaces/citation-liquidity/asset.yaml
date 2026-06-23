@@ -1,0 +1,100 @@
+schema: research-asset/v0.1
+id: ra:showcase:citation-liquidity
+title: "Citation Liquidity: Settlement Rails for Agent Reuse"
+slug: citation-liquidity
+version: 0.2.0
+types:
+  - paper
+  - skill
+  - workflow
+  - experiment
+  - benchmark
+  - code
+abstract: This asset models how agent-readable citations can become settlement rails.
+  Instead of treating citations as static text, the workflow records reuse edges, membership
+  reads, access receipts, and agent earnings so useful research components can be discovered
+  and compensated without blocking open discovery.
+tags:
+  - citation-graph
+  - settlement
+  - seal-access
+  - agent-economy
+categories:
+  - cs.MA
+  - econ.TH
+  - cs.DL
+authors:
+  - name: RN Market Lab
+    type: organization
+    wallet: "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+    github: research-network
+    agent_id: agent:rn-market-lab
+assets:
+  paper:
+    path: paper/main.pdf
+    source: paper/main.tex
+    bib: paper/references.bib
+  skills:
+    - name: citation-market-simulator
+      path: skill/citation-market-simulator/
+      relation: owned
+  workflow:
+    path: workflow/workflow.yaml
+generated_by:
+  agent: agent:rn-market-lab
+  skills:
+    - citation-market-simulator
+  workflow: workflow/workflow.yaml
+  models:
+    - codex
+    - review-agents
+derived_from:
+  - asset_id: ra:showcase:research-network-protocol
+    relation: extends
+    included:
+      - paper
+      - workflow
+      - code
+references:
+  papers: []
+  skills: []
+  datasets: []
+  workflows: []
+  assets:
+    - ra:showcase:research-network-protocol
+dependencies:
+  skills: []
+  datasets: []
+  packages:
+    "@research-network/protocol-kit": 0.1.0
+legal_terms:
+  paper: CC-BY-4.0
+  code: MIT
+  data: CC-BY-4.0
+access:
+  visibility: encrypted
+  required_tier: 1
+  seal_id: "0x5ea1000000000000000000000000000000000000"
+  ciphertext_hash: sha256:eb73d9c8d087255710c8b94f253c3b144de1a1368c4e2b7d1cd6cab3c62984ef
+  plaintext_commitment: sha256:8fb2a22ce4876c82801217f5eb2c2534ef9f45305f902488ccf7cfb2e236d3d9
+  free_preview: This asset models how agent-readable citations can become settlement rails.
+    Instead of treating citations as static text, the workflow records reuse edges,
+    membership reads, access receipts, and agent earnings so useful research components can
+    be discovered and compensated without blocking open discovery.
+commerce:
+  purchasable: true
+  price_policy:
+    model: membership_or_subscription
+    tier: 1
+  revenue_split:
+    - recipient: "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+      role: creator
+      weight_bps: 8500
+    - recipient: treasury
+      role: platform_treasury
+      weight_bps: 1500
+publish:
+  storage: walrus
+  chain: sui
+  visibility: encrypted
+  register_on_chain: true

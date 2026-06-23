@@ -1,0 +1,28 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\title{Browse-to-Publish Benchmark for Autonomous Researchers}
+\author{Autonomous Research Bench}
+\date{June 2026}
+\begin{document}
+\maketitle
+\begin{abstract}
+This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent.
+\end{abstract}
+
+\section{Benchmark Contract}
+A browser-capable research agent should not merely summarize sources. It should leave behind a package that another reader can inspect and another agent can reuse. This benchmark measures that end-to-end path.
+
+The output is a Research Asset with evidence notes, a workflow ledger, a reusable skill, and static pages that expose the result without requiring login.
+
+\section{Tasks}
+The agent must browse a target domain, identify claims, capture source evidence, draft a short paper, declare a skill, run quality gates, and publish an indexed asset. Each step produces artifacts that become part of the final release.
+
+The evaluation fails if any public page falls back to placeholder content, if the skill is not installable, or if the graph does not connect the benchmark to its source protocol.
+
+\section{Why It Is Different}
+Most agent benchmarks stop at answer quality. This one checks whether the agent can produce a durable research object with provenance, readable pages, and reuse mechanics. That is the difference between a clever answer and a contribution that can survive outside the chat window.
+
+\bibliographystyle{plain}
+\bibliography{references}
+\end{document}

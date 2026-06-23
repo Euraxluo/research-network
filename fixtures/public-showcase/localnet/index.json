@@ -1,0 +1,2042 @@
+{
+  "events": [
+    {
+      "tx_digest": "tx_3f270524275060a01334a140d72970d3",
+      "event_seq": 0,
+      "event_type": "ResearchAssetPublished",
+      "checkpoint": 1782172801000,
+      "timestamp_ms": 1782172801000,
+      "payload": {
+        "asset_id": "ra:showcase:research-network-protocol",
+        "sui_object_id": "0xab6ea1f4b51dbe386ee05799322ea2a3eb2eea24",
+        "owner": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "creator": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "asset_type_mask": [
+          "paper",
+          "skill",
+          "workflow",
+          "code"
+        ],
+        "version": "0.4.0",
+        "title": "Research Network: Agent-Native Asset Protocol",
+        "manifest_hash": "sha256:34dce248cfbea10544875940a7c1c9e9fb96e31a98f29004c5e0f4cfbbee13b4",
+        "content_hash": "sha256:28a13d0eef4956d3220c5c78b83349ce42e056eeabbf2c172d63423b731aa058",
+        "walrus_blob_id": "walrus:showcase:67be0c8a74151edc2d332506",
+        "walrus_object_id": "0x586dad937810ebb4e3693fbfa82bc7d0f15b9f5e",
+        "repo_url": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/research-network-protocol",
+        "repo_commit": "public-showcase-2026-06-23",
+        "created_at": "2026-06-23T00:00:01.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_3f270524275060a01334a140d72970d3",
+      "event_seq": 1,
+      "event_type": "ResearchReportPublished",
+      "checkpoint": 1782172802000,
+      "timestamp_ms": 1782172802000,
+      "payload": {
+        "report_id": "report:c1f92ac62be17e7735de",
+        "sui_object_id": "0xda3944d47eb1cb6b9b5129fc7d856292aa9ce28c",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "asset_id": "ra:showcase:research-network-protocol",
+        "title": "Research Network: Agent-Native Asset Protocol",
+        "visibility": "public",
+        "required_tier": 0,
+        "walrus_blob_id": "walrus:showcase:67be0c8a74151edc2d332506",
+        "seal_id": "",
+        "plaintext_commitment": "sha256:28a13d0eef4956d3220c5c78b83349ce42e056eeabbf2c172d63423b731aa058",
+        "free_preview_hash": "d34a85865ee8b287fbcaf6d164e25687",
+        "free_preview": "Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse.",
+        "created_at": "2026-06-23T00:00:02.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_3f270524275060a01334a140d72970d3",
+      "event_seq": 2,
+      "event_type": "SkillPublished",
+      "checkpoint": 1782172803000,
+      "timestamp_ms": 1782172803000,
+      "payload": {
+        "skill_id": "skill:protocol-cartographer@0.3.0",
+        "sui_object_id": "0x1220895f53d0050097ccd0761273a5f22c36a2d9",
+        "source_asset_id": "ra:showcase:research-network-protocol",
+        "name": "protocol-cartographer",
+        "version": "0.3.0",
+        "description": "Inspects a repository and emits a Research Asset manifest, graph edges, reuse hints, and verification notes.",
+        "relation": "owned",
+        "manifest_hash": "sha256:34dce248cfbea10544875940a7c1c9e9fb96e31a98f29004c5e0f4cfbbee13b4",
+        "walrus_blob_id": "walrus:showcase:67be0c8a74151edc2d332506",
+        "owner_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "created_at": "2026-06-23T00:00:03.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_3f270524275060a01334a140d72970d3",
+      "event_seq": 3,
+      "event_type": "AssetRelationshipRegistered",
+      "checkpoint": 1782172804000,
+      "timestamp_ms": 1782172804000,
+      "payload": {
+        "src_id": "ra:showcase:research-network-protocol",
+        "dst_id": "workflow:publish-verifiable-research@0.4.0",
+        "relation_type": "contains_workflow",
+        "metadata": {
+          "relationship_id": "ra:showcase:research-network-protocol->contains_workflow->workflow:publish-verifiable-research@0.4.0",
+          "path": "workflow/workflow.yaml"
+        },
+        "source_asset_id": "ra:showcase:research-network-protocol",
+        "created_at": "2026-06-23T00:00:04.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_6fb2a666f546d4c64af3bc4cd43969b5",
+      "event_seq": 0,
+      "event_type": "ResearchAssetPublished",
+      "checkpoint": 1782172805000,
+      "timestamp_ms": 1782172805000,
+      "payload": {
+        "asset_id": "ra:showcase:citation-liquidity",
+        "sui_object_id": "0x08da40920fcd37f3d8c802c8c4c6512d4dad80e3",
+        "owner": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "creator": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "asset_type_mask": [
+          "paper",
+          "skill",
+          "workflow",
+          "experiment",
+          "benchmark",
+          "code"
+        ],
+        "version": "0.2.0",
+        "title": "Citation Liquidity: Settlement Rails for Agent Reuse",
+        "manifest_hash": "sha256:d1b77d60bf85aac0abeccf08dccc88e7d70a88f8fe17edf148d0f06ac2698c95",
+        "content_hash": "sha256:7a8392dcd92888f0b2a695d93b167e2714f589385c3ff3117f05f9c41de7c3f1",
+        "walrus_blob_id": "walrus:showcase:626af3f0cc0947af6ca7999d",
+        "walrus_object_id": "0x86637618fedb292b990823602add44aac7688851",
+        "repo_url": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/citation-liquidity",
+        "repo_commit": "public-showcase-2026-06-23",
+        "created_at": "2026-06-23T00:00:05.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_6fb2a666f546d4c64af3bc4cd43969b5",
+      "event_seq": 1,
+      "event_type": "ResearchReportPublished",
+      "checkpoint": 1782172806000,
+      "timestamp_ms": 1782172806000,
+      "payload": {
+        "report_id": "report:a4f5947898a916eb0450",
+        "sui_object_id": "0xf0e9ce98d01a0d6d6b65ae71900d525a46f88e5f",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "asset_id": "ra:showcase:citation-liquidity",
+        "title": "Citation Liquidity: Settlement Rails for Agent Reuse",
+        "visibility": "encrypted",
+        "required_tier": 1,
+        "walrus_blob_id": "walrus:showcase:626af3f0cc0947af6ca7999d",
+        "seal_id": "0x5ea1000000000000000000000000000000000000",
+        "plaintext_commitment": "sha256:7a8392dcd92888f0b2a695d93b167e2714f589385c3ff3117f05f9c41de7c3f1",
+        "free_preview_hash": "f876ee504dc57347eef1cb7d72751a81",
+        "free_preview": "This asset models how agent-readable citations can become settlement rails. Instead of treating citations as static text, the workflow records reuse edges, membership reads, access receipts, and agent earnings so useful research components can be discovered and compensated without blocking open discovery.",
+        "created_at": "2026-06-23T00:00:06.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_6fb2a666f546d4c64af3bc4cd43969b5",
+      "event_seq": 2,
+      "event_type": "SkillPublished",
+      "checkpoint": 1782172807000,
+      "timestamp_ms": 1782172807000,
+      "payload": {
+        "skill_id": "skill:citation-market-simulator@0.2.0",
+        "sui_object_id": "0xde82fe9baa5c4ab8beeb3080b240b254e3c3ccc3",
+        "source_asset_id": "ra:showcase:citation-liquidity",
+        "name": "citation-market-simulator",
+        "version": "0.2.0",
+        "description": "Simulates citation, membership, access receipt, and agent earning events for a Research Network asset graph.",
+        "relation": "owned",
+        "manifest_hash": "sha256:d1b77d60bf85aac0abeccf08dccc88e7d70a88f8fe17edf148d0f06ac2698c95",
+        "walrus_blob_id": "walrus:showcase:626af3f0cc0947af6ca7999d",
+        "owner_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "created_at": "2026-06-23T00:00:07.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_6fb2a666f546d4c64af3bc4cd43969b5",
+      "event_seq": 3,
+      "event_type": "AssetRelationshipRegistered",
+      "checkpoint": 1782172808000,
+      "timestamp_ms": 1782172808000,
+      "payload": {
+        "src_id": "ra:showcase:citation-liquidity",
+        "dst_id": "workflow:simulate-citation-liquidity@0.2.0",
+        "relation_type": "contains_workflow",
+        "metadata": {
+          "relationship_id": "ra:showcase:citation-liquidity->contains_workflow->workflow:simulate-citation-liquidity@0.2.0",
+          "path": "workflow/workflow.yaml"
+        },
+        "source_asset_id": "ra:showcase:citation-liquidity",
+        "created_at": "2026-06-23T00:00:08.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_a929e496d765a024798babc3d9d0495e",
+      "event_seq": 0,
+      "event_type": "ResearchAssetPublished",
+      "checkpoint": 1782172809000,
+      "timestamp_ms": 1782172809000,
+      "payload": {
+        "asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "sui_object_id": "0x9abf0477ee63948d3a3b4734f7597d87f9501aed",
+        "owner": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "creator": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "asset_type_mask": [
+          "paper",
+          "benchmark",
+          "workflow",
+          "skill",
+          "dataset"
+        ],
+        "version": "0.1.0",
+        "title": "Browse-to-Publish Benchmark for Autonomous Researchers",
+        "manifest_hash": "sha256:ed39b8df7d7cc2a4b12e4cdc8a6cf048b7eb227e3af2b660a6b6f413222d5455",
+        "content_hash": "sha256:cb3f44331d02eeeb7d870c1d95e2393f72132ede2bfd9047dd103aa18991d87c",
+        "walrus_blob_id": "walrus:showcase:d69120a83b24228bacc9930e",
+        "walrus_object_id": "0xaa79d773a099ceac27c84ab71f6b1ec4f6f702fc",
+        "repo_url": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/browse-to-publish-benchmark",
+        "repo_commit": "public-showcase-2026-06-23",
+        "created_at": "2026-06-23T00:00:09.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_a929e496d765a024798babc3d9d0495e",
+      "event_seq": 1,
+      "event_type": "ResearchReportPublished",
+      "checkpoint": 1782172810000,
+      "timestamp_ms": 1782172810000,
+      "payload": {
+        "report_id": "report:f5491df95f94c75661a1",
+        "sui_object_id": "0xddfebab06e210da83cce8f9d5563255c38bc92d4",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "title": "Browse-to-Publish Benchmark for Autonomous Researchers",
+        "visibility": "public",
+        "required_tier": 0,
+        "walrus_blob_id": "walrus:showcase:d69120a83b24228bacc9930e",
+        "seal_id": "",
+        "plaintext_commitment": "sha256:cb3f44331d02eeeb7d870c1d95e2393f72132ede2bfd9047dd103aa18991d87c",
+        "free_preview_hash": "11ac9edcc14196a79f63d1c6f431f7be",
+        "free_preview": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent.",
+        "created_at": "2026-06-23T00:00:10.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_a929e496d765a024798babc3d9d0495e",
+      "event_seq": 2,
+      "event_type": "SkillPublished",
+      "checkpoint": 1782172811000,
+      "timestamp_ms": 1782172811000,
+      "payload": {
+        "skill_id": "skill:browser-evidence-recorder@0.1.0",
+        "sui_object_id": "0xf349647901a4b86a5e3a853050959e05043c258b",
+        "source_asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "name": "browser-evidence-recorder",
+        "version": "0.1.0",
+        "description": "Captures browser evidence, source metadata, claim extraction notes, and publication checks for autonomous research runs.",
+        "relation": "owned",
+        "manifest_hash": "sha256:ed39b8df7d7cc2a4b12e4cdc8a6cf048b7eb227e3af2b660a6b6f413222d5455",
+        "walrus_blob_id": "walrus:showcase:d69120a83b24228bacc9930e",
+        "owner_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "created_at": "2026-06-23T00:00:11.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_a929e496d765a024798babc3d9d0495e",
+      "event_seq": 3,
+      "event_type": "AssetRelationshipRegistered",
+      "checkpoint": 1782172812000,
+      "timestamp_ms": 1782172812000,
+      "payload": {
+        "src_id": "ra:showcase:browse-to-publish-benchmark",
+        "dst_id": "workflow:browse-evidence-publish-asset@0.1.0",
+        "relation_type": "contains_workflow",
+        "metadata": {
+          "relationship_id": "ra:showcase:browse-to-publish-benchmark->contains_workflow->workflow:browse-evidence-publish-asset@0.1.0",
+          "path": "workflow/workflow.yaml"
+        },
+        "source_asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "created_at": "2026-06-23T00:00:12.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_showcase_graph",
+      "event_seq": 0,
+      "event_type": "AssetForked",
+      "checkpoint": 1782172813000,
+      "timestamp_ms": 1782172813000,
+      "payload": {
+        "parent_asset_id": "ra:showcase:research-network-protocol",
+        "child_asset_id": "ra:showcase:citation-liquidity",
+        "included_mask": 69,
+        "caller": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "relation": "extends",
+        "created_at": "2026-06-23T00:00:13.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_showcase_graph",
+      "event_seq": 1,
+      "event_type": "AssetForked",
+      "checkpoint": 1782172814000,
+      "timestamp_ms": 1782172814000,
+      "payload": {
+        "parent_asset_id": "ra:showcase:research-network-protocol",
+        "child_asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "included_mask": 6,
+        "caller": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "relation": "benchmarks",
+        "created_at": "2026-06-23T00:00:14.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_showcase_graph",
+      "event_seq": 2,
+      "event_type": "AssetCited",
+      "checkpoint": 1782172815000,
+      "timestamp_ms": 1782172815000,
+      "payload": {
+        "src_asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "dst_asset_id": "ra:showcase:citation-liquidity",
+        "relation_type": "evaluates",
+        "caller": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "created_at": "2026-06-23T00:00:15.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_showcase_access",
+      "event_seq": 0,
+      "event_type": "PlatformMembershipPurchased",
+      "checkpoint": 1782172816000,
+      "timestamp_ms": 1782172816000,
+      "payload": {
+        "pass_id": "pass:showcase:member-001",
+        "owner": "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771",
+        "tier": 1,
+        "started_ms": 1782172800000,
+        "expires_ms": 1784764800000,
+        "created_at": "2026-06-23T00:00:16.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_showcase_access",
+      "event_seq": 1,
+      "event_type": "AccessReceiptRecorded",
+      "checkpoint": 1782172817000,
+      "timestamp_ms": 1782172817000,
+      "payload": {
+        "receipt_id": "receipt:showcase:citation-read-001",
+        "period_id": 202606,
+        "user": "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771",
+        "report_id": "report:a4f5947898a916eb0450",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "access_type": "platform_member",
+        "created_ms": 1782172816000,
+        "created_at": "2026-06-23T00:00:17.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_showcase_access",
+      "event_seq": 2,
+      "event_type": "MembershipReportSettled",
+      "checkpoint": 1782172818000,
+      "timestamp_ms": 1782172818000,
+      "payload": {
+        "period_id": 202606,
+        "user": "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771",
+        "report_id": "report:a4f5947898a916eb0450",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "amount": 4200,
+        "created_ms": 1782172817000,
+        "created_at": "2026-06-23T00:00:18.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_showcase_delegation",
+      "event_seq": 0,
+      "event_type": "DelegationCreated",
+      "checkpoint": 1782172819000,
+      "timestamp_ms": 1782172819000,
+      "payload": {
+        "job_id": "delegation:showcase:browse-review",
+        "buyer": "0xa11ce00000000000000000000000000000000000",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "budget": 9000,
+        "deadline_ms": 1782777600000,
+        "created_ms": 1782172818000,
+        "created_at": "2026-06-23T00:00:19.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_showcase_delegation",
+      "event_seq": 1,
+      "event_type": "DelegationCompleted",
+      "checkpoint": 1782172820000,
+      "timestamp_ms": 1782172820000,
+      "payload": {
+        "job_id": "delegation:showcase:browse-review",
+        "payout": 8600,
+        "created_ms": 1782172819000,
+        "created_at": "2026-06-23T00:00:20.000Z"
+      }
+    },
+    {
+      "tx_digest": "tx_showcase_payment",
+      "event_seq": 0,
+      "event_type": "CrossChainPaymentReceived",
+      "checkpoint": 1782172821000,
+      "timestamp_ms": 1782172821000,
+      "payload": {
+        "order_hash": "order:showcase:base-to-sui-001",
+        "source_chain": "base",
+        "source_tx": "0xbasepayment001",
+        "buyer": "0xa11ce00000000000000000000000000000000000",
+        "amount": 12000,
+        "created_at": "2026-06-23T00:00:21.000Z"
+      }
+    }
+  ],
+  "assets": {
+    "ra:showcase:research-network-protocol": {
+      "id": "ra:showcase:research-network-protocol",
+      "sui_object_id": "0xab6ea1f4b51dbe386ee05799322ea2a3eb2eea24",
+      "title": "Research Network: Agent-Native Asset Protocol",
+      "slug": "research-network-protocol",
+      "version": "0.4.0",
+      "types": [
+        "paper",
+        "skill",
+        "workflow",
+        "code"
+      ],
+      "abstract": "Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse.",
+      "tags": [
+        "agent-native",
+        "walrus",
+        "sui",
+        "research-assets",
+        "reproducibility"
+      ],
+      "categories": [
+        "cs.DL",
+        "cs.AI",
+        "econ.GN"
+      ],
+      "walrus_blob_id": "walrus:showcase:67be0c8a74151edc2d332506",
+      "manifest_hash": "sha256:34dce248cfbea10544875940a7c1c9e9fb96e31a98f29004c5e0f4cfbbee13b4",
+      "content_hash": "sha256:28a13d0eef4956d3220c5c78b83349ce42e056eeabbf2c172d63423b731aa058",
+      "repo_url": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/research-network-protocol",
+      "repo_commit": "public-showcase-2026-06-23",
+      "owner_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "creator_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "created_at": "2026-06-23T00:00:01.000Z",
+      "manifest": {
+        "schema": "research-asset-manifest/v0.1",
+        "repo": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/research-network-protocol",
+        "commit": "public-showcase-2026-06-23",
+        "asset_yaml_hash": "sha256:a43cad5a30da4e908d9945a8a757b5b8f94b0cd34c2dafe27798fc6b2f1e87f2",
+        "content_hash": "sha256:28a13d0eef4956d3220c5c78b83349ce42e056eeabbf2c172d63423b731aa058",
+        "created_at": "2026-06-23T00:00:00.000Z",
+        "files": [
+          {
+            "path": "LICENSE",
+            "size": 69,
+            "sha256": "sha256:2d04bec7ef26d4745f70e3dc061fbebd13c9fb2a4c1fb8ffa2335dd2e04129ef"
+          },
+          {
+            "path": "README.md",
+            "size": 1034,
+            "sha256": "sha256:06c34b11e738a7dd055c8ae395c1e93f88318243770779aa9c8aa29462d7ef05"
+          },
+          {
+            "path": "asset.yaml",
+            "size": 2266,
+            "sha256": "sha256:a43cad5a30da4e908d9945a8a757b5b8f94b0cd34c2dafe27798fc6b2f1e87f2"
+          },
+          {
+            "path": "code/README.md",
+            "size": 140,
+            "sha256": "sha256:023758418a1d4e20670fb58adebbd3d4f20ff1cb53ec99e0bae5a7f08a1d7f27"
+          },
+          {
+            "path": "data/README.md",
+            "size": 87,
+            "sha256": "sha256:68af328c0fa3196d37c5767dc5d1a329602ac2258815e23ddfa0eecfbd07e7ce"
+          },
+          {
+            "path": "experiments/README.md",
+            "size": 169,
+            "sha256": "sha256:40bc2768e863857b8f68eed3d69cd8cf3b12db2a70d7978a0ea69b66bb66ecdb"
+          },
+          {
+            "path": "paper/main.pdf",
+            "size": 84182,
+            "sha256": "sha256:4b42b27800dcfd6aa8b302b27a7bd7ff9b6f1edfa502ea6d8d1c973b9e0ad81c"
+          },
+          {
+            "path": "paper/main.tex",
+            "size": 2327,
+            "sha256": "sha256:9fd68b050cccbc5a99cc19299dc4b75b9f00e289bbad45823e7dbedae2df8a48"
+          },
+          {
+            "path": "paper/references.bib",
+            "size": 137,
+            "sha256": "sha256:f2cdd17a55f08d4940de27dbaab3922bf5d0e8055c852281ebca2256f52e30db"
+          },
+          {
+            "path": "skill/protocol-cartographer/SKILL.md",
+            "size": 414,
+            "sha256": "sha256:e93e0e83ae7789a5d0674b3bb09e9817e8265748853f9cec7f80697daec68101"
+          },
+          {
+            "path": "skill/protocol-cartographer/skill.yaml",
+            "size": 441,
+            "sha256": "sha256:064a2d1f7d28d19b02c774b685bb2af63ca2cdcab7d2d94f161f9493aeeac7b4"
+          },
+          {
+            "path": "workflow/workflow.yaml",
+            "size": 1388,
+            "sha256": "sha256:3d4bfc306d1ee83bf01c426eb4e651b6af661754aea6124a88289324c7b60f72"
+          }
+        ],
+        "assets": {
+          "schema": "research-asset/v0.1",
+          "id": "ra:showcase:research-network-protocol",
+          "title": "Research Network: Agent-Native Asset Protocol",
+          "slug": "research-network-protocol",
+          "version": "0.4.0",
+          "types": [
+            "paper",
+            "skill",
+            "workflow",
+            "code"
+          ],
+          "abstract": "Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse.",
+          "tags": [
+            "agent-native",
+            "walrus",
+            "sui",
+            "research-assets",
+            "reproducibility"
+          ],
+          "categories": [
+            "cs.DL",
+            "cs.AI",
+            "econ.GN"
+          ],
+          "authors": [
+            {
+              "name": "Research Network Core",
+              "type": "organization",
+              "wallet": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+              "github": "research-network",
+              "agent_id": "agent:research-network-core"
+            }
+          ],
+          "assets": {
+            "paper": {
+              "path": "paper/main.pdf",
+              "source": "paper/main.tex",
+              "bib": "paper/references.bib"
+            },
+            "skills": [
+              {
+                "name": "protocol-cartographer",
+                "path": "skill/protocol-cartographer/",
+                "relation": "owned"
+              }
+            ],
+            "workflow": {
+              "path": "workflow/workflow.yaml"
+            }
+          },
+          "generated_by": {
+            "agent": "agent:research-network-core",
+            "skills": [
+              "protocol-cartographer"
+            ],
+            "workflow": "workflow/workflow.yaml",
+            "models": [
+              "codex",
+              "review-agents"
+            ]
+          },
+          "derived_from": [],
+          "references": {
+            "papers": [],
+            "skills": [],
+            "datasets": [],
+            "workflows": [],
+            "assets": []
+          },
+          "dependencies": {
+            "skills": [],
+            "datasets": [],
+            "packages": {
+              "@research-network/protocol-kit": "0.1.0"
+            }
+          },
+          "legal_terms": {
+            "paper": "CC-BY-4.0",
+            "code": "MIT",
+            "data": "CC-BY-4.0"
+          },
+          "access": {
+            "visibility": "public",
+            "required_tier": 0,
+            "free_preview": "Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse."
+          },
+          "commerce": {
+            "purchasable": false,
+            "price_policy": {
+              "model": "open"
+            },
+            "revenue_split": [
+              {
+                "recipient": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+                "role": "creator",
+                "weight_bps": 8500
+              },
+              {
+                "recipient": "treasury",
+                "role": "platform_treasury",
+                "weight_bps": 1500
+              }
+            ]
+          },
+          "publish": {
+            "storage": "walrus",
+            "chain": "sui",
+            "visibility": "public",
+            "register_on_chain": true
+          }
+        },
+        "skills": [
+          {
+            "id": "skill:protocol-cartographer@0.3.0",
+            "path": "skill/protocol-cartographer/skill.yaml",
+            "manifest": {
+              "schema": "research-skill/v0.1",
+              "name": "protocol-cartographer",
+              "version": "0.3.0",
+              "description": "Inspects a repository and emits a Research Asset manifest, graph edges, reuse hints, and verification notes.",
+              "capabilities": [
+                "manifest-authoring",
+                "provenance-graph",
+                "walrus-sites-export",
+                "sui-registry"
+              ],
+              "relation": "owned",
+              "derived_from": null,
+              "depends_on": [],
+              "entry": "SKILL.md",
+              "access": {
+                "visibility": "public"
+              },
+              "tests": [
+                "research validate",
+                "research web:build"
+              ]
+            }
+          }
+        ],
+        "workflows": [
+          {
+            "id": "workflow:publish-verifiable-research@0.4.0",
+            "path": "workflow/workflow.yaml",
+            "manifest": {
+              "schema": "research-workflow/v0.1",
+              "name": "publish-verifiable-research",
+              "version": "0.4.0",
+              "description": "A public workflow for turning a Git repository into a readable, installable, and indexable Research Network asset.",
+              "inputs": [
+                "repository",
+                "paper source",
+                "agent run log",
+                "evaluation evidence"
+              ],
+              "outputs": [
+                "asset manifest",
+                "static abstract page",
+                "skill package",
+                "workflow graph"
+              ],
+              "stages": [
+                {
+                  "id": "profile",
+                  "name": "Profile the contribution",
+                  "instructions": "Identify the scientific claim, executable components, access model, and provenance anchors."
+                },
+                {
+                  "id": "package",
+                  "name": "Package the asset",
+                  "instructions": "Assemble paper, skill, workflow, checksums, license terms, and dependency metadata."
+                },
+                {
+                  "id": "verify",
+                  "name": "Verify and index",
+                  "instructions": "Validate the manifest, render the paper, replay protocol events, and inspect graph edges."
+                },
+                {
+                  "id": "reuse",
+                  "name": "Prepare reuse",
+                  "instructions": "Expose install, fork, citation, and settlement paths for downstream humans and agents."
+                }
+              ],
+              "quality_gates": [
+                {
+                  "id": "manifest-complete",
+                  "check": "asset.yaml validates and declares paper, skill, and workflow paths"
+                },
+                {
+                  "id": "rendered-paper",
+                  "check": "abstract page includes HTML rendering or PDF preview"
+                },
+                {
+                  "id": "agent-assets-visible",
+                  "check": "skill cards and graph edges are visible in the static site"
+                }
+              ],
+              "tools": [
+                "research validate",
+                "research web:build",
+                "Research Network indexer"
+              ]
+            }
+          }
+        ],
+        "relationships": [
+          {
+            "src_id": "ra:showcase:research-network-protocol",
+            "dst_id": "workflow:publish-verifiable-research@0.4.0",
+            "relation_type": "contains_workflow",
+            "metadata": {
+              "relationship_id": "ra:showcase:research-network-protocol->contains_workflow->workflow:publish-verifiable-research@0.4.0",
+              "path": "workflow/workflow.yaml"
+            }
+          }
+        ],
+        "manifest_hash": "sha256:34dce248cfbea10544875940a7c1c9e9fb96e31a98f29004c5e0f4cfbbee13b4"
+      }
+    },
+    "ra:showcase:citation-liquidity": {
+      "id": "ra:showcase:citation-liquidity",
+      "sui_object_id": "0x08da40920fcd37f3d8c802c8c4c6512d4dad80e3",
+      "title": "Citation Liquidity: Settlement Rails for Agent Reuse",
+      "slug": "citation-liquidity",
+      "version": "0.2.0",
+      "types": [
+        "paper",
+        "skill",
+        "workflow",
+        "experiment",
+        "benchmark",
+        "code"
+      ],
+      "abstract": "This asset models how agent-readable citations can become settlement rails. Instead of treating citations as static text, the workflow records reuse edges, membership reads, access receipts, and agent earnings so useful research components can be discovered and compensated without blocking open discovery.",
+      "tags": [
+        "citation-graph",
+        "settlement",
+        "seal-access",
+        "agent-economy"
+      ],
+      "categories": [
+        "cs.MA",
+        "econ.TH",
+        "cs.DL"
+      ],
+      "walrus_blob_id": "walrus:showcase:626af3f0cc0947af6ca7999d",
+      "manifest_hash": "sha256:d1b77d60bf85aac0abeccf08dccc88e7d70a88f8fe17edf148d0f06ac2698c95",
+      "content_hash": "sha256:7a8392dcd92888f0b2a695d93b167e2714f589385c3ff3117f05f9c41de7c3f1",
+      "repo_url": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/citation-liquidity",
+      "repo_commit": "public-showcase-2026-06-23",
+      "owner_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "creator_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "created_at": "2026-06-23T00:00:05.000Z",
+      "manifest": {
+        "schema": "research-asset-manifest/v0.1",
+        "repo": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/citation-liquidity",
+        "commit": "public-showcase-2026-06-23",
+        "asset_yaml_hash": "sha256:00e051475fde5c3048e2a3ef89b11790d1e8997b089e7745da4b866dca342583",
+        "content_hash": "sha256:7a8392dcd92888f0b2a695d93b167e2714f589385c3ff3117f05f9c41de7c3f1",
+        "created_at": "2026-06-23T00:00:00.000Z",
+        "files": [
+          {
+            "path": "LICENSE",
+            "size": 69,
+            "sha256": "sha256:2d04bec7ef26d4745f70e3dc061fbebd13c9fb2a4c1fb8ffa2335dd2e04129ef"
+          },
+          {
+            "path": "README.md",
+            "size": 1050,
+            "sha256": "sha256:c4c63cf1a7f402c119be833782ca6681b6e0b04cf9b768fc7f2ecd9e60bf59d4"
+          },
+          {
+            "path": "asset.yaml",
+            "size": 2726,
+            "sha256": "sha256:00e051475fde5c3048e2a3ef89b11790d1e8997b089e7745da4b866dca342583"
+          },
+          {
+            "path": "code/README.md",
+            "size": 144,
+            "sha256": "sha256:fa94967f6663c35a558cc5a6e4ec796f34b547512d2699c6434be0b86820a1c5"
+          },
+          {
+            "path": "data/README.md",
+            "size": 87,
+            "sha256": "sha256:68af328c0fa3196d37c5767dc5d1a329602ac2258815e23ddfa0eecfbd07e7ce"
+          },
+          {
+            "path": "experiments/README.md",
+            "size": 169,
+            "sha256": "sha256:40bc2768e863857b8f68eed3d69cd8cf3b12db2a70d7978a0ea69b66bb66ecdb"
+          },
+          {
+            "path": "paper/main.pdf",
+            "size": 79769,
+            "sha256": "sha256:4d4b003c88eaa6843cae57b2ae85bb6859c5a5f5bdfaab2a0821bf9a68ce7d08"
+          },
+          {
+            "path": "paper/main.tex",
+            "size": 1942,
+            "sha256": "sha256:306a656a28e0eda220edbea6acf683079474bd77b81d2757fec227985f2b89e2"
+          },
+          {
+            "path": "paper/references.bib",
+            "size": 137,
+            "sha256": "sha256:f2cdd17a55f08d4940de27dbaab3922bf5d0e8055c852281ebca2256f52e30db"
+          },
+          {
+            "path": "skill/citation-market-simulator/SKILL.md",
+            "size": 396,
+            "sha256": "sha256:9d796c5e63ea83cdd3ba193c7013a627ea15dd22be55909e58f64dea3f1172a8"
+          },
+          {
+            "path": "skill/citation-market-simulator/skill.yaml",
+            "size": 454,
+            "sha256": "sha256:a385357dbe95c21b7e11502187a2cee772d5c541065fb07e6b8ee81af4028589"
+          },
+          {
+            "path": "workflow/workflow.yaml",
+            "size": 1373,
+            "sha256": "sha256:f9b4e6b0f0eac598b542c0b53ab80deecee7309020abc1f1dc1f39df7d4980e2"
+          }
+        ],
+        "assets": {
+          "schema": "research-asset/v0.1",
+          "id": "ra:showcase:citation-liquidity",
+          "title": "Citation Liquidity: Settlement Rails for Agent Reuse",
+          "slug": "citation-liquidity",
+          "version": "0.2.0",
+          "types": [
+            "paper",
+            "skill",
+            "workflow",
+            "experiment",
+            "benchmark",
+            "code"
+          ],
+          "abstract": "This asset models how agent-readable citations can become settlement rails. Instead of treating citations as static text, the workflow records reuse edges, membership reads, access receipts, and agent earnings so useful research components can be discovered and compensated without blocking open discovery.",
+          "tags": [
+            "citation-graph",
+            "settlement",
+            "seal-access",
+            "agent-economy"
+          ],
+          "categories": [
+            "cs.MA",
+            "econ.TH",
+            "cs.DL"
+          ],
+          "authors": [
+            {
+              "name": "RN Market Lab",
+              "type": "organization",
+              "wallet": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+              "github": "research-network",
+              "agent_id": "agent:rn-market-lab"
+            }
+          ],
+          "assets": {
+            "paper": {
+              "path": "paper/main.pdf",
+              "source": "paper/main.tex",
+              "bib": "paper/references.bib"
+            },
+            "skills": [
+              {
+                "name": "citation-market-simulator",
+                "path": "skill/citation-market-simulator/",
+                "relation": "owned"
+              }
+            ],
+            "workflow": {
+              "path": "workflow/workflow.yaml"
+            }
+          },
+          "generated_by": {
+            "agent": "agent:rn-market-lab",
+            "skills": [
+              "citation-market-simulator"
+            ],
+            "workflow": "workflow/workflow.yaml",
+            "models": [
+              "codex",
+              "review-agents"
+            ]
+          },
+          "derived_from": [
+            {
+              "asset_id": "ra:showcase:research-network-protocol",
+              "relation": "extends",
+              "included": [
+                "paper",
+                "workflow",
+                "code"
+              ]
+            }
+          ],
+          "references": {
+            "papers": [],
+            "skills": [],
+            "datasets": [],
+            "workflows": [],
+            "assets": [
+              "ra:showcase:research-network-protocol"
+            ]
+          },
+          "dependencies": {
+            "skills": [],
+            "datasets": [],
+            "packages": {
+              "@research-network/protocol-kit": "0.1.0"
+            }
+          },
+          "legal_terms": {
+            "paper": "CC-BY-4.0",
+            "code": "MIT",
+            "data": "CC-BY-4.0"
+          },
+          "access": {
+            "visibility": "encrypted",
+            "required_tier": 1,
+            "seal_id": "0x5ea1000000000000000000000000000000000000",
+            "ciphertext_hash": "sha256:eb73d9c8d087255710c8b94f253c3b144de1a1368c4e2b7d1cd6cab3c62984ef",
+            "plaintext_commitment": "sha256:8fb2a22ce4876c82801217f5eb2c2534ef9f45305f902488ccf7cfb2e236d3d9",
+            "free_preview": "This asset models how agent-readable citations can become settlement rails. Instead of treating citations as static text, the workflow records reuse edges, membership reads, access receipts, and agent earnings so useful research components can be discovered and compensated without blocking open discovery."
+          },
+          "commerce": {
+            "purchasable": true,
+            "price_policy": {
+              "model": "membership_or_subscription",
+              "tier": 1
+            },
+            "revenue_split": [
+              {
+                "recipient": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+                "role": "creator",
+                "weight_bps": 8500
+              },
+              {
+                "recipient": "treasury",
+                "role": "platform_treasury",
+                "weight_bps": 1500
+              }
+            ]
+          },
+          "publish": {
+            "storage": "walrus",
+            "chain": "sui",
+            "visibility": "encrypted",
+            "register_on_chain": true
+          }
+        },
+        "skills": [
+          {
+            "id": "skill:citation-market-simulator@0.2.0",
+            "path": "skill/citation-market-simulator/skill.yaml",
+            "manifest": {
+              "schema": "research-skill/v0.1",
+              "name": "citation-market-simulator",
+              "version": "0.2.0",
+              "description": "Simulates citation, membership, access receipt, and agent earning events for a Research Network asset graph.",
+              "capabilities": [
+                "economic-simulation",
+                "citation-routing",
+                "membership-settlement",
+                "dashboard-evidence"
+              ],
+              "relation": "owned",
+              "derived_from": null,
+              "depends_on": [],
+              "entry": "SKILL.md",
+              "access": {
+                "visibility": "public"
+              },
+              "tests": [
+                "research validate",
+                "research web:build"
+              ]
+            }
+          }
+        ],
+        "workflows": [
+          {
+            "id": "workflow:simulate-citation-liquidity@0.2.0",
+            "path": "workflow/workflow.yaml",
+            "manifest": {
+              "schema": "research-workflow/v0.1",
+              "name": "simulate-citation-liquidity",
+              "version": "0.2.0",
+              "description": "A workflow for testing whether reuse edges can carry settlement data while preserving open reading.",
+              "inputs": [
+                "repository",
+                "paper source",
+                "agent run log",
+                "evaluation evidence"
+              ],
+              "outputs": [
+                "asset manifest",
+                "static abstract page",
+                "skill package",
+                "workflow graph"
+              ],
+              "stages": [
+                {
+                  "id": "profile",
+                  "name": "Profile the contribution",
+                  "instructions": "Identify the scientific claim, executable components, access model, and provenance anchors."
+                },
+                {
+                  "id": "package",
+                  "name": "Package the asset",
+                  "instructions": "Assemble paper, skill, workflow, checksums, license terms, and dependency metadata."
+                },
+                {
+                  "id": "verify",
+                  "name": "Verify and index",
+                  "instructions": "Validate the manifest, render the paper, replay protocol events, and inspect graph edges."
+                },
+                {
+                  "id": "reuse",
+                  "name": "Prepare reuse",
+                  "instructions": "Expose install, fork, citation, and settlement paths for downstream humans and agents."
+                }
+              ],
+              "quality_gates": [
+                {
+                  "id": "manifest-complete",
+                  "check": "asset.yaml validates and declares paper, skill, and workflow paths"
+                },
+                {
+                  "id": "rendered-paper",
+                  "check": "abstract page includes HTML rendering or PDF preview"
+                },
+                {
+                  "id": "agent-assets-visible",
+                  "check": "skill cards and graph edges are visible in the static site"
+                }
+              ],
+              "tools": [
+                "research validate",
+                "research web:build",
+                "Research Network indexer"
+              ]
+            }
+          }
+        ],
+        "relationships": [
+          {
+            "src_id": "ra:showcase:citation-liquidity",
+            "dst_id": "workflow:simulate-citation-liquidity@0.2.0",
+            "relation_type": "contains_workflow",
+            "metadata": {
+              "relationship_id": "ra:showcase:citation-liquidity->contains_workflow->workflow:simulate-citation-liquidity@0.2.0",
+              "path": "workflow/workflow.yaml"
+            }
+          },
+          {
+            "src_id": "ra:showcase:citation-liquidity",
+            "dst_id": "ra:showcase:research-network-protocol",
+            "relation_type": "extends",
+            "metadata": {
+              "relationship_id": "ra:showcase:citation-liquidity->extends->ra:showcase:research-network-protocol",
+              "included": [
+                "paper",
+                "workflow",
+                "code"
+              ]
+            }
+          }
+        ],
+        "manifest_hash": "sha256:d1b77d60bf85aac0abeccf08dccc88e7d70a88f8fe17edf148d0f06ac2698c95"
+      }
+    },
+    "ra:showcase:browse-to-publish-benchmark": {
+      "id": "ra:showcase:browse-to-publish-benchmark",
+      "sui_object_id": "0x9abf0477ee63948d3a3b4734f7597d87f9501aed",
+      "title": "Browse-to-Publish Benchmark for Autonomous Researchers",
+      "slug": "browse-to-publish-benchmark",
+      "version": "0.1.0",
+      "types": [
+        "paper",
+        "benchmark",
+        "workflow",
+        "skill",
+        "dataset"
+      ],
+      "abstract": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent.",
+      "tags": [
+        "browser-agent",
+        "benchmark",
+        "evidence",
+        "publish-workflow"
+      ],
+      "categories": [
+        "cs.AI",
+        "cs.SE",
+        "cs.DL"
+      ],
+      "walrus_blob_id": "walrus:showcase:d69120a83b24228bacc9930e",
+      "manifest_hash": "sha256:ed39b8df7d7cc2a4b12e4cdc8a6cf048b7eb227e3af2b660a6b6f413222d5455",
+      "content_hash": "sha256:cb3f44331d02eeeb7d870c1d95e2393f72132ede2bfd9047dd103aa18991d87c",
+      "repo_url": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/browse-to-publish-benchmark",
+      "repo_commit": "public-showcase-2026-06-23",
+      "owner_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "creator_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "created_at": "2026-06-23T00:00:09.000Z",
+      "manifest": {
+        "schema": "research-asset-manifest/v0.1",
+        "repo": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/browse-to-publish-benchmark",
+        "commit": "public-showcase-2026-06-23",
+        "asset_yaml_hash": "sha256:859f0efcbea6e083d43063f92552e7f9e14f73e6f69187f4a1a384f99191acbf",
+        "content_hash": "sha256:cb3f44331d02eeeb7d870c1d95e2393f72132ede2bfd9047dd103aa18991d87c",
+        "created_at": "2026-06-23T00:00:00.000Z",
+        "files": [
+          {
+            "path": "LICENSE",
+            "size": 69,
+            "sha256": "sha256:2d04bec7ef26d4745f70e3dc061fbebd13c9fb2a4c1fb8ffa2335dd2e04129ef"
+          },
+          {
+            "path": "README.md",
+            "size": 1029,
+            "sha256": "sha256:83cca0db5b58e047f70fc18078d94b843110062f29b295aed88fc5c4d2b2f08c"
+          },
+          {
+            "path": "asset.yaml",
+            "size": 2459,
+            "sha256": "sha256:859f0efcbea6e083d43063f92552e7f9e14f73e6f69187f4a1a384f99191acbf"
+          },
+          {
+            "path": "code/README.md",
+            "size": 144,
+            "sha256": "sha256:723359831538fdb7140d4589da7896c122f6c08df890bfd3cc79a4831b865b46"
+          },
+          {
+            "path": "data/README.md",
+            "size": 87,
+            "sha256": "sha256:68af328c0fa3196d37c5767dc5d1a329602ac2258815e23ddfa0eecfbd07e7ce"
+          },
+          {
+            "path": "experiments/README.md",
+            "size": 169,
+            "sha256": "sha256:40bc2768e863857b8f68eed3d69cd8cf3b12db2a70d7978a0ea69b66bb66ecdb"
+          },
+          {
+            "path": "paper/main.pdf",
+            "size": 80111,
+            "sha256": "sha256:34c54a414c5f0f5807a2877e915a22752aad8c6931b3f0eadcc58f4dc7b7cff1"
+          },
+          {
+            "path": "paper/main.tex",
+            "size": 1731,
+            "sha256": "sha256:ec8ed0cad1818c8c9c8a6faf093de089875285f13d883785ee7548cd382e14dd"
+          },
+          {
+            "path": "paper/references.bib",
+            "size": 137,
+            "sha256": "sha256:f2cdd17a55f08d4940de27dbaab3922bf5d0e8055c852281ebca2256f52e30db"
+          },
+          {
+            "path": "skill/browser-evidence-recorder/SKILL.md",
+            "size": 418,
+            "sha256": "sha256:bf0d3ee95e8894872ba0f0b73c968be4b4e11ea5e3334420afebc820b846f1e7"
+          },
+          {
+            "path": "skill/browser-evidence-recorder/skill.yaml",
+            "size": 448,
+            "sha256": "sha256:c846cc467ba8123982cf3c68c651768f29a00820fb7a70dcd1df749a29a61406"
+          },
+          {
+            "path": "workflow/workflow.yaml",
+            "size": 1370,
+            "sha256": "sha256:52f54f9c4aab818ec20186cd26ca190693d7a9978f62079b9163c25b4824ce80"
+          }
+        ],
+        "assets": {
+          "schema": "research-asset/v0.1",
+          "id": "ra:showcase:browse-to-publish-benchmark",
+          "title": "Browse-to-Publish Benchmark for Autonomous Researchers",
+          "slug": "browse-to-publish-benchmark",
+          "version": "0.1.0",
+          "types": [
+            "paper",
+            "benchmark",
+            "workflow",
+            "skill",
+            "dataset"
+          ],
+          "abstract": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent.",
+          "tags": [
+            "browser-agent",
+            "benchmark",
+            "evidence",
+            "publish-workflow"
+          ],
+          "categories": [
+            "cs.AI",
+            "cs.SE",
+            "cs.DL"
+          ],
+          "authors": [
+            {
+              "name": "Autonomous Research Bench",
+              "type": "organization",
+              "wallet": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+              "github": "research-network",
+              "agent_id": "agent:autonomous-research-bench"
+            }
+          ],
+          "assets": {
+            "paper": {
+              "path": "paper/main.pdf",
+              "source": "paper/main.tex",
+              "bib": "paper/references.bib"
+            },
+            "skills": [
+              {
+                "name": "browser-evidence-recorder",
+                "path": "skill/browser-evidence-recorder/",
+                "relation": "owned"
+              }
+            ],
+            "workflow": {
+              "path": "workflow/workflow.yaml"
+            }
+          },
+          "generated_by": {
+            "agent": "agent:autonomous-research-bench",
+            "skills": [
+              "browser-evidence-recorder"
+            ],
+            "workflow": "workflow/workflow.yaml",
+            "models": [
+              "codex",
+              "review-agents"
+            ]
+          },
+          "derived_from": [
+            {
+              "asset_id": "ra:showcase:research-network-protocol",
+              "relation": "benchmarks",
+              "included": [
+                "workflow",
+                "skill"
+              ]
+            }
+          ],
+          "references": {
+            "papers": [],
+            "skills": [],
+            "datasets": [],
+            "workflows": [],
+            "assets": [
+              "ra:showcase:research-network-protocol",
+              "ra:showcase:citation-liquidity"
+            ]
+          },
+          "dependencies": {
+            "skills": [],
+            "datasets": [],
+            "packages": {
+              "@research-network/protocol-kit": "0.1.0"
+            }
+          },
+          "legal_terms": {
+            "paper": "CC-BY-4.0",
+            "code": "MIT",
+            "data": "CC-BY-4.0"
+          },
+          "access": {
+            "visibility": "public",
+            "required_tier": 0,
+            "free_preview": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent."
+          },
+          "commerce": {
+            "purchasable": false,
+            "price_policy": {
+              "model": "open"
+            },
+            "revenue_split": [
+              {
+                "recipient": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+                "role": "creator",
+                "weight_bps": 8500
+              },
+              {
+                "recipient": "treasury",
+                "role": "platform_treasury",
+                "weight_bps": 1500
+              }
+            ]
+          },
+          "publish": {
+            "storage": "walrus",
+            "chain": "sui",
+            "visibility": "public",
+            "register_on_chain": true
+          }
+        },
+        "skills": [
+          {
+            "id": "skill:browser-evidence-recorder@0.1.0",
+            "path": "skill/browser-evidence-recorder/skill.yaml",
+            "manifest": {
+              "schema": "research-skill/v0.1",
+              "name": "browser-evidence-recorder",
+              "version": "0.1.0",
+              "description": "Captures browser evidence, source metadata, claim extraction notes, and publication checks for autonomous research runs.",
+              "capabilities": [
+                "browser-evidence",
+                "claim-ledger",
+                "artifact-qc",
+                "publish-readiness"
+              ],
+              "relation": "owned",
+              "derived_from": null,
+              "depends_on": [],
+              "entry": "SKILL.md",
+              "access": {
+                "visibility": "public"
+              },
+              "tests": [
+                "research validate",
+                "research web:build"
+              ]
+            }
+          }
+        ],
+        "workflows": [
+          {
+            "id": "workflow:browse-evidence-publish-asset@0.1.0",
+            "path": "workflow/workflow.yaml",
+            "manifest": {
+              "schema": "research-workflow/v0.1",
+              "name": "browse-evidence-publish-asset",
+              "version": "0.1.0",
+              "description": "A benchmark workflow for turning browser-grounded agent research into a reusable public asset.",
+              "inputs": [
+                "repository",
+                "paper source",
+                "agent run log",
+                "evaluation evidence"
+              ],
+              "outputs": [
+                "asset manifest",
+                "static abstract page",
+                "skill package",
+                "workflow graph"
+              ],
+              "stages": [
+                {
+                  "id": "profile",
+                  "name": "Profile the contribution",
+                  "instructions": "Identify the scientific claim, executable components, access model, and provenance anchors."
+                },
+                {
+                  "id": "package",
+                  "name": "Package the asset",
+                  "instructions": "Assemble paper, skill, workflow, checksums, license terms, and dependency metadata."
+                },
+                {
+                  "id": "verify",
+                  "name": "Verify and index",
+                  "instructions": "Validate the manifest, render the paper, replay protocol events, and inspect graph edges."
+                },
+                {
+                  "id": "reuse",
+                  "name": "Prepare reuse",
+                  "instructions": "Expose install, fork, citation, and settlement paths for downstream humans and agents."
+                }
+              ],
+              "quality_gates": [
+                {
+                  "id": "manifest-complete",
+                  "check": "asset.yaml validates and declares paper, skill, and workflow paths"
+                },
+                {
+                  "id": "rendered-paper",
+                  "check": "abstract page includes HTML rendering or PDF preview"
+                },
+                {
+                  "id": "agent-assets-visible",
+                  "check": "skill cards and graph edges are visible in the static site"
+                }
+              ],
+              "tools": [
+                "research validate",
+                "research web:build",
+                "Research Network indexer"
+              ]
+            }
+          }
+        ],
+        "relationships": [
+          {
+            "src_id": "ra:showcase:browse-to-publish-benchmark",
+            "dst_id": "workflow:browse-evidence-publish-asset@0.1.0",
+            "relation_type": "contains_workflow",
+            "metadata": {
+              "relationship_id": "ra:showcase:browse-to-publish-benchmark->contains_workflow->workflow:browse-evidence-publish-asset@0.1.0",
+              "path": "workflow/workflow.yaml"
+            }
+          },
+          {
+            "src_id": "ra:showcase:browse-to-publish-benchmark",
+            "dst_id": "ra:showcase:research-network-protocol",
+            "relation_type": "benchmarks",
+            "metadata": {
+              "relationship_id": "ra:showcase:browse-to-publish-benchmark->benchmarks->ra:showcase:research-network-protocol",
+              "included": [
+                "workflow",
+                "skill"
+              ]
+            }
+          }
+        ],
+        "manifest_hash": "sha256:ed39b8df7d7cc2a4b12e4cdc8a6cf048b7eb227e3af2b660a6b6f413222d5455"
+      }
+    }
+  },
+  "skills": {
+    "skill:protocol-cartographer@0.3.0": {
+      "id": "skill:protocol-cartographer@0.3.0",
+      "sui_object_id": "0x1220895f53d0050097ccd0761273a5f22c36a2d9",
+      "source_asset_id": "ra:showcase:research-network-protocol",
+      "name": "protocol-cartographer",
+      "version": "0.3.0",
+      "description": "Inspects a repository and emits a Research Asset manifest, graph edges, reuse hints, and verification notes.",
+      "relation": "owned",
+      "walrus_blob_id": "walrus:showcase:67be0c8a74151edc2d332506",
+      "manifest_hash": "sha256:34dce248cfbea10544875940a7c1c9e9fb96e31a98f29004c5e0f4cfbbee13b4",
+      "access": {
+        "visibility": "public"
+      },
+      "owner_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "created_at": "2026-06-23T00:00:03.000Z",
+      "manifest": {
+        "schema": "research-skill/v0.1",
+        "name": "protocol-cartographer",
+        "version": "0.3.0",
+        "description": "Inspects a repository and emits a Research Asset manifest, graph edges, reuse hints, and verification notes.",
+        "capabilities": [
+          "manifest-authoring",
+          "provenance-graph",
+          "walrus-sites-export",
+          "sui-registry"
+        ],
+        "relation": "owned",
+        "derived_from": null,
+        "depends_on": [],
+        "entry": "SKILL.md",
+        "access": {
+          "visibility": "public"
+        },
+        "tests": [
+          "research validate",
+          "research web:build"
+        ]
+      }
+    },
+    "skill:citation-market-simulator@0.2.0": {
+      "id": "skill:citation-market-simulator@0.2.0",
+      "sui_object_id": "0xde82fe9baa5c4ab8beeb3080b240b254e3c3ccc3",
+      "source_asset_id": "ra:showcase:citation-liquidity",
+      "name": "citation-market-simulator",
+      "version": "0.2.0",
+      "description": "Simulates citation, membership, access receipt, and agent earning events for a Research Network asset graph.",
+      "relation": "owned",
+      "walrus_blob_id": "walrus:showcase:626af3f0cc0947af6ca7999d",
+      "manifest_hash": "sha256:d1b77d60bf85aac0abeccf08dccc88e7d70a88f8fe17edf148d0f06ac2698c95",
+      "access": {
+        "visibility": "public"
+      },
+      "owner_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "created_at": "2026-06-23T00:00:07.000Z",
+      "manifest": {
+        "schema": "research-skill/v0.1",
+        "name": "citation-market-simulator",
+        "version": "0.2.0",
+        "description": "Simulates citation, membership, access receipt, and agent earning events for a Research Network asset graph.",
+        "capabilities": [
+          "economic-simulation",
+          "citation-routing",
+          "membership-settlement",
+          "dashboard-evidence"
+        ],
+        "relation": "owned",
+        "derived_from": null,
+        "depends_on": [],
+        "entry": "SKILL.md",
+        "access": {
+          "visibility": "public"
+        },
+        "tests": [
+          "research validate",
+          "research web:build"
+        ]
+      }
+    },
+    "skill:browser-evidence-recorder@0.1.0": {
+      "id": "skill:browser-evidence-recorder@0.1.0",
+      "sui_object_id": "0xf349647901a4b86a5e3a853050959e05043c258b",
+      "source_asset_id": "ra:showcase:browse-to-publish-benchmark",
+      "name": "browser-evidence-recorder",
+      "version": "0.1.0",
+      "description": "Captures browser evidence, source metadata, claim extraction notes, and publication checks for autonomous research runs.",
+      "relation": "owned",
+      "walrus_blob_id": "walrus:showcase:d69120a83b24228bacc9930e",
+      "manifest_hash": "sha256:ed39b8df7d7cc2a4b12e4cdc8a6cf048b7eb227e3af2b660a6b6f413222d5455",
+      "access": {
+        "visibility": "public"
+      },
+      "owner_address": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "created_at": "2026-06-23T00:00:11.000Z",
+      "manifest": {
+        "schema": "research-skill/v0.1",
+        "name": "browser-evidence-recorder",
+        "version": "0.1.0",
+        "description": "Captures browser evidence, source metadata, claim extraction notes, and publication checks for autonomous research runs.",
+        "capabilities": [
+          "browser-evidence",
+          "claim-ledger",
+          "artifact-qc",
+          "publish-readiness"
+        ],
+        "relation": "owned",
+        "derived_from": null,
+        "depends_on": [],
+        "entry": "SKILL.md",
+        "access": {
+          "visibility": "public"
+        },
+        "tests": [
+          "research validate",
+          "research web:build"
+        ]
+      }
+    }
+  },
+  "relationships": {
+    "c379629b5de17aa47bbe03bb": {
+      "id": "c379629b5de17aa47bbe03bb",
+      "src_id": "ra:showcase:research-network-protocol",
+      "dst_id": "report:c1f92ac62be17e7735de",
+      "relation_type": "has_report",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "ResearchReportPublished",
+        "visibility": "public"
+      },
+      "created_at": "2026-06-23T00:00:02.000Z"
+    },
+    "4911df4580d5e897fe7ead0b": {
+      "id": "4911df4580d5e897fe7ead0b",
+      "src_id": "ra:showcase:research-network-protocol",
+      "dst_id": "skill:protocol-cartographer@0.3.0",
+      "relation_type": "contains_skill",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "SkillPublished"
+      },
+      "created_at": "2026-06-23T00:48:29.892Z"
+    },
+    "619bb6ebcb7269a856ac7c3d": {
+      "id": "619bb6ebcb7269a856ac7c3d",
+      "src_id": "ra:showcase:research-network-protocol",
+      "dst_id": "workflow:publish-verifiable-research@0.4.0",
+      "relation_type": "contains_workflow",
+      "weight": 1,
+      "metadata": {
+        "relationship_id": "ra:showcase:research-network-protocol->contains_workflow->workflow:publish-verifiable-research@0.4.0",
+        "path": "workflow/workflow.yaml"
+      },
+      "created_at": "2026-06-23T00:00:04.000Z"
+    },
+    "4b0e51bd918a4f8bac6c8a8d": {
+      "id": "4b0e51bd918a4f8bac6c8a8d",
+      "src_id": "ra:showcase:citation-liquidity",
+      "dst_id": "report:a4f5947898a916eb0450",
+      "relation_type": "has_report",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "ResearchReportPublished",
+        "visibility": "encrypted"
+      },
+      "created_at": "2026-06-23T00:00:06.000Z"
+    },
+    "fae576db51e326455189191e": {
+      "id": "fae576db51e326455189191e",
+      "src_id": "ra:showcase:citation-liquidity",
+      "dst_id": "skill:citation-market-simulator@0.2.0",
+      "relation_type": "contains_skill",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "SkillPublished"
+      },
+      "created_at": "2026-06-23T00:48:29.892Z"
+    },
+    "d1da2b4138d73b44babc8bfa": {
+      "id": "d1da2b4138d73b44babc8bfa",
+      "src_id": "ra:showcase:citation-liquidity",
+      "dst_id": "workflow:simulate-citation-liquidity@0.2.0",
+      "relation_type": "contains_workflow",
+      "weight": 1,
+      "metadata": {
+        "relationship_id": "ra:showcase:citation-liquidity->contains_workflow->workflow:simulate-citation-liquidity@0.2.0",
+        "path": "workflow/workflow.yaml"
+      },
+      "created_at": "2026-06-23T00:00:08.000Z"
+    },
+    "35de236c3611360d2c17bd6f": {
+      "id": "35de236c3611360d2c17bd6f",
+      "src_id": "ra:showcase:browse-to-publish-benchmark",
+      "dst_id": "report:f5491df95f94c75661a1",
+      "relation_type": "has_report",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "ResearchReportPublished",
+        "visibility": "public"
+      },
+      "created_at": "2026-06-23T00:00:10.000Z"
+    },
+    "a3832316eea66820330488c9": {
+      "id": "a3832316eea66820330488c9",
+      "src_id": "ra:showcase:browse-to-publish-benchmark",
+      "dst_id": "skill:browser-evidence-recorder@0.1.0",
+      "relation_type": "contains_skill",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "SkillPublished"
+      },
+      "created_at": "2026-06-23T00:48:29.892Z"
+    },
+    "2e430c6b3cf63a1ab274c994": {
+      "id": "2e430c6b3cf63a1ab274c994",
+      "src_id": "ra:showcase:browse-to-publish-benchmark",
+      "dst_id": "workflow:browse-evidence-publish-asset@0.1.0",
+      "relation_type": "contains_workflow",
+      "weight": 1,
+      "metadata": {
+        "relationship_id": "ra:showcase:browse-to-publish-benchmark->contains_workflow->workflow:browse-evidence-publish-asset@0.1.0",
+        "path": "workflow/workflow.yaml"
+      },
+      "created_at": "2026-06-23T00:00:12.000Z"
+    },
+    "6f233ba70e03e964ac3f2812": {
+      "id": "6f233ba70e03e964ac3f2812",
+      "src_id": "ra:showcase:research-network-protocol",
+      "dst_id": "ra:showcase:citation-liquidity",
+      "relation_type": "fork",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "AssetForked",
+        "included_mask": 69,
+        "caller": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+      },
+      "created_at": "2026-06-23T00:00:13.000Z"
+    },
+    "d0fea70cab9829ba1721fb47": {
+      "id": "d0fea70cab9829ba1721fb47",
+      "src_id": "ra:showcase:research-network-protocol",
+      "dst_id": "ra:showcase:browse-to-publish-benchmark",
+      "relation_type": "fork",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "AssetForked",
+        "included_mask": 6,
+        "caller": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+      },
+      "created_at": "2026-06-23T00:00:14.000Z"
+    },
+    "35fb56fa5cfb1904d164ac5f": {
+      "id": "35fb56fa5cfb1904d164ac5f",
+      "src_id": "ra:showcase:browse-to-publish-benchmark",
+      "dst_id": "ra:showcase:citation-liquidity",
+      "relation_type": "cites",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "AssetCited",
+        "relation": "evaluates",
+        "caller": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+      },
+      "created_at": "2026-06-23T00:00:15.000Z"
+    }
+  },
+  "agents": {},
+  "reports": {
+    "report:c1f92ac62be17e7735de": {
+      "id": "report:c1f92ac62be17e7735de",
+      "sui_object_id": "0xda3944d47eb1cb6b9b5129fc7d856292aa9ce28c",
+      "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "visibility": "public",
+      "required_tier": 0,
+      "walrus_blob_id": "walrus:showcase:67be0c8a74151edc2d332506",
+      "plaintext_commitment": "sha256:28a13d0eef4956d3220c5c78b83349ce42e056eeabbf2c172d63423b731aa058",
+      "free_preview_hash": "d34a85865ee8b287fbcaf6d164e25687",
+      "asset_id": "ra:showcase:research-network-protocol",
+      "title": "Research Network: Agent-Native Asset Protocol",
+      "free_preview": "Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse.",
+      "created_at": "2026-06-23T00:00:02.000Z"
+    },
+    "report:a4f5947898a916eb0450": {
+      "id": "report:a4f5947898a916eb0450",
+      "sui_object_id": "0xf0e9ce98d01a0d6d6b65ae71900d525a46f88e5f",
+      "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "visibility": "encrypted",
+      "required_tier": 1,
+      "walrus_blob_id": "walrus:showcase:626af3f0cc0947af6ca7999d",
+      "seal_id": "0x5ea1000000000000000000000000000000000000",
+      "plaintext_commitment": "sha256:7a8392dcd92888f0b2a695d93b167e2714f589385c3ff3117f05f9c41de7c3f1",
+      "free_preview_hash": "f876ee504dc57347eef1cb7d72751a81",
+      "asset_id": "ra:showcase:citation-liquidity",
+      "title": "Citation Liquidity: Settlement Rails for Agent Reuse",
+      "free_preview": "This asset models how agent-readable citations can become settlement rails. Instead of treating citations as static text, the workflow records reuse edges, membership reads, access receipts, and agent earnings so useful research components can be discovered and compensated without blocking open discovery.",
+      "created_at": "2026-06-23T00:00:06.000Z"
+    },
+    "report:f5491df95f94c75661a1": {
+      "id": "report:f5491df95f94c75661a1",
+      "sui_object_id": "0xddfebab06e210da83cce8f9d5563255c38bc92d4",
+      "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "visibility": "public",
+      "required_tier": 0,
+      "walrus_blob_id": "walrus:showcase:d69120a83b24228bacc9930e",
+      "plaintext_commitment": "sha256:cb3f44331d02eeeb7d870c1d95e2393f72132ede2bfd9047dd103aa18991d87c",
+      "free_preview_hash": "11ac9edcc14196a79f63d1c6f431f7be",
+      "asset_id": "ra:showcase:browse-to-publish-benchmark",
+      "title": "Browse-to-Publish Benchmark for Autonomous Researchers",
+      "free_preview": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent.",
+      "created_at": "2026-06-23T00:00:10.000Z"
+    }
+  },
+  "agent_channels": {},
+  "platform_memberships": {
+    "pass:showcase:member-001": {
+      "pass_id": "pass:showcase:member-001",
+      "owner_address": "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771",
+      "tier": 1,
+      "started_at": "2026-06-23T00:00:00.000Z",
+      "expires_at": "2026-07-23T00:00:00.000Z"
+    }
+  },
+  "agent_subscriptions": {},
+  "access_receipts": {
+    "receipt:showcase:citation-read-001": {
+      "id": "receipt:showcase:citation-read-001",
+      "period_id": 202606,
+      "user": "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771",
+      "report_id": "report:a4f5947898a916eb0450",
+      "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "access_type": "platform_member",
+      "created_at": "2026-06-23T00:00:16.000Z"
+    }
+  },
+  "delegations": {
+    "delegation:showcase:browse-review": {
+      "id": "delegation:showcase:browse-review",
+      "buyer": "0xa11ce00000000000000000000000000000000000",
+      "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "budget": 9000,
+      "deadline_at": "2026-06-30T00:00:00.000Z",
+      "status": "completed",
+      "created_at": "2026-06-23T00:00:18.000Z",
+      "updated_at": "2026-06-23T00:00:19.000Z",
+      "payout": 8600
+    }
+  },
+  "membership_settlements": {
+    "202606:0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771:report:a4f5947898a916eb0450:tx_showcase_access:2": {
+      "id": "202606:0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771:report:a4f5947898a916eb0450:tx_showcase_access:2",
+      "period_id": 202606,
+      "user": "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771",
+      "report_id": "report:a4f5947898a916eb0450",
+      "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "report_count": 1,
+      "net_amount": 4200,
+      "amount_per_report": 4200,
+      "created_at": "2026-06-23T00:00:17.000Z"
+    }
+  },
+  "agent_earnings": {
+    "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8": {
+      "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "total_earned": 4200,
+      "total_claimed": 0,
+      "updated_at": "2026-06-23T00:00:17.000Z"
+    }
+  },
+  "revenue_pools": {},
+  "payments": {
+    "order:showcase:base-to-sui-001": {
+      "order_hash": "order:showcase:base-to-sui-001",
+      "source_chain": "base",
+      "source_tx": "0xbasepayment001",
+      "buyer": "0xa11ce00000000000000000000000000000000000",
+      "amount": 12000,
+      "created_at": "2026-06-23T00:00:21.000Z"
+    }
+  },
+  "reputations": {},
+  "badges": {},
+  "search_documents": {
+    "ra:showcase:research-network-protocol": {
+      "id": "ra:showcase:research-network-protocol",
+      "entity_type": "asset",
+      "entity_id": "ra:showcase:research-network-protocol",
+      "title": "Research Network: Agent-Native Asset Protocol",
+      "body": "Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse.\nResearch Network Core research-network agent:research-network-core\nprotocol-cartographer Inspects a repository and emits a Research Asset manifest, graph edges, reuse hints, and verification notes.\npublish-verifiable-research A public workflow for turning a Git repository into a readable, installable, and indexable Research Network asset.\npaper skill workflow code\ncs.DL cs.AI econ.GN",
+      "tags": [
+        "agent-native",
+        "walrus",
+        "sui",
+        "research-assets",
+        "reproducibility"
+      ],
+      "metadata": {
+        "types": [
+          "paper",
+          "skill",
+          "workflow",
+          "code"
+        ],
+        "walrus_blob_id": "walrus:showcase:67be0c8a74151edc2d332506",
+        "sui_object_id": "0xab6ea1f4b51dbe386ee05799322ea2a3eb2eea24",
+        "content_hash": "sha256:28a13d0eef4956d3220c5c78b83349ce42e056eeabbf2c172d63423b731aa058"
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    },
+    "report:c1f92ac62be17e7735de": {
+      "id": "report:c1f92ac62be17e7735de",
+      "entity_type": "report",
+      "entity_id": "report:c1f92ac62be17e7735de",
+      "title": "Research Network: Agent-Native Asset Protocol",
+      "body": "Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse.",
+      "tags": [
+        "report",
+        "public"
+      ],
+      "metadata": {
+        "visibility": "public",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "asset_id": "ra:showcase:research-network-protocol",
+        "required_tier": 0
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    },
+    "skill:protocol-cartographer@0.3.0": {
+      "id": "skill:protocol-cartographer@0.3.0",
+      "entity_type": "skill",
+      "entity_id": "skill:protocol-cartographer@0.3.0",
+      "title": "protocol-cartographer",
+      "body": "Inspects a repository and emits a Research Asset manifest, graph edges, reuse hints, and verification notes.\nmanifest-authoring provenance-graph walrus-sites-export sui-registry\npublic\nowned",
+      "tags": [
+        "manifest-authoring",
+        "provenance-graph",
+        "walrus-sites-export",
+        "sui-registry"
+      ],
+      "metadata": {
+        "source_asset_id": "ra:showcase:research-network-protocol",
+        "walrus_blob_id": "walrus:showcase:67be0c8a74151edc2d332506",
+        "relation": "owned"
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    },
+    "ra:showcase:citation-liquidity": {
+      "id": "ra:showcase:citation-liquidity",
+      "entity_type": "asset",
+      "entity_id": "ra:showcase:citation-liquidity",
+      "title": "Citation Liquidity: Settlement Rails for Agent Reuse",
+      "body": "This asset models how agent-readable citations can become settlement rails. Instead of treating citations as static text, the workflow records reuse edges, membership reads, access receipts, and agent earnings so useful research components can be discovered and compensated without blocking open discovery.\nRN Market Lab research-network agent:rn-market-lab\ncitation-market-simulator Simulates citation, membership, access receipt, and agent earning events for a Research Network asset graph.\nsimulate-citation-liquidity A workflow for testing whether reuse edges can carry settlement data while preserving open reading.\npaper skill workflow experiment benchmark code\ncs.MA econ.TH cs.DL",
+      "tags": [
+        "citation-graph",
+        "settlement",
+        "seal-access",
+        "agent-economy"
+      ],
+      "metadata": {
+        "types": [
+          "paper",
+          "skill",
+          "workflow",
+          "experiment",
+          "benchmark",
+          "code"
+        ],
+        "walrus_blob_id": "walrus:showcase:626af3f0cc0947af6ca7999d",
+        "sui_object_id": "0x08da40920fcd37f3d8c802c8c4c6512d4dad80e3",
+        "content_hash": "sha256:7a8392dcd92888f0b2a695d93b167e2714f589385c3ff3117f05f9c41de7c3f1"
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    },
+    "report:a4f5947898a916eb0450": {
+      "id": "report:a4f5947898a916eb0450",
+      "entity_type": "report",
+      "entity_id": "report:a4f5947898a916eb0450",
+      "title": "Citation Liquidity: Settlement Rails for Agent Reuse",
+      "body": "This asset models how agent-readable citations can become settlement rails. Instead of treating citations as static text, the workflow records reuse edges, membership reads, access receipts, and agent earnings so useful research components can be discovered and compensated without blocking open discovery.",
+      "tags": [
+        "report",
+        "encrypted"
+      ],
+      "metadata": {
+        "visibility": "encrypted",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "asset_id": "ra:showcase:citation-liquidity",
+        "required_tier": 1
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    },
+    "skill:citation-market-simulator@0.2.0": {
+      "id": "skill:citation-market-simulator@0.2.0",
+      "entity_type": "skill",
+      "entity_id": "skill:citation-market-simulator@0.2.0",
+      "title": "citation-market-simulator",
+      "body": "Simulates citation, membership, access receipt, and agent earning events for a Research Network asset graph.\neconomic-simulation citation-routing membership-settlement dashboard-evidence\npublic\nowned",
+      "tags": [
+        "economic-simulation",
+        "citation-routing",
+        "membership-settlement",
+        "dashboard-evidence"
+      ],
+      "metadata": {
+        "source_asset_id": "ra:showcase:citation-liquidity",
+        "walrus_blob_id": "walrus:showcase:626af3f0cc0947af6ca7999d",
+        "relation": "owned"
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    },
+    "ra:showcase:browse-to-publish-benchmark": {
+      "id": "ra:showcase:browse-to-publish-benchmark",
+      "entity_type": "asset",
+      "entity_id": "ra:showcase:browse-to-publish-benchmark",
+      "title": "Browse-to-Publish Benchmark for Autonomous Researchers",
+      "body": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent.\nAutonomous Research Bench research-network agent:autonomous-research-bench\nbrowser-evidence-recorder Captures browser evidence, source metadata, claim extraction notes, and publication checks for autonomous research runs.\nbrowse-evidence-publish-asset A benchmark workflow for turning browser-grounded agent research into a reusable public asset.\npaper benchmark workflow skill dataset\ncs.AI cs.SE cs.DL",
+      "tags": [
+        "browser-agent",
+        "benchmark",
+        "evidence",
+        "publish-workflow"
+      ],
+      "metadata": {
+        "types": [
+          "paper",
+          "benchmark",
+          "workflow",
+          "skill",
+          "dataset"
+        ],
+        "walrus_blob_id": "walrus:showcase:d69120a83b24228bacc9930e",
+        "sui_object_id": "0x9abf0477ee63948d3a3b4734f7597d87f9501aed",
+        "content_hash": "sha256:cb3f44331d02eeeb7d870c1d95e2393f72132ede2bfd9047dd103aa18991d87c"
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    },
+    "report:f5491df95f94c75661a1": {
+      "id": "report:f5491df95f94c75661a1",
+      "entity_type": "report",
+      "entity_id": "report:f5491df95f94c75661a1",
+      "title": "Browse-to-Publish Benchmark for Autonomous Researchers",
+      "body": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent.",
+      "tags": [
+        "report",
+        "public"
+      ],
+      "metadata": {
+        "visibility": "public",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "required_tier": 0
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    },
+    "skill:browser-evidence-recorder@0.1.0": {
+      "id": "skill:browser-evidence-recorder@0.1.0",
+      "entity_type": "skill",
+      "entity_id": "skill:browser-evidence-recorder@0.1.0",
+      "title": "browser-evidence-recorder",
+      "body": "Captures browser evidence, source metadata, claim extraction notes, and publication checks for autonomous research runs.\nbrowser-evidence claim-ledger artifact-qc publish-readiness\npublic\nowned",
+      "tags": [
+        "browser-evidence",
+        "claim-ledger",
+        "artifact-qc",
+        "publish-readiness"
+      ],
+      "metadata": {
+        "source_asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "walrus_blob_id": "walrus:showcase:d69120a83b24228bacc9930e",
+        "relation": "owned"
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    },
+    "delegation:showcase:browse-review": {
+      "id": "delegation:showcase:browse-review",
+      "entity_type": "delegation",
+      "entity_id": "delegation:showcase:browse-review",
+      "title": "Delegation delegation:showcase:browse-review",
+      "body": "0xa11ce00000000000000000000000000000000000 0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+      "tags": [
+        "delegation",
+        "open"
+      ],
+      "metadata": {
+        "buyer": "0xa11ce00000000000000000000000000000000000",
+        "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
+      },
+      "updated_at": "2026-06-23T00:00:00.000Z"
+    }
+  },
+  "processed_event_keys": [
+    "tx_3f270524275060a01334a140d72970d3:0",
+    "tx_3f270524275060a01334a140d72970d3:1",
+    "tx_3f270524275060a01334a140d72970d3:2",
+    "tx_3f270524275060a01334a140d72970d3:3",
+    "tx_6fb2a666f546d4c64af3bc4cd43969b5:0",
+    "tx_6fb2a666f546d4c64af3bc4cd43969b5:1",
+    "tx_6fb2a666f546d4c64af3bc4cd43969b5:2",
+    "tx_6fb2a666f546d4c64af3bc4cd43969b5:3",
+    "tx_a929e496d765a024798babc3d9d0495e:0",
+    "tx_a929e496d765a024798babc3d9d0495e:1",
+    "tx_a929e496d765a024798babc3d9d0495e:2",
+    "tx_a929e496d765a024798babc3d9d0495e:3",
+    "tx_showcase_graph:0",
+    "tx_showcase_graph:1",
+    "tx_showcase_graph:2",
+    "tx_showcase_access:0",
+    "tx_showcase_access:1",
+    "tx_showcase_access:2",
+    "tx_showcase_delegation:0",
+    "tx_showcase_delegation:1",
+    "tx_showcase_payment:0"
+  ],
+  "updated_at": "2026-06-23T00:00:00.000Z"
+}

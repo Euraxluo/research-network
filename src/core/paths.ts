@@ -22,6 +22,7 @@ function findProjectRoot(): string {
 export const PROJECT_ROOT = findProjectRoot();
 export const SCHEMA_DIR = path.join(PROJECT_ROOT, "schemas");
 export const TEMPLATE_DIR = path.join(PROJECT_ROOT, "templates", "research-asset-template");
+export const PUBLIC_SHOWCASE_LOCALNET_DIR = path.join(PROJECT_ROOT, "fixtures", "public-showcase", "localnet");
 export const DEFAULT_LOCALNET_DIR = path.join(PROJECT_ROOT, ".research-network", "localnet");
 export const DEFAULT_RELEASE_DIR = path.join(PROJECT_ROOT, ".research-network", "releases");
 export const WEB_DIST_DIR = path.join(PROJECT_ROOT, "web", "dist");
