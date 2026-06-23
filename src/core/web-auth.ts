@@ -163,7 +163,7 @@ export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteC
     throw new Error("Vercel auth shell requires GOOGLE_CLIENT_ID or GitHub auth env/secrets");
   }
 
-  await buildStaticWeb(outputDir, PUBLIC_SHOWCASE_LOCALNET_DIR);
+  await buildStaticWeb(outputDir, PUBLIC_SHOWCASE_LOCALNET_DIR, { publicLiveOnly: true });
 
   // Vite owns these interactive pages and hashed assets. Remove any legacy
   // static versions now; the Vite step recreates the current React pages.

@@ -1608,7 +1608,7 @@ const SITE_JS = `
     var proof = asset.proof || {};
     var verified = Boolean(proof.tx_success && proof.object_type_match && proof.owner_match && proof.blob_match && proof.manifest_match && proof.release_manifest_match);
     var statusClass = verified ? "verified" : "warning";
-    var statusLabel = verified ? "Live indexed" : "Live partial";
+    var statusLabel = verified ? "Live indexed" : "Live evidence incomplete";
     var missing = [];
     if (!proof.tx_success) missing.push("tx");
     if (!proof.object_type_match) missing.push("type");
@@ -1651,7 +1651,6 @@ const SITE_JS = `
       ["sender", proof.sender_match],
       ["type", proof.object_type_match],
       ["owner", proof.owner_match],
-      ["gas", proof.gas_paid],
       ["blob", proof.blob_match],
       ["manifest", proof.manifest_match],
       ["release manifest", proof.release_manifest_match]
@@ -1660,7 +1659,7 @@ const SITE_JS = `
     return {
       verified: missing.length === 0,
       missing: missing,
-      label: missing.length === 0 ? "Live verified" : "Live partial",
+      label: missing.length === 0 ? "Live verified" : "Live evidence incomplete",
       detail: missing.length === 0 ? "event, tx, object, blob and release manifest agree" : "missing: " + missing.join(", ")
     };
   }
@@ -1669,7 +1668,7 @@ const SITE_JS = `
     var state = liveProofState(asset);
     var statusClass = state.verified ? "verified" : "warning";
     var title = String(asset.title || asset.id || "Research Asset");
-    var assetHref = asset.href || (asset.id ? "/abs/" + routeSegment(asset.id) + ".html" : "");
+    var assetHref = asset.href || (asset.id ? "/asset.html?id=" + routeSegment(asset.id) : "");
     var titleHtml = assetHref ? plainLink(assetHref, title) : proofLabelLink(suiExplorer, "object", asset.sui_object_id, title);
     var types = Array.isArray(asset.types) && asset.types.length ? asset.types.join(", ") : "asset";
     var tags = Array.isArray(asset.tags) && asset.tags.length ? " · " + asset.tags.join(", ") : "";
@@ -1812,6 +1811,154 @@ const SITE_JS = `
       if (rows) {
         rows.innerHTML = '<tr><td colspan="4"><p class="muted">Membership data is intentionally served only by the backend live index. Check <code>/api/index/health</code> and Vercel Function logs.</p></td></tr>';
       }
+    });
+  }
+
+  function liveAssetResultHtml(asset) {
+    var title = String(asset.title || asset.id || "Research Asset");
+    var href = asset.href || (asset.id ? "/asset.html?id=" + routeSegment(asset.id) : "#");
+    var tags = Array.isArray(asset.tags) && asset.tags.length ? " · " + asset.tags.join(", ") : "";
+    return '<a class="result" href="' + esc(href) + '">' +
+      '<strong>' + esc(title) + '</strong><br>' +
+      '<span class="muted">' + esc((Array.isArray(asset.types) ? asset.types.join(", ") : "asset") + tags) + '</span><br>' +
+      '<span>' + esc(shortText(asset.abstract || "", 180, 30)) + '</span>' +
+    '</a>';
+  }
+
+  function setupLiveSearch() {
+    var root = document.querySelector("[data-live-search]");
+    var source = document.querySelector("[data-chain-source][data-chain-index-api]");
+    if (!root || !source || !window.fetch) return;
+    var input = root.querySelector("[data-live-search-input]");
+    var results = root.querySelector("[data-live-search-results]");
+    var status = root.querySelector("[data-live-search-status]");
+    var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
+    var limit = Math.max(1, Math.min(20, Number(root.getAttribute("data-live-search-limit")) || 20));
+    var timer = null;
+    function load() {
+      var q = input && input.value ? String(input.value).trim() : "";
+      var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=" + encodeURIComponent(String(limit)) + (q ? "&q=" + encodeURIComponent(q) : "");
+      if (status) status.innerHTML = 'Loading live index from ' + plainLink(indexUrl, "/api/index") + '...';
+      fetch(indexUrl, { cache: "no-store" }).then(function (res) {
+        if (!res.ok) throw new Error("index API HTTP " + res.status);
+        return res.json();
+      }).then(function (data) {
+        var assets = Array.isArray(data.assets) ? data.assets : [];
+        if (status) status.innerHTML = 'Loaded ' + assets.length + ' live asset(s) from ' + plainLink(indexUrl, "/api/index") + '.';
+        if (results) {
+          results.innerHTML = assets.length
+            ? assets.map(liveAssetResultHtml).join("")
+            : '<p class="muted">No live ResearchAssetPublished rows matched this query.</p>';
+        }
+      }).catch(function (err) {
+        if (status) status.innerHTML = 'Could not load live search: ' + esc(err && err.message ? err.message : "request failed");
+        if (results) results.innerHTML = '<p class="muted">Search is intentionally backed only by the live backend index.</p>';
+      });
+    }
+    if (input) {
+      input.addEventListener("input", function () {
+        clearTimeout(timer);
+        timer = setTimeout(load, 180);
+      });
+    }
+    load();
+  }
+
+  function setupLiveAssetDetail() {
+    var root = document.querySelector("[data-live-asset-detail]");
+    var source = document.querySelector("[data-chain-source][data-chain-index-api]");
+    if (!root || !source || !window.fetch) return;
+    var params = new URLSearchParams(location.search);
+    var wanted = params.get("id") || params.get("object") || "";
+    var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
+    var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
+    var walrusExplorer = source.getAttribute("data-walrus-explorer") || "https://walruscan.com/testnet";
+    var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=20";
+    root.innerHTML = '<p class="muted">Loading live asset from <code>/api/index</code>...</p>';
+    fetch(indexUrl, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("index API HTTP " + res.status);
+      return res.json();
+    }).then(function (data) {
+      var assets = Array.isArray(data.assets) ? data.assets : [];
+      var asset = assets.find(function (item) {
+        return routeSegment(item.id || "") === wanted || item.id === wanted || item.sui_object_id === wanted;
+      }) || assets[0];
+      if (!asset) {
+        root.innerHTML = '<p class="muted">No live asset is available from the backend index.</p>';
+        return;
+      }
+      var state = liveProofState(asset);
+      root.innerHTML =
+        '<div class="dateline">Live Sui testnet asset · ' + esc(formatMembershipDate(asset.created_at)) + '</div>' +
+        '<h1 class="abs-title">' + esc(asset.title || asset.id) + '</h1>' +
+        '<div class="abs-authors">' + esc(asset.authors || "Unknown") + '</div>' +
+        '<blockquote class="abstract"><span class="descriptor">Abstract:</span> ' + esc(asset.abstract || "") + '</blockquote>' +
+        '<div class="abs-tags">' + (Array.isArray(asset.tags) ? asset.tags.map(function (tag) { return '<span class="tag">' + esc(tag) + '</span>'; }).join("") : "") + '</div>' +
+        '<div class="chain-proofline"><span class="chain-status chain-status-' + (state.verified ? "verified" : "warning") + '">' + esc(state.label) + '</span><span>' + esc(state.detail) + '</span></div>' +
+        '<dl class="verification">' +
+          '<div><dt>Sui object</dt><dd>' + proofLink(suiExplorer, "object", asset.sui_object_id) + '</dd></div>' +
+          '<div><dt>Sui tx</dt><dd>' + proofLink(suiExplorer, "tx", asset.tx_digest) + '</dd></div>' +
+          '<div><dt>Walrus blob</dt><dd>' + proofBlobLink(walrusExplorer, asset.walrus_blob_id) + '</dd></div>' +
+          '<div><dt>Repository</dt><dd>' + (asset.repo_url ? plainLink(asset.repo_url, asset.repo_url) : '<span class="muted">not recorded</span>') + '</dd></div>' +
+          '<div><dt>Commit</dt><dd>' + commitLink(asset.repo_url, asset.repo_commit) + '</dd></div>' +
+          '<div><dt>Signer</dt><dd>' + proofLink(suiExplorer, "account", asset.tx_sender || asset.event_owner_address || asset.creator_address) + '</dd></div>' +
+          '<div><dt>Manifest</dt><dd><code title="' + esc(asset.manifest_hash || "") + '">' + esc(shortText(asset.manifest_hash || "", 18, 12)) + '</code></dd></div>' +
+        '</dl>';
+    }).catch(function (err) {
+      root.innerHTML = '<p class="muted">Could not load live asset detail: ' + esc(err && err.message ? err.message : "request failed") + '</p>';
+    });
+  }
+
+  function renderDelegationLiveRow(event, index, suiExplorer) {
+    var actor = event.buyer || event.agent || event.arbitrator || event.signer || "";
+    var value = event.budget_mist ? formatMist(event.budget_mist) : event.amount_mist ? formatMist(event.amount_mist) : "event only";
+    var parties = [
+      event.buyer ? "buyer " + shortText(event.buyer, 8, 6) : "",
+      event.agent ? "agent " + shortText(event.agent, 8, 6) : "",
+      event.arbitrator ? "arb " + shortText(event.arbitrator, 8, 6) : "",
+      event.report_id ? "report " + shortText(event.report_id, 8, 6) : ""
+    ].filter(Boolean).join(" · ");
+    return '<tr>' +
+      '<td><div class="membership-event-name">' + esc(event.event_type || "DelegationEvent") + '</div><div class="muted">[' + (index + 1) + '] ' + esc(formatMembershipDate(event.created_at)) + '</div></td>' +
+      '<td><div class="mono">' + (event.job_id ? proofLabelLink(suiExplorer, "object", event.job_id, shortText(event.job_id, 12, 10)) : "event only") + '</div><div class="muted">' + esc(parties || "delegation event") + '</div></td>' +
+      '<td><div>' + esc(value) + '</div><div class="muted">' + (event.deadline_at ? "deadline " + esc(formatMembershipDate(event.deadline_at)) : "") + '</div></td>' +
+      '<td><div class="mono">tx: ' + proofLabelLink(suiExplorer, "tx", event.tx_digest, shortText(event.tx_digest, 12, 10)) + '</div><div class="mono">signer: ' + proofLabelLink(suiExplorer, "account", actor, shortText(actor, 8, 6)) + '</div><div class="muted">gas ' + esc(formatMist(event.sui_spent_mist)) + '</div></td>' +
+    '</tr>';
+  }
+
+  function setupDelegationIndex() {
+    var root = document.querySelector("[data-live-delegations]");
+    var source = document.querySelector("[data-chain-source][data-chain-index-api]");
+    if (!root || !source || !window.fetch) return;
+    var stats = root.querySelector("[data-live-delegation-stats]");
+    var status = root.querySelector("[data-live-delegation-status]");
+    var rows = root.querySelector("[data-live-delegation-rows]");
+    var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
+    var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
+    var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=20";
+    fetch(indexUrl, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("index API HTTP " + res.status);
+      return res.json();
+    }).then(function (data) {
+      var delegations = data && data.delegations ? data.delegations : {};
+      var counts = delegations.counts || {};
+      var events = Array.isArray(delegations.recent_events) ? delegations.recent_events : [];
+      if (stats) {
+        stats.innerHTML =
+          '<div class="stat"><b>' + Number(counts.created || 0) + '</b><span>Created</span></div>' +
+          '<div class="stat"><b>' + Number(counts.funded || 0) + '</b><span>Funded</span></div>' +
+          '<div class="stat"><b>' + Number(counts.completed || 0) + '</b><span>Completed</span></div>' +
+          '<div class="stat"><b>' + Number(counts.total_events || 0) + '</b><span>Live events</span></div>';
+      }
+      if (status) status.innerHTML = 'Loaded delegation event rails from ' + plainLink(indexUrl, "/api/index") + '.';
+      if (rows) {
+        rows.innerHTML = events.length
+          ? events.map(function (event, index) { return renderDelegationLiveRow(event, index, suiExplorer); }).join("")
+          : '<tr><td colspan="4"><p class="muted">The backend checked live delegation event types on Sui. This package has no matching delegation events yet.</p></td></tr>';
+      }
+    }).catch(function (err) {
+      if (status) status.innerHTML = 'Could not load live delegation data: ' + esc(err && err.message ? err.message : "request failed");
+      if (rows) rows.innerHTML = '<tr><td colspan="4"><p class="muted">Delegation data is intentionally served only by the backend live index.</p></td></tr>';
     });
   }
 
@@ -2264,6 +2411,9 @@ const SITE_JS = `
     setupChainSubmissions();
     setupLiveDashboard();
     setupMembershipIndex();
+    setupDelegationIndex();
+    setupLiveSearch();
+    setupLiveAssetDetail();
     setupGraph();
     setupPaperViewer();
   }
@@ -2273,11 +2423,16 @@ const SITE_JS = `
 })();
 `;
 
-export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: string): Promise<string> {
+export interface BuildStaticWebOptions {
+  publicLiveOnly?: boolean;
+}
+
+export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: string, options: BuildStaticWebOptions = {}): Promise<string> {
   const index = await readIndex(localnetRoot);
   const resolvedLocalnetRoot = localnetRoot ?? DEFAULT_LOCALNET_DIR;
   const explorer = loadExplorerConfig();
   const onChainProofConfig = loadOnChainProofConfig();
+  const publicLiveOnly = Boolean(options.publicLiveOnly);
   const walrusSitesResources = await readExistingWalrusSitesResources(outputDir);
   await fs.rm(outputDir, { recursive: true, force: true });
   await fs.mkdir(path.join(outputDir, "abs"), { recursive: true });
@@ -2291,17 +2446,24 @@ export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: st
   await fs.writeFile(path.join(outputDir, "site.js"), SITE_JS, "utf8");
   await fs.writeFile(path.join(outputDir, "workbench.js"), WORKBENCH_JS, "utf8");
 
-  const assets = Object.values(index.assets);
-  const skills = Object.values(index.skills);
+  const assets = publicLiveOnly ? [] : Object.values(index.assets);
+  const skills = publicLiveOnly ? [] : Object.values(index.skills);
 
-  const searchBody = `
+  const searchBody = publicLiveOnly ? `
+${renderChainSubmissionSource(onChainProofConfig, explorer)}
+<section data-live-search data-live-search-limit="20" aria-live="polite">
+  <p class="muted">Search is loaded from the backend live index. It reads Sui <code>ResearchAssetPublished</code> events, verifies the referenced object and Walrus release manifest, then filters the live rows.</p>
+  <div class="search-box"><input data-live-search-input type="search" placeholder="Filter live assets, authors, tags&hellip;" autocomplete="off"></div>
+  <p class="chain-source-note" data-live-search-status>Loading live search from <code>/api/index</code>...</p>
+  <div data-live-search-results><p class="muted">Loading live results...</p></div>
+</section>` : `
 <p class="muted">Static search snapshot generated from the local index. Filtering runs entirely in your browser.</p>
 <div class="search-box"><input id="filter" type="search" placeholder="Filter assets, skills, tags&hellip;" autocomplete="off"></div>
 ${Object.values(index.search_documents).map((document) => `<a class="result" href="${document.entity_type === "asset" ? escapeHtml(webPath("abs", `${routeSegment(document.entity_id)}.html`)) : document.entity_type === "skill" ? escapeHtml(webPath("skill", `${routeSegment(document.entity_id)}.html`)) : "#"}"><strong>${escapeHtml(document.title)}</strong><br><span class="muted">${escapeHtml(document.entity_type)} &middot; ${escapeHtml(document.tags.join(", "))}</span></a>`).join("")}`;
   await fs.writeFile(path.join(outputDir, "search.html"), shell("Search", searchBody, { subject: "Search" }), "utf8");
 
   const reports = Object.values(index.reports);
-  const delegations = Object.values(index.delegations);
+  const delegations = publicLiveOnly ? [] : Object.values(index.delegations);
   const delegationRows = delegations
     .map((job) => `<tr><td>${escapeHtml(job.id)}</td><td>${escapeHtml(job.status)}</td><td>${escapeHtml(job.buyer)}</td><td>${escapeHtml(job.agent)}</td><td>${job.budget}</td></tr>`)
     .join("");
@@ -2352,11 +2514,39 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
   </table>
 </section>`;
   await fs.writeFile(path.join(outputDir, "membership.html"), shell("Membership", membershipBody, { subject: "Membership" }), "utf8");
-  const delegationsBody = `
+  const delegationsBody = publicLiveOnly ? `
+${renderChainSubmissionSource(onChainProofConfig, explorer)}
+<section class="live-dashboard" data-live-delegations aria-live="polite">
+  <div class="live-dashboard-head">
+    <h2>Live Delegation Rails</h2>
+    <span class="live-dashboard-api"><a href="/api/index?limit=20" rel="noopener">/api/index?limit=20</a></span>
+  </div>
+  <p class="chain-listing-note">Delegation rows are loaded from the backend live index. The Function checks Sui testnet delegation events for creation, funding, submission, completion, refund, dispute, and resolution evidence. Local showcase delegation rows are not rendered as public data.</p>
+  <div class="stats" data-live-delegation-stats>
+    <div class="stat"><b>...</b><span>Created</span></div>
+    <div class="stat"><b>...</b><span>Funded</span></div>
+    <div class="stat"><b>...</b><span>Completed</span></div>
+    <div class="stat"><b>...</b><span>Live events</span></div>
+  </div>
+  <p class="chain-source-note" data-live-delegation-status>Loading live delegation events from <code>/api/index</code>...</p>
+  <table class="data-table events-table live-dashboard-table live-membership-table">
+    <thead><tr><th>Event</th><th>Job and parties</th><th>Value</th><th>Sui proof</th></tr></thead>
+    <tbody data-live-delegation-rows>
+      <tr><td colspan="4"><p class="muted">Loading live Sui testnet delegation events...</p></td></tr>
+    </tbody>
+  </table>
+</section>` : `
 <p class="muted">Private Delegation results are encrypted on Walrus and decryptable only by the buyer and agent, with temporary arbitration access during disputes.</p>
 ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status</th><th>Buyer</th><th>Agent</th><th>Budget</th></tr></thead><tbody>${delegationRows}</tbody></table>` : `<p class="muted">No private delegation jobs indexed yet.</p>`}`;
   await fs.writeFile(path.join(outputDir, "delegations.html"), shell("Delegations", delegationsBody, { subject: "Delegations" }), "utf8");
   await fs.writeFile(path.join(outputDir, "workbench.html"), shell("Protocol Workbench", renderWorkbenchBody(index), { subject: "Protocol Workbench" }), "utf8");
+
+  const assetDetailBody = `
+${renderChainSubmissionSource(onChainProofConfig, explorer)}
+<section data-live-asset-detail aria-live="polite">
+  <p class="muted">Loading live asset detail from <code>/api/index</code>...</p>
+</section>`;
+  await fs.writeFile(path.join(outputDir, "asset.html"), shell("Live Asset", assetDetailBody, { subject: "Live Asset" }), "utf8");
 
   for (const asset of assets) {
     const seg = routeSegment(asset.id);
@@ -2491,8 +2681,9 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
   await fs.writeFile(path.join(outputDir, "index.html"), shell("Home", homeBody, { subject: "Research Network" }), "utf8");
 
   // Account page (HANDOFF §2.4-5): session + GitHub binding live in the browser, so the page
-  // ships a compact asset directory and resolves "my assets" client-side. The same directory is
-  // also published as /site-data.json so the Vercel-only auth shell can reuse Walrus index data.
+  // ships a compact asset directory and resolves "my assets" client-side. In public live-only
+  // builds, the directory is intentionally empty so local fixture assets are not presented as
+  // indexed user publications.
   const assetDirectory: AccountDirectoryAsset[] = assets.map((asset) => ({
     id: asset.id,
     title: asset.title,

@@ -8,6 +8,7 @@ import {
 } from "@vercel/postgres";
 import {
   buildLiveIndex,
+  emptyLiveDelegationSummary,
   emptyLiveMembershipSummary,
   liveIndexConfig,
   matchesLiveIndexQuery,
@@ -306,7 +307,8 @@ export async function readPersistedLiveIndex(options: BuildLiveIndexOptions = {}
     limit: config.limit,
     query: options.query,
     assets,
-    membership: emptyLiveMembershipSummary(config.packageId)
+    membership: emptyLiveMembershipSummary(config.packageId),
+    delegations: emptyLiveDelegationSummary(config.packageId)
   };
 }
 

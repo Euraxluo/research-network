@@ -128,6 +128,42 @@ export interface LiveIndexMembershipSummary {
   recent_events: LiveIndexMembershipEvent[];
 }
 
+export interface LiveIndexDelegationEvent {
+  tx_digest: string;
+  event_seq: string;
+  event_type: string;
+  timestamp_ms: string;
+  created_at: string;
+  signer: string;
+  gas_owner: string;
+  sui_spent_mist: string;
+  job_id: string;
+  buyer: string;
+  agent: string;
+  arbitrator: string;
+  report_id: string;
+  amount_mist: string;
+  budget_mist: string;
+  deadline_at: string;
+}
+
+export interface LiveIndexDelegationSummary {
+  source: "live-sui-testnet-events";
+  event_types: string[];
+  counts: {
+    created: number;
+    accepted: number;
+    funded: number;
+    submitted: number;
+    completed: number;
+    refunded: number;
+    disputed: number;
+    resolved: number;
+    total_events: number;
+  };
+  recent_events: LiveIndexDelegationEvent[];
+}
+
 export interface LiveIndexResult {
   generated_at: string;
   source: "live-sui-testnet+walrus-release-manifest";
@@ -139,6 +175,7 @@ export interface LiveIndexResult {
   query?: string;
   assets: LiveIndexAsset[];
   membership: LiveIndexMembershipSummary;
+  delegations: LiveIndexDelegationSummary;
 }
 
 export interface BuildLiveIndexOptions {
@@ -395,7 +432,7 @@ function buildAsset(input: {
     gas_owner: gasOwner,
     sui_spent_mist: spentMist,
     tx_digest: txDigest,
-    href: releaseAsset.id ? `/abs/${routeSegment(String(releaseAsset.id))}.html` : undefined,
+    href: releaseAsset.id ? `/asset.html?id=${routeSegment(String(releaseAsset.id))}` : undefined,
     proof
   };
 }
@@ -433,6 +470,40 @@ export function emptyLiveMembershipSummary(packageId: string): LiveIndexMembersh
   };
 }
 
+const LIVE_DELEGATION_EVENTS = [
+  "DelegationCreated",
+  "DelegationAccepted",
+  "DelegationFunded",
+  "DelegationResultSubmitted",
+  "DelegationCompleted",
+  "DelegationRefunded",
+  "DelegationDisputeOpened",
+  "DelegationDisputeResolved"
+] as const;
+
+function zeroDelegationCounts(): LiveIndexDelegationSummary["counts"] {
+  return {
+    created: 0,
+    accepted: 0,
+    funded: 0,
+    submitted: 0,
+    completed: 0,
+    refunded: 0,
+    disputed: 0,
+    resolved: 0,
+    total_events: 0
+  };
+}
+
+export function emptyLiveDelegationSummary(packageId: string): LiveIndexDelegationSummary {
+  return {
+    source: "live-sui-testnet-events",
+    event_types: LIVE_DELEGATION_EVENTS.map((name) => `${packageId}::delegation::${name}`),
+    counts: zeroDelegationCounts(),
+    recent_events: []
+  };
+}
+
 function countMembershipEvent(counts: LiveIndexMembershipSummary["counts"], eventName: string): void {
   if (eventName === "PlatformMembershipPurchased") counts.platform_membership_passes += 1;
   else if (eventName === "PlatformMembershipPaid") counts.platform_membership_payments += 1;
@@ -441,6 +512,18 @@ function countMembershipEvent(counts: LiveIndexMembershipSummary["counts"], even
   else if (eventName === "AccessReceiptRecorded") counts.access_receipts += 1;
   else if (eventName === "MembershipSettlementCreated" || eventName === "MembershipReportSettled") counts.membership_settlements += 1;
   else if (eventName === "AgentEarningsClaimed") counts.agent_earnings_claims += 1;
+  counts.total_events += 1;
+}
+
+function countDelegationEvent(counts: LiveIndexDelegationSummary["counts"], eventName: string): void {
+  if (eventName === "DelegationCreated") counts.created += 1;
+  else if (eventName === "DelegationAccepted") counts.accepted += 1;
+  else if (eventName === "DelegationFunded") counts.funded += 1;
+  else if (eventName === "DelegationResultSubmitted") counts.submitted += 1;
+  else if (eventName === "DelegationCompleted") counts.completed += 1;
+  else if (eventName === "DelegationRefunded") counts.refunded += 1;
+  else if (eventName === "DelegationDisputeOpened") counts.disputed += 1;
+  else if (eventName === "DelegationDisputeResolved") counts.resolved += 1;
   counts.total_events += 1;
 }
 
@@ -484,6 +567,35 @@ function buildMembershipEvent(input: {
     duration_ms: parsed.duration_ms == null ? "" : String(parsed.duration_ms),
     started_at: msIso(parsed.started_ms),
     expires_at: msIso(parsed.expires_ms)
+  };
+}
+
+function buildDelegationEvent(input: {
+  event: SuiEvent;
+  eventName: string;
+  txData?: SuiTxResponse;
+}): LiveIndexDelegationEvent {
+  const parsed = input.event.parsedJson ?? {};
+  const signer = String(input.txData?.transaction?.data?.sender ?? input.event.sender ?? "");
+  const gasOwner = String(input.txData?.transaction?.data?.gasData?.owner ?? signer);
+  const createdMs = parsed.created_ms ?? input.event.timestampMs;
+  return {
+    tx_digest: String(input.event.id?.txDigest ?? ""),
+    event_seq: String(input.event.id?.eventSeq ?? ""),
+    event_type: input.eventName,
+    timestamp_ms: String(input.event.timestampMs ?? createdMs ?? ""),
+    created_at: msIso(createdMs),
+    signer,
+    gas_owner: gasOwner,
+    sui_spent_mist: suiSpentMist(input.txData, gasOwner || signer),
+    job_id: String(parsed.job_id ?? ""),
+    buyer: String(parsed.buyer ?? ""),
+    agent: String(parsed.agent ?? ""),
+    arbitrator: String(parsed.arbitrator ?? ""),
+    report_id: String(parsed.report_id ?? ""),
+    amount_mist: parsed.amount == null ? (parsed.payout == null ? "" : String(parsed.payout)) : String(parsed.amount),
+    budget_mist: parsed.budget == null ? "" : String(parsed.budget),
+    deadline_at: msIso(parsed.deadline_ms)
   };
 }
 
@@ -533,11 +645,57 @@ async function buildLiveMembershipSummary(input: {
   };
 }
 
+async function buildLiveDelegationSummary(input: {
+  rpcUrl: string;
+  packageId: string;
+  limit: number;
+}): Promise<LiveIndexDelegationSummary> {
+  const eventTypes = LIVE_DELEGATION_EVENTS.map((name) => ({
+    name,
+    type: `${input.packageId}::delegation::${name}`
+  }));
+  const pages = await Promise.all(eventTypes.map(async (entry) => {
+    const page = await rpcCall<{ data?: SuiEvent[] }>(input.rpcUrl, "suix_queryEvents", [{ MoveEventType: entry.type }, null, input.limit, true]);
+    return (page.data ?? []).map((event) => ({ event, entry }));
+  }));
+  const indexed = pages.flat().filter((item) => item.event.id?.txDigest);
+  const txDigests = [...new Set(indexed.map((item) => String(item.event.id?.txDigest ?? "")).filter(Boolean))];
+  let txResponses: SuiTxResponse[] = [];
+  if (txDigests.length) {
+    try {
+      txResponses = await rpcCall<SuiTxResponse[]>(input.rpcUrl, "sui_multiGetTransactionBlocks", [
+        txDigests,
+        { showInput: true, showEffects: true, showEvents: true, showBalanceChanges: true }
+      ]);
+    } catch {
+      txResponses = [];
+    }
+  }
+  const txByDigest = new Map(txResponses.map((entry) => [entry.digest, entry]));
+  const counts = zeroDelegationCounts();
+  const recent_events = indexed.map((item) => {
+    countDelegationEvent(counts, item.entry.name);
+    return buildDelegationEvent({
+      event: item.event,
+      eventName: item.entry.name,
+      txData: txByDigest.get(String(item.event.id?.txDigest ?? ""))
+    });
+  }).sort((a, b) => Number(b.timestamp_ms || 0) - Number(a.timestamp_ms || 0)).slice(0, input.limit);
+
+  return {
+    source: "live-sui-testnet-events",
+    event_types: eventTypes.map((entry) => entry.type),
+    counts,
+    recent_events
+  };
+}
+
 export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promise<LiveIndexResult> {
   const { rpcUrl, packageId, aggregatorUrl, limit, eventType } = liveIndexConfig(options);
-  const [page, membership] = await Promise.all([
+  const [page, membership, delegations] = await Promise.all([
     rpcCall<{ data?: SuiEvent[] }>(rpcUrl, "suix_queryEvents", [{ MoveEventType: eventType }, null, limit, true]),
-    buildLiveMembershipSummary({ rpcUrl, packageId, limit })
+    buildLiveMembershipSummary({ rpcUrl, packageId, limit }).catch(() => emptyLiveMembershipSummary(packageId)),
+    buildLiveDelegationSummary({ rpcUrl, packageId, limit }).catch(() => emptyLiveDelegationSummary(packageId))
   ]);
   const events = (page.data ?? []).filter((event) => event.id?.txDigest && event.parsedJson?.asset_id);
   const objectIds = events.map((event) => String(event.parsedJson?.asset_id ?? ""));
@@ -572,6 +730,7 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
     limit,
     query: options.query,
     assets,
-    membership
+    membership,
+    delegations
   };
 }
