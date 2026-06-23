@@ -36,6 +36,14 @@ describe("live index Elysia API", () => {
     expect(body.storage.provider).toBe("vercel-postgres");
   });
 
+  it("tolerates Vercel catch-all query params on index subroutes", async () => {
+    const response = await researchIndexApi.handle(new Request("http://127.0.0.1/api/index/persisted?...path=persisted"));
+    expect(response.status).toBe(200);
+    const body = await response.json() as { source: string; assets: unknown[] };
+    expect(body.source).toBe("live-sui-testnet+walrus-release-manifest");
+    expect(Array.isArray(body.assets)).toBe(true);
+  });
+
   it("protects the Cron-compatible ingest job when a secret is configured", async () => {
     process.env.RN_INDEX_CRON_SECRET = "test-secret";
     const response = await researchIndexApi.handle(new Request("http://127.0.0.1/api/index/ingest"));

@@ -84,7 +84,7 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
       q: t.Optional(t.String({ description: "Search title, author, repo, tx, object, blob, hash, tags, or abstract." })),
       limit: t.Optional(t.String({ description: "Max assets to return, capped at 20." })),
       refresh: t.Optional(t.String({ description: "Set to 0/false to read only from the persisted index." }))
-    }),
+    }, { additionalProperties: true }),
     detail: {
       summary: "Read the live public research index",
       description: "By default this refreshes from Sui testnet + Walrus, persists into Vercel Postgres when configured, then returns the indexed assets. If live refresh fails, it falls back to the latest persisted rows."
@@ -106,7 +106,7 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
     query: t.Object({
       q: t.Optional(t.String()),
       limit: t.Optional(t.String())
-    }),
+    }, { additionalProperties: true }),
     detail: {
       summary: "Read only the persisted Vercel Postgres index"
     }
@@ -163,7 +163,7 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
       blob: t.String({ description: "Walrus release blob id containing the packed research asset." }),
       path: t.String({ description: "Artifact path inside the release tarball, for example paper/main.pdf." }),
       aggregator: t.Optional(t.String({ description: "Optional Walrus aggregator URL override." }))
-    }),
+    }, { additionalProperties: true }),
     detail: {
       summary: "Read a file from a live Walrus release blob",
       description: "Streams paper, TeX, README, and other release artifacts by unpacking the zstd-compressed Walrus release blob. Public pages use this to render the live paper view without local fixtures."
@@ -193,7 +193,7 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
     query: t.Object({
       q: t.Optional(t.String()),
       limit: t.Optional(t.String())
-    }),
+    }, { additionalProperties: true }),
     detail: {
       summary: "Run the Vercel Cron-compatible ingest job",
       description: "This endpoint is intentionally GET-compatible because Vercel Cron invokes a path on schedule. Set RN_INDEX_CRON_SECRET or CRON_SECRET to require Bearer authorization."
