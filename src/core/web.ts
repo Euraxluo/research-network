@@ -10,6 +10,7 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
+const STATIC_ASSET_VERSION = "20260623-live-paper-v4";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
@@ -48,8 +49,8 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
   <title>${escapeHtml(title)} - Research Network</title>
   <meta name="description" content="Agent-native decentralized research asset network: Paper, Skill, Workflow, Dataset and Code as one verifiable graph.">
   <meta http-equiv="Content-Security-Policy" content="${STATIC_CSP}">
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/site.js" defer></script>
+  <link rel="stylesheet" href="/styles.css?v=${STATIC_ASSET_VERSION}">
+  <script src="/site.js?v=${STATIC_ASSET_VERSION}" defer></script>
   ${mathjax}
 </head>
 <body>
@@ -1154,6 +1155,11 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .abs-main { min-width: 0; }
 
 .extra-services { font-size: 13.5px; }
+.asset-sidebar-summary { border-top: 2px solid var(--arxiv-red); padding-top: 10px; }
+.asset-sidebar-summary p { margin: 0; font-size: 12.8px; line-height: 1.5; color: #333; }
+.asset-sidebar-record dd { font-family: var(--sans); font-size: 12.5px; }
+.asset-sidebar-record dd code { font-family: var(--mono); }
+.live-asset-paper .paper-viewer { margin-top: 10px; }
 .access-box { border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px 10px; margin: 0 0 16px; background: #fafafa; }
 .access-box h2 { font-size: 14px; margin: 0 0 8px; color: #333; }
 .access-box h3 { font-size: 12px; margin: 14px 0 8px; color: #333; text-transform: uppercase; letter-spacing: .3px; }
@@ -1699,8 +1705,7 @@ const SITE_JS = `
       '<div class="list-authors">' + esc(asset.authors || "Unknown") + '</div>' +
       '<div class="list-subjects">' + subjects + (asset.created_at ? ' &middot; published ' + esc(String(asset.created_at).replace("T", " ").slice(0, 19)) + ' UTC' : '') + '</div>' +
       '<p class="chain-listing-note">' + esc(asset.abstract || "") + '</p>' +
-      '<p class="chain-source-note">Served by <code>/api/index</code>: the Vercel Function refreshes the Sui/Walrus index, persists it in Vercel Postgres, and returns proof-linked rows.</p>' +
-      '<div class="chain-proofline"><span class="chain-status chain-status-' + statusClass + '">' + esc(statusLabel) + '</span><span>' + esc(verified ? "event, tx, object, blob and release manifest agree" : missing.join(", ")) + '</span></div>' +
+      '<div class="chain-proofline"><span class="chain-status chain-status-' + statusClass + '">' + esc(statusLabel) + '</span><span>' + esc(verified ? "Verified on Sui and Walrus" : missing.join(", ")) + '</span></div>' +
       '<dl class="chain-facts">' +
       '<div><dt>Sui object</dt><dd>' + proofLink(suiExplorer, "object", asset.sui_object_id) + '</dd></div>' +
       '<div><dt>Sui tx</dt><dd>' + proofLink(suiExplorer, "tx", asset.tx_digest) + '</dd></div>' +
@@ -2489,7 +2494,7 @@ const SITE_JS = `
     var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
     var walrusExplorer = source.getAttribute("data-walrus-explorer") || "https://walruscan.com/testnet";
     var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=20";
-    root.innerHTML = '<p class="muted">Loading live asset from <code>/api/index</code>...</p>';
+    root.innerHTML = '<p class="muted">Loading the live research asset...</p>';
     fetch(indexUrl, { cache: "no-store" }).then(function (res) {
       if (!res.ok) throw new Error("index API HTTP " + res.status);
       return res.json();
@@ -2499,7 +2504,7 @@ const SITE_JS = `
         return routeSegment(item.id || "") === wanted || item.id === wanted || item.sui_object_id === wanted;
       }) || (wanted ? null : assets[0]);
       if (!asset) {
-        root.innerHTML = '<p class="muted">No live asset matched this URL in the backend index.</p>';
+        root.innerHTML = '<p class="muted">No live research asset matched this URL.</p>';
         return;
       }
       var state = liveProofState(asset);
@@ -2513,21 +2518,27 @@ const SITE_JS = `
             '<div class="dateline">[Live Sui testnet submission on ' + esc(formatMembershipDate(asset.created_at)) + ']</div>' +
             '<h1 class="abs-title">' + esc(asset.title || asset.id || "Research Asset") + '</h1>' +
             '<div class="abs-authors">' + esc(asset.authors || "Unknown") + '</div>' +
-            '<blockquote class="abstract"><span class="descriptor">Abstract:</span> ' + esc(asset.abstract || "") + '</blockquote>' +
             '<div class="abs-tags">' + tags.map(function (tag) { return '<span class="tag">' + esc(tag) + '</span>'; }).join("") + '</div>' +
-            '<div class="metatable"><table>' +
-              '<tr><td class="label">Subjects:</td><td>' + esc(types) + '</td></tr>' +
-              '<tr><td class="label">Asset ID:</td><td><code>' + esc(asset.id || asset.sui_object_id || "") + '</code></td></tr>' +
-              '<tr><td class="label">Repository:</td><td>' + (asset.repo_url ? plainLink(asset.repo_url, asset.repo_url) : '<span class="muted">not recorded in release manifest</span>') + '</td></tr>' +
-              '<tr><td class="label">Commit:</td><td>' + commitLink(asset.repo_url, asset.repo_commit) + '</td></tr>' +
-              '<tr><td class="label">Verification:</td><td><span class="chain-status chain-status-' + (state.verified ? "verified" : "warning") + '">' + esc(state.label) + '</span> <span class="muted">' + esc(state.detail) + '</span></td></tr>' +
-            '</table></div>' +
             renderLivePaperViewer(bundle.formats) +
           '</div>' +
           '<aside class="extra-services">' +
+            '<div class="sidebar-section asset-sidebar-summary">' +
+              '<h3>Abstract</h3>' +
+              '<p>' + esc(asset.abstract || "No abstract recorded in this live release.") + '</p>' +
+            '</div>' +
             '<div class="access-box">' +
               '<h2>Read & Download</h2>' +
               renderDownloadList(bundle.downloads) +
+            '</div>' +
+            '<div class="sidebar-section">' +
+              '<h3>Research Asset</h3>' +
+              '<dl class="verification asset-sidebar-record">' +
+                '<div><dt>Subjects</dt><dd>' + esc(types) + '</dd></div>' +
+                '<div><dt>Asset ID</dt><dd><code>' + esc(asset.id || asset.sui_object_id || "") + '</code></dd></div>' +
+                '<div><dt>Repository</dt><dd>' + (asset.repo_url ? plainLink(asset.repo_url, shortText(asset.repo_url, 24, 16)) : '<span class="muted">not recorded</span>') + '</dd></div>' +
+                '<div><dt>Commit</dt><dd>' + commitLink(asset.repo_url, asset.repo_commit) + '</dd></div>' +
+                '<div><dt>Verification</dt><dd><span class="chain-status chain-status-' + (state.verified ? "verified" : "warning") + '">' + esc(state.label) + '</span> <span class="muted">' + esc(state.detail) + '</span></dd></div>' +
+              '</dl>' +
             '</div>' +
             '<div class="sidebar-section readme-sidebar">' +
               '<h3>README.md</h3>' +
@@ -2552,7 +2563,7 @@ const SITE_JS = `
       setupLiveReadme(root, bundle.readme);
       setupPdfRender();
     }).catch(function (err) {
-      root.innerHTML = '<p class="muted">Could not load live asset detail: ' + esc(err && err.message ? err.message : "request failed") + '</p>';
+      root.innerHTML = '<p class="muted">Could not load the live research asset: ' + esc(err && err.message ? err.message : "request failed") + '</p>';
     });
   }
 
@@ -3217,7 +3228,7 @@ ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status<
   const assetDetailBody = `
 ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 <section data-live-asset-detail aria-live="polite">
-  <p class="muted">Loading live asset detail from <code>/api/index</code>...</p>
+  <p class="muted">Loading the live research asset...</p>
 </section>`;
   await fs.writeFile(path.join(outputDir, "asset.html"), shell("Live Asset", assetDetailBody, { subject: "Live Asset", math: true }), "utf8");
 

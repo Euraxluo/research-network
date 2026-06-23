@@ -135,6 +135,13 @@ describe("static web E2E", () => {
         }
       }
 
+      const apiHealth = await fetch(sitePath(server.url, "/api/index/health"));
+      expect(apiHealth.status).toBe(200);
+      await expect(apiHealth.json()).resolves.toMatchObject({
+        ok: true,
+        service: "research-network-live-index"
+      });
+
       const indexHtml = await (await fetch(sitePath(server.url, "/"))).text();
       expect(indexHtml).not.toContain("Live testnet proof");
       expect(indexHtml).toContain("data-chain-source");
@@ -673,6 +680,7 @@ describe("static web E2E", () => {
     expect(indexHtml).toContain("Recent submissions");
     expect(indexHtml).toContain("data-chain-submissions");
     expect(indexHtml).toContain("ResearchAssetPublished");
+    expect(indexHtml).toContain("/site.js?v=20260623-live-paper-v4");
     expect(indexHtml).not.toContain("Demo Research Asset");
     expect(indexHtml).not.toContain("Untitled Research Asset");
     expect(indexHtml).not.toContain("Describe the research problem");
@@ -695,6 +703,8 @@ describe("static web E2E", () => {
     expect(assetHtml).toContain("/api/index");
     expect(assetHtml).toContain("mathjax@3.2.2");
     const shellSiteJs = await fs.readFile(path.join(shellDir, "site.js"), "utf8");
+    expect(shellSiteJs).not.toContain("Served by <code>/api/index</code>");
+    expect(shellSiteJs).toContain("Verified on Sui and Walrus");
     expect(shellSiteJs).toContain("/api/index/artifact");
     expect(shellSiteJs).toContain("data-live-paper");
     expect(shellSiteJs).toContain("paper-word");

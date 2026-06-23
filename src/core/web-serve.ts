@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
+import { researchIndexApi } from "../api/index-service.js";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -59,6 +60,22 @@ export async function serveStaticSite(root: string, port = 4173): Promise<Static
   const resolvedRoot = path.resolve(root);
   const server = http.createServer(async (req, res) => {
     try {
+      if (req.url?.startsWith("/api/index")) {
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(req.headers)) {
+          if (typeof value === "string") headers.set(key, value);
+          else if (Array.isArray(value)) headers.set(key, value.join(", "));
+        }
+        const host = headers.get("host") ?? `127.0.0.1:${port}`;
+        const apiResponse = await researchIndexApi.handle(new Request(`http://${host}${req.url}`, {
+          method: req.method,
+          headers
+        }));
+        const body = Buffer.from(await apiResponse.arrayBuffer());
+        res.writeHead(apiResponse.status, Object.fromEntries(apiResponse.headers.entries()));
+        res.end(body);
+        return;
+      }
       const filePath = await resolveFile(resolvedRoot, req.url ?? "/");
       if (!filePath || !filePath.startsWith(resolvedRoot)) {
         res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
