@@ -187,7 +187,7 @@ describe("static web E2E", () => {
     }
   });
 
-  it("renders indexed Seal Access commerce state on the dashboard and membership pages", async () => {
+  it("renders fixture commerce diagnostics on the dashboard without presenting them as live membership data", async () => {
     const workspace = await initWorkspace({
       target: await makeTempDir("eco-ws"),
       title: "Economics Paper",
@@ -232,8 +232,11 @@ describe("static web E2E", () => {
       expect(dashboard).not.toContain("local-badge");
 
       const membership = await (await fetch(sitePath(server.url, "/membership.html"))).text();
-      expect(membership).toContain("read:web");
-      expect(membership).toContain("rep:web");
+      expect(membership).toContain("No live membership receipts are indexed yet");
+      expect(membership).toContain("/api/index");
+      expect(membership).not.toContain("read:web");
+      expect(membership).not.toContain("rep:web");
+      expect(membership).not.toContain("0xA");
       const delegations = await (await fetch(sitePath(server.url, "/delegations.html"))).text();
       expect(delegations).toContain("job:web");
       expect(skillId).toBeTruthy();

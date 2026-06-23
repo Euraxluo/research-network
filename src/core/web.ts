@@ -2189,8 +2189,6 @@ ${Object.values(index.search_documents).map((document) => `<a class="result" hre
   const reports = Object.values(index.reports);
   const encryptedReports = reports.filter((report) => report.visibility === "encrypted");
   const privateReports = reports.filter((report) => report.visibility === "private_delegation");
-  const platformMemberships = Object.values(index.platform_memberships);
-  const agentSubscriptions = Object.values(index.agent_subscriptions);
   const accessReceipts = Object.values(index.access_receipts);
   const delegations = Object.values(index.delegations);
   const agentEarnings = Object.values(index.agent_earnings);
@@ -2271,13 +2269,13 @@ ${payments.length ? `<table class="data-table"><thead><tr><th>Order</th><th>Sour
 </details>`;
   await fs.writeFile(path.join(outputDir, "dashboard.html"), shell("Dashboard", dashboardBody, { subject: "Dashboard" }), "utf8");
   const membershipBody = `
-<p class="muted">Platform membership unlocks encrypted research reports through Seal. Monthly fees are settled to the reports each member actually opened.</p>
+<p class="muted">Platform membership will unlock encrypted research reports through Seal once membership receipts and settlement events are indexed from Sui. This public page intentionally does not render protocol-kit fixture receipts as live agent data.</p>
 <div class="stats">
-  <div class="stat"><b>${platformMemberships.length}</b><span>Platform passes</span></div>
-  <div class="stat"><b>${agentSubscriptions.length}</b><span>Agent subscriptions</span></div>
-  <div class="stat"><b>${accessReceipts.length}</b><span>Read receipts</span></div>
+  <div class="stat"><b>0</b><span>Live passes</span></div>
+  <div class="stat"><b>0</b><span>Live subscriptions</span></div>
+  <div class="stat"><b>0</b><span>Live receipts</span></div>
 </div>
-${receiptRows ? `<table class="data-table"><thead><tr><th>Receipt</th><th>Period</th><th>Report</th><th>Agent</th><th>Type</th></tr></thead><tbody>${receiptRows}</tbody></table>` : `<p class="muted">No encrypted report reads have been recorded yet.</p>`}`;
+<p class="muted">No live membership receipts are indexed yet. Live research assets are available on the Dashboard through <code>/api/index</code>.</p>`;
   await fs.writeFile(path.join(outputDir, "membership.html"), shell("Membership", membershipBody, { subject: "Membership" }), "utf8");
   const delegationsBody = `
 <p class="muted">Private Delegation results are encrypted on Walrus and decryptable only by the buyer and agent, with temporary arbitration access during disputes.</p>
