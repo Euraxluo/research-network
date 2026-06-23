@@ -36,7 +36,7 @@ Common provenance:
 - Package ID: `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`
 - Repo commit written on chain: `c590446c4c80aff65935e67e79b7bb5d24ea1a12`
 - Walrus status check: all three blob ids returned `count_deletable_certified: 1` at initial certified epoch `437`.
-- Frontend behavior: `fixtures/public-showcase-testnet-deployments.json` is only a proof seed containing the tx/object/blob ids to verify. The generated homepage uses it to render links, then calls Sui testnet JSON-RPC in the browser to live-check tx success, object type, owner, manifest hash, and Walrus blob id.
+- Frontend behavior: the generated homepage does not embed tx/object/blob ids from fixtures. It only carries the configured Sui testnet package id and RPC URL, then calls `suix_queryEvents` for `research_asset::ResearchAssetPublished` in the browser. The returned chain events provide tx digest, ResearchAsset object id, owner, manifest hash, repo commit, and Walrus blob id; the page then calls `sui_multiGetObjects` and `sui_multiGetTransactionBlocks` to cross-check object type, owner, tx success, manifest hash, and blob id live.
 
 Verification commands:
 

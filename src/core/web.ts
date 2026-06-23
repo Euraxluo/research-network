@@ -2,13 +2,15 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { getGraph } from "./indexer.js";
 import { readIndex } from "./local-store.js";
-import { PROJECT_ROOT, WEB_DIST_DIR } from "./paths.js";
+import { WEB_DIST_DIR } from "./paths.js";
 import { renderWorkbenchBody, WORKBENCH_JS } from "./web-workbench.js";
 
 const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
+const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
+const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const STATIC_CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
@@ -431,24 +433,11 @@ export interface ExplorerConfig {
   walrusBase: string;
 }
 
-interface PublicShowcaseTestnetAsset {
-  id: string;
-  workspace: string;
-  title: string;
-  version: string;
-  sui_tx: string;
-  research_asset_object: string;
-  walrus_blob_id: string;
-  manifest_hash: string;
-}
-
-interface PublicShowcaseTestnetDeployments {
+interface OnChainProofConfig {
   network: string;
-  sui_rpc_url?: string;
-  package_id: string;
-  publisher: string;
-  repo_commit: string;
-  assets: PublicShowcaseTestnetAsset[];
+  suiRpcUrl: string;
+  packageId: string;
+  limit: number;
 }
 
 export function loadExplorerConfig(env: NodeJS.ProcessEnv = process.env): ExplorerConfig {
@@ -488,58 +477,33 @@ function renderEventTxDigest(event: { tx_digest: string; event_seq: number }, ex
   return `${rendered}${eventSeq}`;
 }
 
-async function readPublicShowcaseTestnetDeployments(): Promise<PublicShowcaseTestnetDeployments | undefined> {
-  try {
-    const raw = await fs.readFile(path.join(PROJECT_ROOT, "fixtures", "public-showcase-testnet-deployments.json"), "utf8");
-    const parsed = JSON.parse(raw) as PublicShowcaseTestnetDeployments;
-    if (!Array.isArray(parsed.assets) || !parsed.assets.length) {
-      return undefined;
-    }
-    return parsed;
-  } catch {
-    return undefined;
-  }
+function loadOnChainProofConfig(env: NodeJS.ProcessEnv = process.env): OnChainProofConfig {
+  const limit = Number.parseInt(env.RN_SHOWCASE_EVENT_LIMIT ?? "6", 10);
+  return {
+    network: env.RN_WEB_NETWORK ?? env.RN_NETWORK ?? "testnet",
+    suiRpcUrl: env.RN_TESTNET_SUI_RPC_URL ?? env.RN_SUI_RPC_URL ?? DEFAULT_TESTNET_RPC_URL,
+    packageId: env.RN_PACKAGE_ID ?? DEFAULT_TESTNET_PACKAGE_ID,
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 20) : 6
+  };
 }
 
-function shortId(value: string, head = 10, tail = 8): string {
-  if (value.length <= head + tail + 3) {
-    return value;
-  }
-  return `${value.slice(0, head)}...${value.slice(-tail)}`;
-}
-
-function renderPublicShowcaseProof(deployments: PublicShowcaseTestnetDeployments | undefined, explorer: ExplorerConfig): string {
-  if (!deployments) {
-    return "";
-  }
-  const expectedType = `${deployments.package_id}::research_asset::ResearchAsset`;
-  const rpcUrl = deployments.sui_rpc_url ?? "https://sui-testnet-rpc.publicnode.com";
-  const assetRows = deployments.assets.map((asset) => `<article class="proof-card" data-proof-card data-tx-digest="${escapeHtml(asset.sui_tx)}" data-object-id="${escapeHtml(asset.research_asset_object)}" data-expected-type="${escapeHtml(expectedType)}" data-expected-owner="${escapeHtml(deployments.publisher)}" data-expected-blob="${escapeHtml(asset.walrus_blob_id)}" data-expected-manifest="${escapeHtml(asset.manifest_hash)}">
-    <div>
-      <h3>${escapeHtml(asset.title)}</h3>
-      <p>${escapeHtml(asset.id)} · v${escapeHtml(asset.version)}</p>
-    </div>
-    <div class="proof-live proof-pending" data-proof-status>Checking live chain...</div>
-    <dl>
-      <div><dt>Sui tx</dt><dd>${explorerLink("tx", asset.sui_tx, explorer)}</dd></div>
-      <div><dt>ResearchAsset</dt><dd>${explorerLink("object", asset.research_asset_object, explorer)}</dd></div>
-      <div><dt>Walrus blob</dt><dd>${explorerLink("walrus-blob", asset.walrus_blob_id, explorer)}</dd></div>
-    </dl>
-  </article>`).join("");
-  return `<section class="testnet-proof" aria-labelledby="testnet-proof-title" data-proof-rpc="${escapeHtml(rpcUrl)}">
+function renderPublicShowcaseProof(config: OnChainProofConfig, explorer: ExplorerConfig): string {
+  const eventType = `${config.packageId}::research_asset::ResearchAssetPublished`;
+  return `<section class="testnet-proof" aria-labelledby="testnet-proof-title" data-proof-rpc="${escapeHtml(config.suiRpcUrl)}" data-proof-package="${escapeHtml(config.packageId)}" data-proof-event-type="${escapeHtml(eventType)}" data-proof-limit="${config.limit}" data-sui-explorer="${escapeHtml(explorer.suiBase)}" data-walrus-explorer="${escapeHtml(explorer.walrusBase)}">
     <div class="proof-head">
       <div>
         <h2 id="testnet-proof-title">Live testnet proof</h2>
-        <p>Three public showcase repositories were packaged to Walrus testnet and registered as Sui testnet <code>ResearchAsset</code> objects.</p>
+        <p>Research assets below are discovered directly from Sui testnet <code>ResearchAssetPublished</code> events, then cross-checked against live Sui objects in the browser.</p>
       </div>
       <dl class="proof-summary">
-        <div><dt>Network</dt><dd>${escapeHtml(deployments.network)}</dd></div>
-        <div><dt>Package</dt><dd>${explorerLink("object", deployments.package_id, explorer)}</dd></div>
-        <div><dt>Live RPC</dt><dd><code>${escapeHtml(rpcUrl.replace(/^https:\/\//, ""))}</code></dd></div>
-        <div><dt>Commit</dt><dd><code title="${escapeHtml(deployments.repo_commit)}">${escapeHtml(shortId(deployments.repo_commit, 8, 8))}</code></dd></div>
+        <div><dt>Network</dt><dd>${escapeHtml(config.network)}</dd></div>
+        <div><dt>Package</dt><dd>${explorerLink("object", config.packageId, explorer)}</dd></div>
+        <div><dt>Live RPC</dt><dd><code>${escapeHtml(config.suiRpcUrl.replace(/^https:\/\//, ""))}</code></dd></div>
+        <div><dt>Event</dt><dd><code>ResearchAssetPublished</code></dd></div>
       </dl>
     </div>
-    <div class="proof-grid">${assetRows}</div>
+    <div class="proof-live proof-pending" data-proof-overall>Querying Sui events...</div>
+    <div class="proof-grid" data-proof-grid></div>
   </section>`;
 }
 
@@ -1352,6 +1316,36 @@ const SITE_JS = `
     }
   }
 
+  function esc(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+
+  function shortText(value, head, tail) {
+    var text = String(value || "");
+    if (text.length <= head + tail + 3) return text;
+    return text.slice(0, head) + "..." + text.slice(-tail);
+  }
+
+  function proofLink(base, kind, value) {
+    var text = String(value || "");
+    if (!text) return "";
+    return '<a href="' + esc(base + "/" + kind + "/" + encodeURIComponent(text)) + '" rel="noopener" target="_blank">' + esc(text) + '</a>';
+  }
+
+  function proofBlobLink(base, value) {
+    var text = String(value || "");
+    if (!text) return "";
+    return '<a href="' + esc(base + "/blob/" + encodeURIComponent(text)) + '" rel="noopener" target="_blank">' + esc(text) + '</a>';
+  }
+
+  function proofDate(ms) {
+    var n = Number(ms);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    try { return new Date(n).toISOString().replace("T", " ").slice(0, 19); } catch (e) { return ""; }
+  }
+
   function setProofStatus(card, state, label, detail) {
     var node = card.querySelector("[data-proof-status]");
     if (!node) return;
@@ -1359,18 +1353,92 @@ const SITE_JS = `
     node.textContent = label + (detail ? " · " + detail : "");
   }
 
+  function setOverallProofStatus(section, state, label, detail) {
+    var node = section.querySelector("[data-proof-overall]");
+    if (!node) return;
+    node.className = "proof-live proof-" + state;
+    node.textContent = label + (detail ? " · " + detail : "");
+  }
+
+  function renderOnChainProofCard(input) {
+    var event = input.event;
+    var objectData = input.objectData;
+    var txData = input.txData;
+    var packageId = input.packageId;
+    var suiExplorer = input.suiExplorer;
+    var walrusExplorer = input.walrusExplorer;
+    var parsed = event.parsedJson || {};
+    var fields = objectData && objectData.content && objectData.content.fields ? objectData.content.fields : {};
+    var txDigest = event.id && event.id.txDigest ? event.id.txDigest : "";
+    var objectId = String(parsed.asset_id || "");
+    var eventOwner = String(parsed.owner || parsed.creator || "").toLowerCase();
+    var objectOwner = objectData && objectData.owner && objectData.owner.AddressOwner ? String(objectData.owner.AddressOwner).toLowerCase() : "";
+    var eventBlob = bytesToString(parsed.walrus_blob_id);
+    var objectBlob = bytesToString(fields.walrus_blob_id);
+    var eventManifest = bytesToString(parsed.manifest_hash);
+    var objectManifest = bytesToString(fields.manifest_hash);
+    var repoCommit = bytesToString(parsed.repo_commit);
+    var expectedType = packageId + "::research_asset::ResearchAsset";
+    var txOk = Boolean(txData && txData.effects && txData.effects.status && txData.effects.status.status === "success");
+    var typeOk = Boolean(objectData && objectData.type === expectedType);
+    var ownerOk = Boolean(objectOwner && eventOwner && objectOwner === eventOwner);
+    var blobOk = Boolean(eventBlob && objectBlob && eventBlob === objectBlob);
+    var manifestOk = Boolean(eventManifest && objectManifest && eventManifest === objectManifest);
+    var card = document.createElement("article");
+    card.className = "proof-card";
+    card.innerHTML =
+      '<div><h3>ResearchAsset ' + esc(shortText(objectId, 8, 6)) + '</h3>' +
+      '<p>v' + esc(parsed.version || fields.version || "?") + ' · mask ' + esc(parsed.asset_type_mask || fields.asset_type_mask || "?") + ' · ' + esc(proofDate(parsed.created_ms || fields.created_ms)) + '</p></div>' +
+      '<div class="proof-live proof-pending" data-proof-status>Checking live chain...</div>' +
+      '<dl>' +
+      '<div><dt>Sui tx</dt><dd>' + proofLink(suiExplorer, "tx", txDigest) + '</dd></div>' +
+      '<div><dt>ResearchAsset</dt><dd>' + proofLink(suiExplorer, "object", objectId) + '</dd></div>' +
+      '<div><dt>Walrus blob</dt><dd>' + proofBlobLink(walrusExplorer, eventBlob) + '</dd></div>' +
+      '<div><dt>Manifest</dt><dd><code>' + esc(shortText(eventManifest, 18, 12)) + '</code></dd></div>' +
+      '<div><dt>Owner</dt><dd>' + proofLink(suiExplorer, "account", eventOwner) + '</dd></div>' +
+      (repoCommit ? '<div><dt>Repo commit</dt><dd><code title="' + esc(repoCommit) + '">' + esc(shortText(repoCommit, 8, 8)) + '</code></dd></div>' : '') +
+      '</dl>';
+    if (txOk && typeOk && ownerOk && blobOk && manifestOk) {
+      setProofStatus(card, "verified", "Live verified", "event, tx, object, blob and manifest agree");
+    } else {
+      var missing = [];
+      if (!txOk) missing.push("tx");
+      if (!typeOk) missing.push("type");
+      if (!ownerOk) missing.push("owner");
+      if (!blobOk) missing.push("blob");
+      if (!manifestOk) missing.push("manifest");
+      setProofStatus(card, "warning", "Live mismatch", missing.join(", "));
+    }
+    return card;
+  }
+
   function setupTestnetProof() {
-    var section = document.querySelector(".testnet-proof[data-proof-rpc]");
+    var section = document.querySelector(".testnet-proof[data-proof-rpc][data-proof-package]");
     if (!section || !window.fetch) return;
     var rpcUrl = section.getAttribute("data-proof-rpc");
-    var cards = Array.prototype.slice.call(section.querySelectorAll("[data-proof-card]"));
-    if (!rpcUrl || !cards.length) return;
-    var objectIds = cards.map(function (card) { return card.getAttribute("data-object-id"); }).filter(Boolean);
-    var txDigests = cards.map(function (card) { return card.getAttribute("data-tx-digest"); }).filter(Boolean);
-    Promise.all([
-      rpcCall(rpcUrl, "sui_multiGetObjects", [objectIds, { showType: true, showOwner: true, showContent: true }]),
-      rpcCall(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showEffects: true, showEvents: true }])
-    ]).then(function (results) {
+    var packageId = section.getAttribute("data-proof-package");
+    var eventType = section.getAttribute("data-proof-event-type") || (packageId + "::research_asset::ResearchAssetPublished");
+    var limit = Math.max(1, Math.min(20, Number(section.getAttribute("data-proof-limit")) || 6));
+    var grid = section.querySelector("[data-proof-grid]");
+    var suiExplorer = section.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
+    var walrusExplorer = section.getAttribute("data-walrus-explorer") || "https://walruscan.com/testnet";
+    if (!rpcUrl || !packageId || !grid) return;
+    setOverallProofStatus(section, "pending", "Querying Sui events", "suix_queryEvents");
+    rpcCall(rpcUrl, "suix_queryEvents", [{ MoveEventType: eventType }, null, limit, true]).then(function (page) {
+      var events = (page && page.data ? page.data : []).filter(function (event) {
+        return event && event.id && event.id.txDigest && event.parsedJson && event.parsedJson.asset_id;
+      });
+      if (!events.length) {
+        setOverallProofStatus(section, "warning", "No live ResearchAssetPublished events found", eventType);
+        grid.innerHTML = "";
+        return null;
+      }
+      var objectIds = events.map(function (event) { return event.parsedJson.asset_id; });
+      var txDigests = events.map(function (event) { return event.id.txDigest; });
+      return Promise.all([
+        rpcCall(rpcUrl, "sui_multiGetObjects", [objectIds, { showType: true, showOwner: true, showContent: true }]),
+        rpcCall(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showEffects: true, showEvents: true }])
+      ]).then(function (results) {
       var objectById = {};
       (results[0] || []).forEach(function (entry) {
         if (entry && entry.data && entry.data.objectId) objectById[entry.data.objectId] = entry.data;
@@ -1379,38 +1447,22 @@ const SITE_JS = `
       (results[1] || []).forEach(function (entry) {
         if (entry && entry.digest) txByDigest[entry.digest] = entry;
       });
-      cards.forEach(function (card) {
-        var objectId = card.getAttribute("data-object-id");
-        var txDigest = card.getAttribute("data-tx-digest");
-        var expectedType = card.getAttribute("data-expected-type");
-        var expectedOwner = (card.getAttribute("data-expected-owner") || "").toLowerCase();
-        var expectedBlob = card.getAttribute("data-expected-blob") || "";
-        var expectedManifest = card.getAttribute("data-expected-manifest") || "";
-        var objectData = objectById[objectId];
-        var txData = txByDigest[txDigest];
-        var fields = objectData && objectData.content && objectData.content.fields ? objectData.content.fields : {};
-        var owner = objectData && objectData.owner && objectData.owner.AddressOwner ? String(objectData.owner.AddressOwner).toLowerCase() : "";
-        var txOk = Boolean(txData && txData.effects && txData.effects.status && txData.effects.status.status === "success");
-        var typeOk = Boolean(objectData && objectData.type === expectedType);
-        var ownerOk = Boolean(owner && owner === expectedOwner);
-        var blobOk = bytesToString(fields.walrus_blob_id) === expectedBlob;
-        var manifestOk = bytesToString(fields.manifest_hash) === expectedManifest;
-        if (txOk && typeOk && ownerOk && blobOk && manifestOk) {
-          setProofStatus(card, "verified", "Live verified", "tx success, object typed, Walrus blob matches");
-        } else {
-          var missing = [];
-          if (!txOk) missing.push("tx");
-          if (!typeOk) missing.push("type");
-          if (!ownerOk) missing.push("owner");
-          if (!blobOk) missing.push("blob");
-          if (!manifestOk) missing.push("manifest");
-          setProofStatus(card, "warning", "Live mismatch", missing.join(", "));
-        }
+        grid.innerHTML = "";
+        events.forEach(function (event) {
+          grid.appendChild(renderOnChainProofCard({
+            event: event,
+            objectData: objectById[event.parsedJson.asset_id],
+            txData: txByDigest[event.id.txDigest],
+            packageId: packageId,
+            suiExplorer: suiExplorer,
+            walrusExplorer: walrusExplorer
+          }));
+        });
+        setOverallProofStatus(section, "verified", "Live chain query complete", events.length + " ResearchAssetPublished events");
       });
     }).catch(function (err) {
-      cards.forEach(function (card) {
-        setProofStatus(card, "warning", "Live check unavailable", err && err.message ? err.message : "RPC error");
-      });
+      setOverallProofStatus(section, "warning", "Live check unavailable", err && err.message ? err.message : "RPC error");
+      if (grid) grid.innerHTML = "";
     });
   }
 
@@ -1611,7 +1663,7 @@ const SITE_JS = `
 export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: string): Promise<string> {
   const index = await readIndex(localnetRoot);
   const explorer = loadExplorerConfig();
-  const showcaseTestnetDeployments = await readPublicShowcaseTestnetDeployments();
+  const onChainProofConfig = loadOnChainProofConfig();
   const walrusSitesResources = await readExistingWalrusSitesResources(outputDir);
   await fs.rm(outputDir, { recursive: true, force: true });
   await fs.mkdir(path.join(outputDir, "abs"), { recursive: true });
@@ -1869,7 +1921,7 @@ ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status<
   const homeBody = `
 <p class="intro">An agent-native, decentralized research asset network. Papers, skills, workflows, datasets and code are authored in Git, snapshotted on Walrus, registered on Sui, and indexed as one verifiable graph for humans and agents alike.</p>
 <p class="stats-line">${assets.length} research asset${assets.length === 1 ? "" : "s"} &middot; ${skills.length} skill${skills.length === 1 ? "" : "s"} &middot; ${relationshipCount} graph relationship${relationshipCount === 1 ? "" : "s"} &middot; ${index.events.length} protocol event${index.events.length === 1 ? "" : "s"} &middot; indexed ${escapeHtml(humanDate(index.updated_at))}</p>
-${renderPublicShowcaseProof(showcaseTestnetDeployments, explorer)}
+${renderPublicShowcaseProof(onChainProofConfig, explorer)}
 <div class="search-box"><input id="filter" type="search" placeholder="Search titles, authors, tags&hellip;" autocomplete="off" aria-label="Search submissions"></div>
 <h2>Recent submissions</h2>
 ${listingParts.length ? `<dl class="listing">${listingParts.join("")}</dl>` : "<p class=\"muted\">No indexed assets yet. Run <code>research publish</code> first.</p>"}`;

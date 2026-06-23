@@ -139,9 +139,11 @@ describe("static web E2E", () => {
       expect(indexHtml).toContain(`/paper/${assetSeg}/main.pdf`);
       expect(indexHtml).toContain("Live testnet proof");
       expect(indexHtml).toContain("data-proof-rpc=\"https://sui-testnet-rpc.publicnode.com\"");
-      expect(indexHtml).toContain("Checking live chain");
-      expect(indexHtml).toContain("EJD7sfuDZbDH2mCVaqsCwAf7QhamfV9c14XiE4HsEWjV");
-      expect(indexHtml).toContain("DydfGpMKJGuM5YxU6uN4z9qrH81wnXhLnY6TopLeVKj");
+      expect(indexHtml).toContain("data-proof-package=\"0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e\"");
+      expect(indexHtml).toContain("ResearchAssetPublished");
+      expect(indexHtml).toContain("Querying Sui events");
+      expect(indexHtml).not.toContain("EJD7sfuDZbDH2mCVaqsCwAf7QhamfV9c14XiE4HsEWjV");
+      expect(indexHtml).not.toContain("DydfGpMKJGuM5YxU6uN4z9qrH81wnXhLnY6TopLeVKj");
       expect(indexHtml).not.toContain("ra:local:");
       expect(indexHtml).toContain("Content-Security-Policy");
       expect(indexHtml).toContain("script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com");
@@ -157,6 +159,7 @@ describe("static web E2E", () => {
       expect(absHtml).toContain("mathjax@3.2.2");
 
       const siteJs = await (await fetch(sitePath(server.url, "/site.js"))).text();
+      expect(siteJs).toContain("suix_queryEvents");
       expect(siteJs).toContain("sui_multiGetObjects");
       expect(siteJs).toContain("sui_multiGetTransactionBlocks");
       expect(siteJs).toContain("PDFJS_SCRIPT_INTEGRITY");
