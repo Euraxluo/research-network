@@ -21,11 +21,11 @@ describe("live index Elysia API", () => {
     expect(spec.paths["/api/index/health"]).toBeTruthy();
   });
 
-  it("ships Vercel function entrypoints for Elysia subroutes", async () => {
-    await expect(fs.access("api/index/artifact.ts")).resolves.toBeUndefined();
-    await expect(fs.access("api/index/health.ts")).resolves.toBeUndefined();
-    await expect(fs.access("api/index/persisted.ts")).resolves.toBeUndefined();
-    await expect(fs.access("api/index/ingest.ts")).resolves.toBeUndefined();
+  it("ships one Vercel catch-all entrypoint for Elysia subroutes", async () => {
+    await expect(fs.access("api/index.ts")).resolves.toBeUndefined();
+    await expect(fs.access("api/index/[...path].ts")).resolves.toBeUndefined();
+    await expect(fs.access("api/index/artifact.ts")).rejects.toBeTruthy();
+    await expect(fs.access("api/index/ingest.ts")).rejects.toBeTruthy();
   });
 
   it("reports database configuration without requiring a live ingest", async () => {
