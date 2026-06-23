@@ -4,7 +4,7 @@
   "crons": [
     {
       "path": "/api/index/ingest",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 0 * * *"
     }
   ],
   "rewrites": [
