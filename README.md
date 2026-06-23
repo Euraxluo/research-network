@@ -110,6 +110,6 @@ npx tsx src/cli.ts deploy:testnet ./my-asset --epochs 1 --site-name research-net
 
 本地状态写入 `.research-network/localnet/`，包括 Walrus 风格 blob、Sui 风格事件日志和 Indexer 投影。
 
-> 注意：本地 `publish` 产生的是模拟事件；本轮 Seal Access 协议重构先完成本地 Move、schema、indexer、web 与测试，是否重新部署 Sui testnet package 单独决策。能力边界详见 `docs/17-implementation-status-and-decisions.md`。
+Public showcase 不是只停留在本地索引：`fixtures/public-showcase/workspaces/` 下的三个演示仓库已经通过协议包完成 Walrus testnet 存储和 Sui testnet `ResearchAssetPublished` 注册。链上证据、ResearchAsset object、Walrus blob 和复验命令见 `docs/16-testnet-deployment.md#2026-06-23-public-showcase-testnet-assets`。
 
-已完成的 Walrus/Sui testnet 部署记录见 `docs/16-testnet-deployment.md`。
+能力边界详见 `docs/17-implementation-status-and-decisions.md`。已完成的 Walrus/Sui testnet 部署记录见 `docs/16-testnet-deployment.md`。

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { getGraph } from "./indexer.js";
 import { readIndex } from "./local-store.js";
-import { WEB_DIST_DIR } from "./paths.js";
+import { PROJECT_ROOT, WEB_DIST_DIR } from "./paths.js";
 import { renderWorkbenchBody, WORKBENCH_JS } from "./web-workbench.js";
 
 const PDFJS_VERSION = "3.11.174";
@@ -15,7 +15,7 @@ const STATIC_CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://cdn.jsdelivr.net",
-  "connect-src 'self'",
+  "connect-src 'self' https://sui-testnet-rpc.publicnode.com https://fullnode.testnet.sui.io:443 https://*.sui.io",
   "worker-src 'self' blob: https://cdnjs.cloudflare.com",
   "object-src 'none'",
   "base-uri 'self'",
@@ -431,6 +431,26 @@ export interface ExplorerConfig {
   walrusBase: string;
 }
 
+interface PublicShowcaseTestnetAsset {
+  id: string;
+  workspace: string;
+  title: string;
+  version: string;
+  sui_tx: string;
+  research_asset_object: string;
+  walrus_blob_id: string;
+  manifest_hash: string;
+}
+
+interface PublicShowcaseTestnetDeployments {
+  network: string;
+  sui_rpc_url?: string;
+  package_id: string;
+  publisher: string;
+  repo_commit: string;
+  assets: PublicShowcaseTestnetAsset[];
+}
+
 export function loadExplorerConfig(env: NodeJS.ProcessEnv = process.env): ExplorerConfig {
   return {
     suiBase: (env.SUI_EXPLORER_BASE_URL ?? "https://suiscan.xyz/testnet").replace(/\/$/, ""),
@@ -466,6 +486,61 @@ function renderEventTxDigest(event: { tx_digest: string; event_seq: number }, ex
     return `<span class="local-tx" title="Local/demo simulated event ID, not a Sui transaction digest. Real Sui transaction digests link to the configured explorer.">${escapeHtml(event.tx_digest)}</span>${eventSeq}<span class="local-badge" title="This row comes from the local/demo event log, not from Sui RPC.">local</span>`;
   }
   return `${rendered}${eventSeq}`;
+}
+
+async function readPublicShowcaseTestnetDeployments(): Promise<PublicShowcaseTestnetDeployments | undefined> {
+  try {
+    const raw = await fs.readFile(path.join(PROJECT_ROOT, "fixtures", "public-showcase-testnet-deployments.json"), "utf8");
+    const parsed = JSON.parse(raw) as PublicShowcaseTestnetDeployments;
+    if (!Array.isArray(parsed.assets) || !parsed.assets.length) {
+      return undefined;
+    }
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+function shortId(value: string, head = 10, tail = 8): string {
+  if (value.length <= head + tail + 3) {
+    return value;
+  }
+  return `${value.slice(0, head)}...${value.slice(-tail)}`;
+}
+
+function renderPublicShowcaseProof(deployments: PublicShowcaseTestnetDeployments | undefined, explorer: ExplorerConfig): string {
+  if (!deployments) {
+    return "";
+  }
+  const expectedType = `${deployments.package_id}::research_asset::ResearchAsset`;
+  const rpcUrl = deployments.sui_rpc_url ?? "https://sui-testnet-rpc.publicnode.com";
+  const assetRows = deployments.assets.map((asset) => `<article class="proof-card" data-proof-card data-tx-digest="${escapeHtml(asset.sui_tx)}" data-object-id="${escapeHtml(asset.research_asset_object)}" data-expected-type="${escapeHtml(expectedType)}" data-expected-owner="${escapeHtml(deployments.publisher)}" data-expected-blob="${escapeHtml(asset.walrus_blob_id)}" data-expected-manifest="${escapeHtml(asset.manifest_hash)}">
+    <div>
+      <h3>${escapeHtml(asset.title)}</h3>
+      <p>${escapeHtml(asset.id)} · v${escapeHtml(asset.version)}</p>
+    </div>
+    <div class="proof-live proof-pending" data-proof-status>Checking live chain...</div>
+    <dl>
+      <div><dt>Sui tx</dt><dd>${explorerLink("tx", asset.sui_tx, explorer)}</dd></div>
+      <div><dt>ResearchAsset</dt><dd>${explorerLink("object", asset.research_asset_object, explorer)}</dd></div>
+      <div><dt>Walrus blob</dt><dd>${explorerLink("walrus-blob", asset.walrus_blob_id, explorer)}</dd></div>
+    </dl>
+  </article>`).join("");
+  return `<section class="testnet-proof" aria-labelledby="testnet-proof-title" data-proof-rpc="${escapeHtml(rpcUrl)}">
+    <div class="proof-head">
+      <div>
+        <h2 id="testnet-proof-title">Live testnet proof</h2>
+        <p>Three public showcase repositories were packaged to Walrus testnet and registered as Sui testnet <code>ResearchAsset</code> objects.</p>
+      </div>
+      <dl class="proof-summary">
+        <div><dt>Network</dt><dd>${escapeHtml(deployments.network)}</dd></div>
+        <div><dt>Package</dt><dd>${explorerLink("object", deployments.package_id, explorer)}</dd></div>
+        <div><dt>Live RPC</dt><dd><code>${escapeHtml(rpcUrl.replace(/^https:\/\//, ""))}</code></dd></div>
+        <div><dt>Commit</dt><dd><code title="${escapeHtml(deployments.repo_commit)}">${escapeHtml(shortId(deployments.repo_commit, 8, 8))}</code></dd></div>
+      </dl>
+    </div>
+    <div class="proof-grid">${assetRows}</div>
+  </section>`;
 }
 
 function renderPaperViewer(options: {
@@ -987,6 +1062,25 @@ h2 { font-size: 19px; margin: 26px 0 10px; }
 /* arXiv-style listing (home / search) */
 .intro { max-width: 760px; color: #333; }
 .stats-line { color: var(--muted); font-size: 13px; margin: 10px 0 4px; }
+.testnet-proof { border: 1px solid var(--line); border-left: 4px solid var(--arxiv-red); background: #fff; margin: 18px 0 18px; padding: 14px 16px 16px; }
+.proof-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 34%); gap: 18px; align-items: start; }
+.proof-head h2 { margin: 0 0 4px; font-size: 18px; }
+.proof-head p { margin: 0; color: #333; max-width: 720px; }
+.proof-summary { margin: 0; border: 1px solid #eee; border-radius: 4px; background: #fafafa; padding: 8px 10px; }
+.proof-summary div { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; padding: 2px 0; }
+.proof-summary dt, .proof-card dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+.proof-summary dd, .proof-card dd { margin: 0; min-width: 0; font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+.proof-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.proof-card { border: 1px solid #eee; border-radius: 4px; background: #fafafa; padding: 10px 12px; min-width: 0; }
+.proof-card h3 { margin: 0 0 2px; font-size: 14.5px; color: var(--ink); }
+.proof-card p { margin: 0 0 8px; color: var(--muted); font-family: var(--mono); font-size: 11.5px; word-break: break-word; }
+.proof-live { display: inline-block; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 3px; padding: 2px 7px; font-size: 11.5px; font-family: var(--mono); }
+.proof-pending { color: #555; background: #fff; }
+.proof-verified { color: #1a7f37; border-color: #9bd1aa; background: #f0fbf3; }
+.proof-warning { color: #8f1414; border-color: #e5a3a3; background: #fff6f6; }
+.proof-card dl { margin: 0; }
+.proof-card dl div { padding: 4px 0; border-top: 1px solid #eee; }
+.proof-card dl div:first-child { border-top: 0; }
 dl.listing { margin: 12px 0 0; }
 dl.listing dt { padding: 12px 0 2px; font-size: 14px; border-top: 1px solid var(--line); }
 dl.listing dt:first-child { border-top: 0; }
@@ -1173,6 +1267,7 @@ a.card h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--link); }
 .graph { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
 @media (max-width: 820px) {
+  .proof-head, .proof-grid { grid-template-columns: 1fr; }
   .abs-grid, .graph { grid-template-columns: 1fr; }
   .banner-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
   .banner-search { width: 100%; }
@@ -1232,6 +1327,91 @@ const SITE_JS = `
       var q = new URLSearchParams(window.location.search).get("q");
       if (q) { input.value = q; apply(); }
     } catch (e) { /* ignore */ }
+  }
+
+  function rpcCall(url, method, params) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: method, params: params })
+    }).then(function (res) {
+      if (!res.ok) throw new Error("RPC HTTP " + res.status);
+      return res.json();
+    }).then(function (json) {
+      if (json.error) throw new Error(json.error.message || "RPC error");
+      return json.result;
+    });
+  }
+
+  function bytesToString(value) {
+    if (!Array.isArray(value)) return typeof value === "string" ? value : "";
+    try {
+      return String.fromCharCode.apply(null, value);
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function setProofStatus(card, state, label, detail) {
+    var node = card.querySelector("[data-proof-status]");
+    if (!node) return;
+    node.className = "proof-live proof-" + state;
+    node.textContent = label + (detail ? " · " + detail : "");
+  }
+
+  function setupTestnetProof() {
+    var section = document.querySelector(".testnet-proof[data-proof-rpc]");
+    if (!section || !window.fetch) return;
+    var rpcUrl = section.getAttribute("data-proof-rpc");
+    var cards = Array.prototype.slice.call(section.querySelectorAll("[data-proof-card]"));
+    if (!rpcUrl || !cards.length) return;
+    var objectIds = cards.map(function (card) { return card.getAttribute("data-object-id"); }).filter(Boolean);
+    var txDigests = cards.map(function (card) { return card.getAttribute("data-tx-digest"); }).filter(Boolean);
+    Promise.all([
+      rpcCall(rpcUrl, "sui_multiGetObjects", [objectIds, { showType: true, showOwner: true, showContent: true }]),
+      rpcCall(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showEffects: true, showEvents: true }])
+    ]).then(function (results) {
+      var objectById = {};
+      (results[0] || []).forEach(function (entry) {
+        if (entry && entry.data && entry.data.objectId) objectById[entry.data.objectId] = entry.data;
+      });
+      var txByDigest = {};
+      (results[1] || []).forEach(function (entry) {
+        if (entry && entry.digest) txByDigest[entry.digest] = entry;
+      });
+      cards.forEach(function (card) {
+        var objectId = card.getAttribute("data-object-id");
+        var txDigest = card.getAttribute("data-tx-digest");
+        var expectedType = card.getAttribute("data-expected-type");
+        var expectedOwner = (card.getAttribute("data-expected-owner") || "").toLowerCase();
+        var expectedBlob = card.getAttribute("data-expected-blob") || "";
+        var expectedManifest = card.getAttribute("data-expected-manifest") || "";
+        var objectData = objectById[objectId];
+        var txData = txByDigest[txDigest];
+        var fields = objectData && objectData.content && objectData.content.fields ? objectData.content.fields : {};
+        var owner = objectData && objectData.owner && objectData.owner.AddressOwner ? String(objectData.owner.AddressOwner).toLowerCase() : "";
+        var txOk = Boolean(txData && txData.effects && txData.effects.status && txData.effects.status.status === "success");
+        var typeOk = Boolean(objectData && objectData.type === expectedType);
+        var ownerOk = Boolean(owner && owner === expectedOwner);
+        var blobOk = bytesToString(fields.walrus_blob_id) === expectedBlob;
+        var manifestOk = bytesToString(fields.manifest_hash) === expectedManifest;
+        if (txOk && typeOk && ownerOk && blobOk && manifestOk) {
+          setProofStatus(card, "verified", "Live verified", "tx success, object typed, Walrus blob matches");
+        } else {
+          var missing = [];
+          if (!txOk) missing.push("tx");
+          if (!typeOk) missing.push("type");
+          if (!ownerOk) missing.push("owner");
+          if (!blobOk) missing.push("blob");
+          if (!manifestOk) missing.push("manifest");
+          setProofStatus(card, "warning", "Live mismatch", missing.join(", "));
+        }
+      });
+    }).catch(function (err) {
+      cards.forEach(function (card) {
+        setProofStatus(card, "warning", "Live check unavailable", err && err.message ? err.message : "RPC error");
+      });
+    });
   }
 
   function fitCanvas(canvas) {
@@ -1418,6 +1598,7 @@ const SITE_JS = `
   function init() {
     setupCopy();
     setupFilter();
+    setupTestnetProof();
     setupGraph();
     setupPaperViewer();
   }
@@ -1430,6 +1611,7 @@ const SITE_JS = `
 export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: string): Promise<string> {
   const index = await readIndex(localnetRoot);
   const explorer = loadExplorerConfig();
+  const showcaseTestnetDeployments = await readPublicShowcaseTestnetDeployments();
   const walrusSitesResources = await readExistingWalrusSitesResources(outputDir);
   await fs.rm(outputDir, { recursive: true, force: true });
   await fs.mkdir(path.join(outputDir, "abs"), { recursive: true });
@@ -1687,6 +1869,7 @@ ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status<
   const homeBody = `
 <p class="intro">An agent-native, decentralized research asset network. Papers, skills, workflows, datasets and code are authored in Git, snapshotted on Walrus, registered on Sui, and indexed as one verifiable graph for humans and agents alike.</p>
 <p class="stats-line">${assets.length} research asset${assets.length === 1 ? "" : "s"} &middot; ${skills.length} skill${skills.length === 1 ? "" : "s"} &middot; ${relationshipCount} graph relationship${relationshipCount === 1 ? "" : "s"} &middot; ${index.events.length} protocol event${index.events.length === 1 ? "" : "s"} &middot; indexed ${escapeHtml(humanDate(index.updated_at))}</p>
+${renderPublicShowcaseProof(showcaseTestnetDeployments, explorer)}
 <div class="search-box"><input id="filter" type="search" placeholder="Search titles, authors, tags&hellip;" autocomplete="off" aria-label="Search submissions"></div>
 <h2>Recent submissions</h2>
 ${listingParts.length ? `<dl class="listing">${listingParts.join("")}</dl>` : "<p class=\"muted\">No indexed assets yet. Run <code>research publish</code> first.</p>"}`;

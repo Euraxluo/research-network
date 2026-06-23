@@ -15,6 +15,41 @@ This deployment used the local `research deploy:testnet` flow against Walrus tes
 > `0x7de40428ce8fb805262b108a0041201618f57a857009532a355a2d3d5cbc36ee`。下一道 gate
 > 仍然是两个真实 zkLogin 账号运行带资金上限的 production acceptance。
 
+## 2026-06-23 Public Showcase Testnet Assets
+
+为避免把本地 demo 当成链上证据，public showcase 的三个演示仓库已经逐个通过
+`deploy:testnet` 发布到 Walrus testnet，并在当前 Sui testnet package
+`0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e` 下注册为真实
+`research_asset::ResearchAsset` 对象。每个交易都 emit
+`research_asset::ResearchAssetPublished`，并把 manifest hash、Walrus blob id、repo commit
+写入链上字段。
+
+| Showcase asset | Sui tx | ResearchAsset object | Walrus blob | Manifest hash |
+| --- | --- | --- | --- | --- |
+| `research-network-protocol` | [`EJD7sfuDZbDH2mCVaqsCwAf7QhamfV9c14XiE4HsEWjV`](https://suiscan.xyz/testnet/tx/EJD7sfuDZbDH2mCVaqsCwAf7QhamfV9c14XiE4HsEWjV) | [`0x58fdc8e67512849e9d7ee322f2bd4f8366a7683255ad1c2e390d6b47301611ee`](https://suiscan.xyz/testnet/object/0x58fdc8e67512849e9d7ee322f2bd4f8366a7683255ad1c2e390d6b47301611ee) | [`88y4P-ijXE9iQT6GXWD-QMjjk2uFFeDy13yB3xKPmpo`](https://aggregator.walrus-testnet.walrus.space/v1/blobs/88y4P-ijXE9iQT6GXWD-QMjjk2uFFeDy13yB3xKPmpo) | `sha256:7367b8f66e2abfa63fec612f0793bbeadb072620daa1a9b88bba1e5d86c5667d` |
+| `citation-liquidity` | [`FycA5Y7TDrpB9xEpXNjbWpmsqZ4DoSEyDz235VTDB7bf`](https://suiscan.xyz/testnet/tx/FycA5Y7TDrpB9xEpXNjbWpmsqZ4DoSEyDz235VTDB7bf) | [`0xea1e3ed1e01f5972fd3754af1efb49a7289290d5e92ae7c9620327aeb2b7f921`](https://suiscan.xyz/testnet/object/0xea1e3ed1e01f5972fd3754af1efb49a7289290d5e92ae7c9620327aeb2b7f921) | [`NU6_924TmvjsiG8raTmsZ1K4x9F8WDjHKN2tCX9YLrM`](https://aggregator.walrus-testnet.walrus.space/v1/blobs/NU6_924TmvjsiG8raTmsZ1K4x9F8WDjHKN2tCX9YLrM) | `sha256:9ce81817048886186754e8299ddb2f217304047fcac18f5c2fde34c377b5673d` |
+| `browse-to-publish-benchmark` | [`DydfGpMKJGuM5YxU6uN4z9qrH81wnXhLnY6TopLeVKj`](https://suiscan.xyz/testnet/tx/DydfGpMKJGuM5YxU6uN4z9qrH81wnXhLnY6TopLeVKj) | [`0x9ef6f1e846b8188054ee2a9bde95622a5ec3447560ca6e3b0d47f2db29f9ccad`](https://suiscan.xyz/testnet/object/0x9ef6f1e846b8188054ee2a9bde95622a5ec3447560ca6e3b0d47f2db29f9ccad) | [`eqWy43XYB3AmlygLHC6UQD5w9y3TkhpIXpo5mb3qPzs`](https://aggregator.walrus-testnet.walrus.space/v1/blobs/eqWy43XYB3AmlygLHC6UQD5w9y3TkhpIXpo5mb3qPzs) | `sha256:7ea6877cc332c273a2141ed3fec7a675f14c3ed8e34ee7d4412216c0f9eac3e2` |
+
+Common provenance:
+
+- Publisher address: `0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788`
+- Package ID: `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`
+- Repo commit written on chain: `c590446c4c80aff65935e67e79b7bb5d24ea1a12`
+- Walrus status check: all three blob ids returned `count_deletable_certified: 1` at initial certified epoch `437`.
+- Frontend behavior: `fixtures/public-showcase-testnet-deployments.json` is only a proof seed containing the tx/object/blob ids to verify. The generated homepage uses it to render links, then calls Sui testnet JSON-RPC in the browser to live-check tx success, object type, owner, manifest hash, and Walrus blob id.
+
+Verification commands:
+
+```bash
+sui client tx-block EJD7sfuDZbDH2mCVaqsCwAf7QhamfV9c14XiE4HsEWjV --json
+sui client tx-block FycA5Y7TDrpB9xEpXNjbWpmsqZ4DoSEyDz235VTDB7bf --json
+sui client tx-block DydfGpMKJGuM5YxU6uN4z9qrH81wnXhLnY6TopLeVKj --json
+
+walrus --context testnet blob-status --blob-id 88y4P-ijXE9iQT6GXWD-QMjjk2uFFeDy13yB3xKPmpo --json
+walrus --context testnet blob-status --blob-id NU6_924TmvjsiG8raTmsZ1K4x9F8WDjHKN2tCX9YLrM --json
+walrus --context testnet blob-status --blob-id eqWy43XYB3AmlygLHC6UQD5w9y3TkhpIXpo5mb3qPzs --json
+```
+
 ## Latest Seal Access Testnet Package（2026-06-17）
 
 - Publisher address: `0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788`

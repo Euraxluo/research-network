@@ -137,9 +137,15 @@ describe("static web E2E", () => {
 
       const indexHtml = await (await fetch(sitePath(server.url, "/"))).text();
       expect(indexHtml).toContain(`/paper/${assetSeg}/main.pdf`);
+      expect(indexHtml).toContain("Live testnet proof");
+      expect(indexHtml).toContain("data-proof-rpc=\"https://sui-testnet-rpc.publicnode.com\"");
+      expect(indexHtml).toContain("Checking live chain");
+      expect(indexHtml).toContain("EJD7sfuDZbDH2mCVaqsCwAf7QhamfV9c14XiE4HsEWjV");
+      expect(indexHtml).toContain("DydfGpMKJGuM5YxU6uN4z9qrH81wnXhLnY6TopLeVKj");
       expect(indexHtml).not.toContain("ra:local:");
       expect(indexHtml).toContain("Content-Security-Policy");
       expect(indexHtml).toContain("script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com");
+      expect(indexHtml).toContain("connect-src 'self' https://sui-testnet-rpc.publicnode.com");
 
       const siteData = await (await fetch(sitePath(server.url, "/site-data.json"))).json() as { assets: Array<{ href: string }> };
       expect(siteData.assets.some((asset) => asset.href === `/abs/${assetSeg}.html`)).toBe(true);
@@ -151,6 +157,8 @@ describe("static web E2E", () => {
       expect(absHtml).toContain("mathjax@3.2.2");
 
       const siteJs = await (await fetch(sitePath(server.url, "/site.js"))).text();
+      expect(siteJs).toContain("sui_multiGetObjects");
+      expect(siteJs).toContain("sui_multiGetTransactionBlocks");
       expect(siteJs).toContain("PDFJS_SCRIPT_INTEGRITY");
       expect(siteJs).toContain("sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e");
       expect(siteJs).toContain("s.crossOrigin = \"anonymous\"");
