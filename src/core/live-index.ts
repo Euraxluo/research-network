@@ -44,6 +44,7 @@ interface ReleaseManifest {
   commit?: string;
   created_at?: string;
   manifest_hash?: string;
+  files?: Array<{ path?: string }>;
   assets?: {
     id?: string;
     title?: string;
@@ -342,6 +343,39 @@ function normalizeReleaseArtifactPath(path: string): string {
   return normalized;
 }
 
+export function releaseHasDeclaredFile(
+  release: Pick<ReleaseManifest, "assets" | "files"> | undefined,
+  artifactPath: string | undefined
+): boolean {
+  if (!release?.assets || !artifactPath) return false;
+  let normalized: string;
+  try {
+    normalized = normalizeReleaseArtifactPath(artifactPath);
+  } catch {
+    return false;
+  }
+  if (!Array.isArray(release.files)) {
+    return true;
+  }
+  return release.files.some((file) => {
+    if (typeof file.path !== "string") return false;
+    try {
+      return normalizeReleaseArtifactPath(file.path) === normalized;
+    } catch {
+      return false;
+    }
+  });
+}
+
+function releaseArtifactPath(
+  release: Pick<ReleaseManifest, "assets" | "files"> | undefined,
+  artifactPath: string | undefined
+): string | undefined {
+  return typeof artifactPath === "string" && artifactPath && releaseHasDeclaredFile(release, artifactPath)
+    ? artifactPath
+    : undefined;
+}
+
 function contentTypeForArtifact(path: string): string {
   if (/\.html?$/i.test(path)) return "text/html; charset=utf-8";
   if (/\.pdf$/i.test(path)) return "application/pdf";
@@ -507,23 +541,16 @@ function buildAsset(input: {
     tx_digest: txDigest,
     href: releaseAsset.id ? `/asset.html?id=${routeSegment(String(releaseAsset.id))}` : undefined,
     paper: {
-      html_path: typeof paper.html === "string" && paper.html ? paper.html : undefined,
-      pdf_path: typeof paper.path === "string" && paper.path ? paper.path : undefined,
-      source_path: typeof paper.source === "string" && paper.source ? paper.source : undefined,
-      bib_path: typeof paper.bib === "string" && paper.bib ? paper.bib : undefined,
-      word_path: typeof paper.word === "string" && paper.word
-        ? paper.word
-        : typeof paper.docx === "string" && paper.docx
-          ? paper.docx
-          : typeof paper.doc === "string" && paper.doc
-            ? paper.doc
-            : undefined,
-      ppt_path: typeof paper.pptx === "string" && paper.pptx
-        ? paper.pptx
-        : typeof paper.ppt === "string" && paper.ppt
-          ? paper.ppt
-          : undefined,
-      readme_path: "README.md"
+      html_path: releaseArtifactPath(release, paper.html),
+      pdf_path: releaseArtifactPath(release, paper.path),
+      source_path: releaseArtifactPath(release, paper.source),
+      bib_path: releaseArtifactPath(release, paper.bib),
+      word_path: releaseArtifactPath(release, paper.word)
+        ?? releaseArtifactPath(release, paper.docx)
+        ?? releaseArtifactPath(release, paper.doc),
+      ppt_path: releaseArtifactPath(release, paper.pptx)
+        ?? releaseArtifactPath(release, paper.ppt),
+      readme_path: releaseArtifactPath(release, "README.md")
     },
     proof
   };

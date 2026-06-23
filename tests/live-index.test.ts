@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildLiveIndex } from "../src/core/live-index.js";
+import { buildLiveIndex, releaseHasDeclaredFile } from "../src/core/live-index.js";
 
 const ORIGINAL_FETCH = globalThis.fetch;
 
@@ -9,6 +9,23 @@ afterEach(() => {
 });
 
 describe("live Sui/Walrus index", () => {
+  it("trusts only artifact paths present in the release file manifest", () => {
+    const release = {
+      assets: { id: "ra:test" },
+      files: [
+        { path: "manifest.json" },
+        { path: "README.md" },
+        { path: "paper/main.pdf" },
+        { path: "./paper/main.tex" }
+      ]
+    };
+    expect(releaseHasDeclaredFile(release, "paper/main.pdf")).toBe(true);
+    expect(releaseHasDeclaredFile(release, "paper/main.tex")).toBe(true);
+    expect(releaseHasDeclaredFile(release, "paper/missing.tex")).toBe(false);
+    expect(releaseHasDeclaredFile(release, "../paper/main.tex")).toBe(false);
+    expect(releaseHasDeclaredFile(undefined, "paper/main.tex")).toBe(false);
+  });
+
   it("indexes transaction signer and gas evidence for live research assets", async () => {
     const rpcBodies: Array<{ method?: string; params?: unknown[] }> = [];
     const packageId = "0xabc";
