@@ -1,0 +1,105 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{booktabs}
+
+\title{Loop Engine: Verifiable Closed-Loop Runtime for Research Agents}
+\author{Research Network Loop Lab}
+\date{June 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Agentic research systems increasingly operate as loops: observe a workspace, plan a step,
+execute tools, critique the result, and publish a new artifact. Most systems treat that loop
+as transient orchestration hidden inside a chat transcript or private runtime log. Loop Engine
+turns the loop into a verifiable research object. Each cycle emits a typed state transition,
+an evidence ledger, artifact hashes, reviewer checks, and graph edges that can be stored on
+Walrus and anchored through Sui. The result is a runtime pattern where autonomous research is
+not merely answered, but made replayable, forkable, citeable, and economically accountable.
+\end{abstract}
+
+\section{Problem}
+
+The unit of AI-assisted research is no longer a single paper or a single answer. A useful
+agent may browse sources, inspect code, call tools, run tests, write artifacts, consult other
+agents, revise the plan, and eventually publish a package. The value is distributed across the
+loop, but the public record usually preserves only the final response.
+
+This creates a verification gap. Readers cannot tell which external evidence was used, which
+tool calls changed the workspace, which failed paths were rejected, or why the final artifact
+should be trusted. Downstream agents face the same problem at higher speed: they can reuse an
+output, but not the reasoning workflow that produced it.
+
+\section{Loop Engine}
+
+Loop Engine models an autonomous research run as a sequence of state transitions:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Observe}: bind the current workspace, graph context, chain state, and external evidence.
+  \item \textbf{Plan}: declare the next step and the acceptance condition before execution.
+  \item \textbf{Execute}: run tools, edits, simulations, browser actions, or chain transactions.
+  \item \textbf{Critique}: attach checks, reviewer objections, failed hypotheses, and residual risk.
+  \item \textbf{Publish}: commit accepted deltas into a Research Asset manifest, Walrus snapshot, and Sui registry event.
+\end{enumerate}
+
+The engine does not require every token of private reasoning to be public. It requires that
+public claims be backed by enough typed evidence for a reader or another agent to replay the
+operational path.
+
+\section{Protocol Mapping}
+
+The Research Network stack gives the loop a durable surface. Git stores the working tree.
+Walrus stores release archives and loop evidence bundles. Sui records registry events,
+object identifiers, manifest hashes, and settlement hooks. The static web surface renders the
+human view, while the SDK and skill package expose the agent-readable view.
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Loop phase & Protocol artifact & Verification handle \\
+\midrule
+Observe & evidence bundle & source hash, timestamp, URI \\
+Plan & loop intent & acceptance condition hash \\
+Execute & artifact delta & file checksum, tool receipt \\
+Critique & review record & test result, reviewer signature \\
+Publish & Research Asset release & Walrus blob, Sui object, manifest hash \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Why It Matters}
+
+Loop Engine changes the default public artifact from ``what the agent said'' to ``what the
+agent changed and why that change survived review.'' This matters for research because reuse is
+becoming agentic. A future agent should be able to install a skill, replay a workflow, inspect
+which claims were grounded, and fork the asset without losing provenance.
+
+For marketplaces and tokenized research networks, the same loop record also becomes an
+accounting primitive. If reuse, citation, or delegated work carries economic value, the loop
+record explains which steps and artifacts earned attribution.
+
+\section{Evaluation}
+
+A Loop Engine implementation should be evaluated on four properties:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Replayability}: another agent can reconstruct the public sequence of state transitions.
+  \item \textbf{Grounding}: each published claim points to evidence or an explicit assumption.
+  \item \textbf{Forkability}: downstream work can inherit graph edges and license terms without manual archaeology.
+  \item \textbf{Settlement readiness}: reusable skills, reports, and workflow outputs expose enough identifiers for later economic routing.
+\end{enumerate}
+
+\section{Conclusion}
+
+Loop Engine is a runtime pattern for making autonomous research legible. It does not replace
+papers; it wraps them in the loop evidence needed by humans, agents, and protocols. In Research
+Network, the loop becomes a publishable asset: a paper, skill, workflow, evidence ledger, Walrus
+snapshot, and Sui registry object moving together.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

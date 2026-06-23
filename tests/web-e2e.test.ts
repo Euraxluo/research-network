@@ -103,7 +103,7 @@ describe("static web E2E", () => {
     const server = await serveStaticSite(siteDir, 0);
     try {
       const routes: Array<{ path: string; expect: RegExp | string }> = [
-        { path: "/", expect: /Recent submissions|E2E Test Paper/ },
+        { path: "/", expect: /Recent submissions/ },
         { path: "/index.html", expect: /logo-chi/ },
         { path: "/search.html", expect: /Filter assets, skills/ },
         { path: "/dashboard.html", expect: /Events/ },
@@ -136,18 +136,22 @@ describe("static web E2E", () => {
       }
 
       const indexHtml = await (await fetch(sitePath(server.url, "/"))).text();
-      expect(indexHtml).toContain(`/paper/${assetSeg}/main.pdf`);
-      expect(indexHtml).toContain("Live testnet proof");
-      expect(indexHtml).toContain("data-proof-rpc=\"https://sui-testnet-rpc.publicnode.com\"");
-      expect(indexHtml).toContain("data-proof-package=\"0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e\"");
+      expect(indexHtml).not.toContain("Live testnet proof");
+      expect(indexHtml).toContain("data-chain-source");
+      expect(indexHtml).toContain("data-chain-submissions");
+      expect(indexHtml).toContain("data-chain-rpc=\"https://sui-testnet-rpc.publicnode.com\"");
+      expect(indexHtml).toContain("data-chain-package=\"0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e\"");
       expect(indexHtml).toContain("ResearchAssetPublished");
-      expect(indexHtml).toContain("Querying Sui events");
+      expect(indexHtml).toContain("Loading live Sui testnet submissions");
+      expect(indexHtml).not.toContain("Querying Sui events");
       expect(indexHtml).not.toContain("EJD7sfuDZbDH2mCVaqsCwAf7QhamfV9c14XiE4HsEWjV");
       expect(indexHtml).not.toContain("DydfGpMKJGuM5YxU6uN4z9qrH81wnXhLnY6TopLeVKj");
-      expect(indexHtml).not.toContain("ra:local:");
+      expect(indexHtml).not.toMatch(/RA:local:|ra:local:/);
+      expect(indexHtml).not.toContain("E2E Test Paper");
       expect(indexHtml).toContain("Content-Security-Policy");
-      expect(indexHtml).toContain("script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com");
-      expect(indexHtml).toContain("connect-src 'self' https://sui-testnet-rpc.publicnode.com");
+      expect(indexHtml).toContain("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com");
+      expect(indexHtml).toContain("connect-src 'self' data: https://sui-testnet-rpc.publicnode.com");
+      expect(indexHtml).toContain("https://aggregator.walrus-testnet.walrus.space");
 
       const siteData = await (await fetch(sitePath(server.url, "/site-data.json"))).json() as { assets: Array<{ href: string }> };
       expect(siteData.assets.some((asset) => asset.href === `/abs/${assetSeg}.html`)).toBe(true);
@@ -162,6 +166,10 @@ describe("static web E2E", () => {
       expect(siteJs).toContain("suix_queryEvents");
       expect(siteJs).toContain("sui_multiGetObjects");
       expect(siteJs).toContain("sui_multiGetTransactionBlocks");
+      expect(siteJs).toContain("zstddec@0.2.0");
+      expect(siteJs).toContain("manifest hash mismatch");
+      expect(siteJs).toContain("rn:listings-updated");
+      expect(siteJs).not.toContain("Cached verified");
       expect(siteJs).toContain("PDFJS_SCRIPT_INTEGRITY");
       expect(siteJs).toContain("sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e");
       expect(siteJs).toContain("s.crossOrigin = \"anonymous\"");
@@ -643,20 +651,32 @@ describe("static web E2E", () => {
     expect(await exists(path.join(shellDir, "assets", "old-workbench.js"))).toBe(false);
     const indexHtml = await fs.readFile(path.join(shellDir, "index.html"), "utf8");
     expect(indexHtml).toContain("Recent submissions");
-    expect(indexHtml).toContain("Research Network: Agent-Native Asset Protocol");
-    expect(indexHtml).toContain("Citation Liquidity: Settlement Rails for Agent Reuse");
+    expect(indexHtml).toContain("data-chain-submissions");
+    expect(indexHtml).toContain("ResearchAssetPublished");
     expect(indexHtml).not.toContain("Demo Research Asset");
     expect(indexHtml).not.toContain("Untitled Research Asset");
     expect(indexHtml).not.toContain("Describe the research problem");
     expect(indexHtml).not.toContain("example-skill");
     expect(indexHtml).not.toContain("url=/workbench.html");
     expect(indexHtml).not.toContain("Open Workbench");
+    const shellSiteData = JSON.parse(await fs.readFile(path.join(shellDir, "site-data.json"), "utf8"));
+    const shellTitles = shellSiteData.assets.map((asset: { title: string }) => asset.title);
+    expect(shellTitles).toContain("Research Network: Agent-Native Asset Protocol");
+    expect(shellTitles).toContain("Citation Liquidity: Settlement Rails for Agent Reuse");
+    expect(shellSiteData.assets.every((asset: { manifest_hash?: string }) => Boolean(asset.manifest_hash))).toBe(true);
     const absFiles = await fs.readdir(path.join(shellDir, "abs"));
     expect(absFiles.length).toBeGreaterThanOrEqual(3);
     const absHtml = await fs.readFile(path.join(shellDir, "abs", absFiles[0]), "utf8");
     expect(absHtml).toContain("Agent-Native Assets");
     expect(absHtml).not.toContain("Write abstract here");
     expect(absHtml).not.toContain("No TeX source is available");
+    const loopSeg = routeSegment("ra:showcase:loop-engine");
+    const loopAbsHtml = await fs.readFile(path.join(shellDir, "abs", `${loopSeg}.html`), "utf8");
+    expect(await exists(path.join(shellDir, "paper", loopSeg, "main.pdf"))).toBe(true);
+    expect(await exists(path.join(shellDir, "paper", loopSeg, "main.tex"))).toBe(true);
+    expect(loopAbsHtml).toContain(`/paper/${loopSeg}/main.pdf`);
+    expect(loopAbsHtml).toContain("Research reports");
+    expect(loopAbsHtml).not.toContain("github.com/Euraxluo/research-network.git/paper/main.pdf");
     expect(await exists(path.join(shellDir, "dashboard.html"))).toBe(true);
     expect(await exists(path.join(shellDir, "search.html"))).toBe(true);
     expect(await exists(path.join(shellDir, "abs", "old.html"))).toBe(false);
@@ -684,11 +704,13 @@ describe("static web E2E", () => {
       events: Array<{ event_type: string }>;
     };
     const walrusEntries = await fs.readdir(path.join(showcaseRoot, "walrus"));
-    expect(Object.keys(index.assets)).toHaveLength(3);
-    expect(Object.keys(index.skills)).toHaveLength(3);
-    expect(index.events.filter((event) => event.event_type === "ResearchAssetPublished")).toHaveLength(3);
-    expect(index.events.filter((event) => event.event_type === "SkillPublished")).toHaveLength(3);
-    expect(walrusEntries).toHaveLength(3);
+    expect(Object.keys(index.assets)).toHaveLength(4);
+    expect(Object.keys(index.skills)).toHaveLength(4);
+    expect(index.assets).toHaveProperty("ra:showcase:loop-engine");
+    expect(index.skills).toHaveProperty("skill:loop-engine-cartographer@0.1.0");
+    expect(index.events.filter((event) => event.event_type === "ResearchAssetPublished")).toHaveLength(4);
+    expect(index.events.filter((event) => event.event_type === "SkillPublished")).toHaveLength(4);
+    expect(walrusEntries).toHaveLength(4);
     for (const entry of walrusEntries) {
       expect(await exists(path.join(showcaseRoot, "walrus", entry, "manifest.json"))).toBe(true);
       expect(await exists(path.join(showcaseRoot, "walrus", entry, "release.tar.zst"))).toBe(true);
@@ -722,8 +744,9 @@ describe("static web E2E", () => {
       expect((await pdf.text()).startsWith("%PDF")).toBe(true);
 
       const indexHtml = await (await fetch(sitePath(server.url, "/"))).text();
-      expect(indexHtml).toContain("PDF Only Note");
-      expect(indexHtml).toContain(`/paper/${assetSeg}/main.pdf`);
+      expect(indexHtml).toContain("data-chain-submissions");
+      expect(indexHtml).not.toContain("PDF Only Note");
+      expect(indexHtml).not.toContain(`/paper/${assetSeg}/main.pdf`);
       expect(indexHtml).not.toContain("tex");
     } finally {
       await server.close();

@@ -1,8 +1,9 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getGraph } from "./indexer.js";
 import { readIndex } from "./local-store.js";
-import { WEB_DIST_DIR } from "./paths.js";
+import { DEFAULT_LOCALNET_DIR, WEB_DIST_DIR } from "./paths.js";
 import { renderWorkbenchBody, WORKBENCH_JS } from "./web-workbench.js";
 
 const PDFJS_VERSION = "3.11.174";
@@ -11,13 +12,14 @@ const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
+const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
 const STATIC_CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://cdn.jsdelivr.net",
-  "connect-src 'self' https://sui-testnet-rpc.publicnode.com https://fullnode.testnet.sui.io:443 https://*.sui.io",
+  "connect-src 'self' data: https://sui-testnet-rpc.publicnode.com https://fullnode.testnet.sui.io:443 https://*.sui.io https://aggregator.walrus-testnet.walrus.space https://*.walrus.space",
   "worker-src 'self' blob: https://cdnjs.cloudflare.com",
   "object-src 'none'",
   "base-uri 'self'",
@@ -106,35 +108,96 @@ function fileUrl(base: string, relativePath?: string): string | undefined {
   return relativePath;
 }
 
-async function copyPaperArtifact(outputDir: string, assetId: string, base: string, relativePath?: string): Promise<string | undefined> {
-  const url = fileUrl(base, relativePath);
-  if (!url) {
-    return undefined;
-  }
-  if (!url.startsWith("file://")) {
-    return url;
-  }
-  try {
-    const targetRel = path.join("paper", routeSegment(assetId), path.basename(relativePath ?? "paper"));
-    const targetAbs = path.join(outputDir, targetRel);
-    await fs.mkdir(path.dirname(targetAbs), { recursive: true });
-    await fs.copyFile(new URL(url), targetAbs);
-    return webPath("paper", routeSegment(assetId), path.basename(relativePath ?? "paper"));
-  } catch {
-    return undefined;
-  }
+interface PublishedArtifactSource {
+  localnetRoot: string;
+  walrusBlobId: string;
 }
 
-async function readPaperSource(base: string, relativePath?: string): Promise<string | undefined> {
-  const url = fileUrl(base, relativePath);
-  if (!url?.startsWith("file://")) {
+function archiveMemberCandidates(relativePath?: string): string[] {
+  if (!relativePath) {
+    return [];
+  }
+  const normalized = path.posix.normalize(relativePath.replaceAll("\\", "/"));
+  if (normalized.startsWith("../") || normalized === ".." || normalized.startsWith("/")) {
+    return [];
+  }
+  return [`./${normalized}`, normalized];
+}
+
+async function readLocalWalrusArtifact(source: PublishedArtifactSource | undefined, relativePath?: string): Promise<Buffer | undefined> {
+  if (!source?.walrusBlobId?.startsWith("walrus:local:")) {
     return undefined;
   }
+  const suffix = source.walrusBlobId.slice("walrus:local:".length);
+  if (!/^[a-zA-Z0-9_-]+$/.test(suffix)) {
+    return undefined;
+  }
+  const archivePath = path.join(source.localnetRoot, "walrus", `walrus_local_${suffix}`, "release.tar.zst");
   try {
-    return await fs.readFile(new URL(url), "utf8");
+    await fs.access(archivePath);
   } catch {
     return undefined;
   }
+  const decompressed = spawnSync("zstd", ["-dc", archivePath], { maxBuffer: 128 * 1024 * 1024 });
+  if (decompressed.status !== 0 || !Buffer.isBuffer(decompressed.stdout)) {
+    return undefined;
+  }
+  for (const member of archiveMemberCandidates(relativePath)) {
+    const extracted = spawnSync("tar", ["-xOf", "-", member], {
+      input: decompressed.stdout,
+      maxBuffer: 128 * 1024 * 1024
+    });
+    if (extracted.status === 0 && Buffer.isBuffer(extracted.stdout)) {
+      return extracted.stdout;
+    }
+  }
+  return undefined;
+}
+
+async function writePaperArtifact(outputDir: string, assetId: string, relativePath: string | undefined, contents: Buffer): Promise<string> {
+  const targetRel = path.join("paper", routeSegment(assetId), path.basename(relativePath ?? "paper"));
+  const targetAbs = path.join(outputDir, targetRel);
+  await fs.mkdir(path.dirname(targetAbs), { recursive: true });
+  await fs.writeFile(targetAbs, contents);
+  return webPath("paper", routeSegment(assetId), path.basename(relativePath ?? "paper"));
+}
+
+async function copyPaperArtifact(
+  outputDir: string,
+  assetId: string,
+  base: string,
+  relativePath?: string,
+  artifactSource?: PublishedArtifactSource
+): Promise<string | undefined> {
+  const url = fileUrl(base, relativePath);
+  if (!url && !relativePath) {
+    return undefined;
+  }
+  if (url?.startsWith("file://")) {
+    try {
+      return await writePaperArtifact(outputDir, assetId, relativePath, await fs.readFile(new URL(url)));
+    } catch {
+      // Fall back to the published Walrus release below.
+    }
+  }
+  const publishedArtifact = await readLocalWalrusArtifact(artifactSource, relativePath);
+  if (publishedArtifact) {
+    return await writePaperArtifact(outputDir, assetId, relativePath, publishedArtifact);
+  }
+  return url?.startsWith("file://") ? undefined : url;
+}
+
+async function readPaperSource(base: string, relativePath?: string, artifactSource?: PublishedArtifactSource): Promise<string | undefined> {
+  const url = fileUrl(base, relativePath);
+  if (url?.startsWith("file://")) {
+    try {
+      return await fs.readFile(new URL(url), "utf8");
+    } catch {
+      // Fall back to the published Walrus release below.
+    }
+  }
+  const publishedArtifact = await readLocalWalrusArtifact(artifactSource, relativePath);
+  return publishedArtifact?.toString("utf8");
 }
 
 function paperCode(assetId: string): string {
@@ -436,8 +499,10 @@ export interface ExplorerConfig {
 interface OnChainProofConfig {
   network: string;
   suiRpcUrl: string;
+  walrusAggregatorUrl: string;
   packageId: string;
   limit: number;
+  protocolRepoUrl: string;
 }
 
 export function loadExplorerConfig(env: NodeJS.ProcessEnv = process.env): ExplorerConfig {
@@ -482,29 +547,16 @@ function loadOnChainProofConfig(env: NodeJS.ProcessEnv = process.env): OnChainPr
   return {
     network: env.RN_WEB_NETWORK ?? env.RN_NETWORK ?? "testnet",
     suiRpcUrl: env.RN_TESTNET_SUI_RPC_URL ?? env.RN_SUI_RPC_URL ?? DEFAULT_TESTNET_RPC_URL,
+    walrusAggregatorUrl: env.RN_WALRUS_AGGREGATOR_URL ?? env.WALRUS_AGGREGATOR_URL ?? DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL,
     packageId: env.RN_PACKAGE_ID ?? DEFAULT_TESTNET_PACKAGE_ID,
-    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 20) : 6
+    limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 20) : 6,
+    protocolRepoUrl: (env.RN_PROTOCOL_REPO_URL ?? env.RN_REPO_URL ?? "https://github.com/Euraxluo/research-network").replace(/\/$/, "")
   };
 }
 
-function renderPublicShowcaseProof(config: OnChainProofConfig, explorer: ExplorerConfig): string {
+function renderChainSubmissionSource(config: OnChainProofConfig, explorer: ExplorerConfig): string {
   const eventType = `${config.packageId}::research_asset::ResearchAssetPublished`;
-  return `<section class="testnet-proof" aria-labelledby="testnet-proof-title" data-proof-rpc="${escapeHtml(config.suiRpcUrl)}" data-proof-package="${escapeHtml(config.packageId)}" data-proof-event-type="${escapeHtml(eventType)}" data-proof-limit="${config.limit}" data-sui-explorer="${escapeHtml(explorer.suiBase)}" data-walrus-explorer="${escapeHtml(explorer.walrusBase)}">
-    <div class="proof-head">
-      <div>
-        <h2 id="testnet-proof-title">Live testnet proof</h2>
-        <p>Research assets below are discovered directly from Sui testnet <code>ResearchAssetPublished</code> events, then cross-checked against live Sui objects in the browser.</p>
-      </div>
-      <dl class="proof-summary">
-        <div><dt>Network</dt><dd>${escapeHtml(config.network)}</dd></div>
-        <div><dt>Package</dt><dd>${explorerLink("object", config.packageId, explorer)}</dd></div>
-        <div><dt>Live RPC</dt><dd><code>${escapeHtml(config.suiRpcUrl.replace(/^https:\/\//, ""))}</code></dd></div>
-        <div><dt>Event</dt><dd><code>ResearchAssetPublished</code></dd></div>
-      </dl>
-    </div>
-    <div class="proof-live proof-pending" data-proof-overall>Querying Sui events...</div>
-    <div class="proof-grid" data-proof-grid></div>
-  </section>`;
+  return `<div hidden data-chain-source data-chain-index-api="/api/index" data-chain-rpc="${escapeHtml(config.suiRpcUrl)}" data-chain-package="${escapeHtml(config.packageId)}" data-chain-event-type="${escapeHtml(eventType)}" data-chain-limit="${config.limit}" data-sui-explorer="${escapeHtml(explorer.suiBase)}" data-walrus-explorer="${escapeHtml(explorer.walrusBase)}" data-walrus-aggregator="${escapeHtml(config.walrusAggregatorUrl)}" data-chain-network="${escapeHtml(config.network)}" data-protocol-repo="${escapeHtml(config.protocolRepoUrl)}"></div>`;
 }
 
 function renderPaperViewer(options: {
@@ -563,23 +615,30 @@ function repoLink(url: string): string {
   return "";
 }
 
-function formatLinks(paperPdf?: string, paperSource?: string, absSeg?: string, hasHtmlView = false): string[] {
-  const links: string[] = [];
-  if (paperPdf) {
-    links.push(`<a href="${escapeHtml(paperPdf)}">pdf</a>`);
+function renderAssetReports(
+  reports: Array<{
+    id: string;
+    visibility: string;
+    required_tier: number;
+    walrus_blob_id: string;
+    seal_id?: string;
+    free_preview?: string;
+  }>,
+  explorer: ExplorerConfig
+): string {
+  if (!reports.length) {
+    return "";
   }
-  if (absSeg && hasHtmlView) {
-    links.push(`<a href="${webPath("abs", `${absSeg}.html`)}#paper">html</a>`);
-  }
-  if (absSeg && paperPdf) {
-    links.push(`<a href="${webPath("abs", `${absSeg}.html`)}#pdf">view</a>`);
-  }
-  if (paperSource && absSeg) {
-    links.push(`<a href="${webPath("abs", `${absSeg}.html`)}#tex">tex</a>`);
-  } else if (paperSource) {
-    links.push(`<a href="${escapeHtml(paperSource)}">tex</a>`);
-  }
-  return links;
+  return `<div class="report-list">${reports.map((report) => `<article class="report-card">
+    <h4>${escapeHtml(report.visibility)} report</h4>
+    <dl class="mini-meta">
+      <div><dt>ID</dt><dd><code>${escapeHtml(report.id)}</code></dd></div>
+      <div><dt>Walrus</dt><dd>${explorerLink("walrus-blob", report.walrus_blob_id, explorer)}</dd></div>
+      <div><dt>Tier</dt><dd>${escapeHtml(report.required_tier)}</dd></div>
+      ${report.seal_id ? `<div><dt>Seal</dt><dd><code>${escapeHtml(report.seal_id)}</code></dd></div>` : ""}
+    </dl>
+    ${report.free_preview ? `<p>${escapeHtml(report.free_preview)}</p>` : ""}
+  </article>`).join("")}</div>`;
 }
 
 async function readExistingWalrusSitesResources(outputDir: string): Promise<string | undefined> {
@@ -615,6 +674,12 @@ export interface AccountDirectoryAsset {
   authors: string;
   githubs: string[];
   created_at: string;
+  abstract?: string;
+  types?: string[];
+  tags?: string[];
+  manifest_hash?: string;
+  repo_url?: string;
+  repo_commit?: string;
 }
 
 export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []): string {
@@ -1026,38 +1091,31 @@ h2 { font-size: 19px; margin: 26px 0 10px; }
 /* arXiv-style listing (home / search) */
 .intro { max-width: 760px; color: #333; }
 .stats-line { color: var(--muted); font-size: 13px; margin: 10px 0 4px; }
-.testnet-proof { border: 1px solid var(--line); border-left: 4px solid var(--arxiv-red); background: #fff; margin: 18px 0 18px; padding: 14px 16px 16px; }
-.proof-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 34%); gap: 18px; align-items: start; }
-.proof-head h2 { margin: 0 0 4px; font-size: 18px; }
-.proof-head p { margin: 0; color: #333; max-width: 720px; }
-.proof-summary { margin: 0; border: 1px solid #eee; border-radius: 4px; background: #fafafa; padding: 8px 10px; }
-.proof-summary div { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 8px; padding: 2px 0; }
-.proof-summary dt, .proof-card dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
-.proof-summary dd, .proof-card dd { margin: 0; min-width: 0; font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
-.proof-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
-.proof-card { border: 1px solid #eee; border-radius: 4px; background: #fafafa; padding: 10px 12px; min-width: 0; }
-.proof-card h3 { margin: 0 0 2px; font-size: 14.5px; color: var(--ink); }
-.proof-card p { margin: 0 0 8px; color: var(--muted); font-family: var(--mono); font-size: 11.5px; word-break: break-word; }
-.proof-live { display: inline-block; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 3px; padding: 2px 7px; font-size: 11.5px; font-family: var(--mono); }
-.proof-pending { color: #555; background: #fff; }
-.proof-verified { color: #1a7f37; border-color: #9bd1aa; background: #f0fbf3; }
-.proof-warning { color: #8f1414; border-color: #e5a3a3; background: #fff6f6; }
-.proof-card dl { margin: 0; }
-.proof-card dl div { padding: 4px 0; border-top: 1px solid #eee; }
-.proof-card dl div:first-child { border-top: 0; }
+.chain-listing-note { color: #333; max-width: 820px; }
+.chain-source-note { color: var(--muted); max-width: 820px; font-size: 12.5px; }
+.chain-proofline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 6px; font-size: 12.5px; color: var(--muted); }
+.chain-status { display: inline-block; border: 1px solid var(--line); border-radius: 3px; padding: 1px 7px; font-family: var(--mono); font-size: 11.5px; }
+.chain-status-pending { color: #555; background: #fff; }
+.chain-status-verified { color: #1a7f37; border-color: #9bd1aa; background: #f0fbf3; }
+.chain-status-warning { color: #8f1414; border-color: #e5a3a3; background: #fff6f6; }
+.chain-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 18px; margin: 8px 0 0; max-width: 880px; border-top: 1px solid #eee; padding-top: 7px; }
+.chain-facts div { min-width: 0; }
+.chain-facts dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+.chain-facts dd { margin: 0; min-width: 0; font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
+.chain-facts code { font-size: 1em; }
 dl.listing { margin: 12px 0 0; }
-dl.listing dt { padding: 12px 0 2px; font-size: 14px; border-top: 1px solid var(--line); }
-dl.listing dt:first-child { border-top: 0; }
-dl.listing dt .list-identifier { font-weight: 700; }
-dl.listing dd { margin: 0 0 14px 24px; }
+dl.listing > dt { padding: 12px 0 2px; font-size: 14px; border-top: 1px solid var(--line); }
+dl.listing > dt:first-child { border-top: 0; }
+dl.listing > dt .list-identifier { font-weight: 700; }
+dl.listing > dd { margin: 0 0 14px 24px; }
 .list-title { font-size: 17px; font-weight: 700; line-height: 1.3; margin: 2px 0; }
 .list-title a { color: var(--ink); }
 .list-title a:hover { color: var(--arxiv-red); text-decoration: none; }
 .list-authors { font-size: 14px; margin: 1px 0; }
 .list-subjects { font-size: 13px; color: var(--muted); margin: 1px 0 6px; }
 .list-subjects .primary-subject { color: var(--arxiv-red); font-weight: 700; }
-dl.listing dd p { margin: 4px 0 0; font-size: 14px; color: #333; max-width: 800px; }
-dl.listing dt a { position: relative; z-index: 1; pointer-events: auto; }
+dl.listing > dd p { margin: 4px 0 0; font-size: 14px; color: #333; max-width: 800px; }
+dl.listing > dt a { position: relative; z-index: 1; pointer-events: auto; }
 
 .search-box { display: flex; gap: 8px; margin: 14px 0 4px; max-width: 640px; }
 .search-box input { flex: 1; border: 1px solid #bbb; border-radius: 2px; padding: 8px 12px; font-size: 14.5px; }
@@ -1082,10 +1140,15 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .extra-services { font-size: 13.5px; }
 .access-box { border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px 10px; margin: 0 0 16px; background: #fafafa; }
 .access-box h2 { font-size: 14px; margin: 0 0 8px; color: #333; }
+.access-box h3 { font-size: 12px; margin: 14px 0 8px; color: #333; text-transform: uppercase; letter-spacing: .3px; }
 .access-box ul { list-style: none; margin: 0; padding: 0; }
 .access-box li { margin: 0 0 6px; }
 .access-box a.download-pdf { font-weight: 700; }
 .access-box .disabled { color: #999; }
+.report-list { display: grid; gap: 10px; }
+.report-card { border-top: 1px solid var(--line); padding-top: 10px; }
+.report-card h4 { margin: 0 0 6px; font-size: 12px; text-transform: capitalize; }
+.report-card p { margin: 8px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
 .sidebar-section { margin: 0 0 18px; }
 .sidebar-section h3 { font-size: 13.5px; margin: 0 0 6px; color: #333; }
 .verification { margin: 0; }
@@ -1231,8 +1294,8 @@ a.card h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--link); }
 .graph { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
 @media (max-width: 820px) {
-  .proof-head, .proof-grid { grid-template-columns: 1fr; }
   .abs-grid, .graph { grid-template-columns: 1fr; }
+  .chain-facts { grid-template-columns: 1fr; }
   .banner-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
   .banner-search { width: 100%; }
   .banner-search input { width: 100%; max-width: none; flex: 1; }
@@ -1270,27 +1333,53 @@ const SITE_JS = `
   function setupFilter() {
     var input = document.getElementById("filter");
     if (!input) return;
-    var rows = Array.prototype.slice.call(document.querySelectorAll(".result"));
-    var entries = Array.prototype.slice.call(document.querySelectorAll("dl.listing dt")).map(function (dt) {
-      var dd = dt.nextElementSibling;
-      return { els: dd ? [dt, dd] : [dt], text: (dt.textContent + " " + (dd ? dd.textContent : "")).toLowerCase() };
-    });
-    function apply() {
-      var q = input.value.trim().toLowerCase();
-      rows.forEach(function (row) {
-        var hit = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
-        row.style.display = hit ? "" : "none";
-      });
-      entries.forEach(function (entry) {
-        var hit = !q || entry.text.indexOf(q) !== -1;
-        entry.els.forEach(function (el) { el.style.display = hit ? "" : "none"; });
+    var empty = document.querySelector("[data-search-empty]");
+    if (!empty) {
+      empty = document.createElement("p");
+      empty.className = "muted search-empty";
+      empty.setAttribute("data-search-empty", "");
+      empty.hidden = true;
+      var box = input.closest ? input.closest(".search-box") : input.parentNode;
+      if (box && box.parentNode) box.parentNode.insertBefore(empty, box.nextSibling);
+    }
+    function listingEntries() {
+      return Array.prototype.slice.call(document.querySelectorAll("dl.listing > dt")).map(function (dt) {
+        var dd = dt.nextElementSibling;
+        return { els: dd ? [dt, dd] : [dt], text: (dt.textContent + " " + (dd ? dd.textContent : "")).toLowerCase() };
       });
     }
+    function apply() {
+      var q = input.value.trim().toLowerCase();
+      var visible = 0;
+      var total = 0;
+      Array.prototype.slice.call(document.querySelectorAll(".result")).forEach(function (row) {
+        var hit = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
+        row.style.display = hit ? "" : "none";
+        total += 1;
+        if (hit) visible += 1;
+      });
+      listingEntries().forEach(function (entry) {
+        var hit = !q || entry.text.indexOf(q) !== -1;
+        entry.els.forEach(function (el) { el.style.display = hit ? "" : "none"; });
+        total += 1;
+        if (hit) visible += 1;
+      });
+      if (empty) {
+        var busy = Boolean(document.querySelector("dl.listing[aria-busy='true']"));
+        empty.hidden = !q || busy || total === 0 || visible > 0;
+        empty.textContent = empty.hidden ? "" : 'No results for "' + input.value.trim() + '".';
+      }
+    }
     input.addEventListener("input", apply);
+    document.addEventListener("rn:listings-updated", apply);
     try {
       var q = new URLSearchParams(window.location.search).get("q");
       if (q) { input.value = q; apply(); }
     } catch (e) { /* ignore */ }
+  }
+
+  function notifyListingsUpdated() {
+    try { document.dispatchEvent(new CustomEvent("rn:listings-updated")); } catch (e) { /* ignore */ }
   }
 
   function rpcCall(url, method, params) {
@@ -1328,16 +1417,48 @@ const SITE_JS = `
     return text.slice(0, head) + "..." + text.slice(-tail);
   }
 
-  function proofLink(base, kind, value) {
+  function routeSegment(id) {
+    var text = String(id || "");
+    if (/^[A-Za-z0-9._~-]+$/.test(text)) return text;
+    return btoa(unescape(encodeURIComponent(text))).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+  }
+
+  function proofHref(base, kind, value) {
     var text = String(value || "");
     if (!text) return "";
-    return '<a href="' + esc(base + "/" + kind + "/" + encodeURIComponent(text)) + '" rel="noopener" target="_blank">' + esc(text) + '</a>';
+    return base + "/" + kind + "/" + encodeURIComponent(text);
+  }
+
+  function proofLink(base, kind, value) {
+    var text = String(value || "");
+    var href = proofHref(base, kind, text);
+    if (!href) return "";
+    return '<a href="' + esc(href) + '" rel="noopener" target="_blank">' + esc(text) + '</a>';
+  }
+
+  function proofLabelLink(base, kind, value, label) {
+    var href = proofHref(base, kind, value);
+    if (!href) return esc(label || "");
+    return '<a href="' + esc(href) + '" rel="noopener" target="_blank">' + esc(label) + '</a>';
+  }
+
+  function proofBlobHref(base, value) {
+    var text = String(value || "");
+    if (!text) return "";
+    return base + "/blob/" + encodeURIComponent(text);
   }
 
   function proofBlobLink(base, value) {
     var text = String(value || "");
-    if (!text) return "";
-    return '<a href="' + esc(base + "/blob/" + encodeURIComponent(text)) + '" rel="noopener" target="_blank">' + esc(text) + '</a>';
+    var href = proofBlobHref(base, text);
+    if (!href) return "";
+    return '<a href="' + esc(href) + '" rel="noopener" target="_blank">' + esc(text) + '</a>';
+  }
+
+  function proofBlobLabelLink(base, value, label) {
+    var href = proofBlobHref(base, value);
+    if (!href) return esc(label || "");
+    return '<a href="' + esc(href) + '" rel="noopener" target="_blank">' + esc(label) + '</a>';
   }
 
   function proofDate(ms) {
@@ -1346,21 +1467,176 @@ const SITE_JS = `
     try { return new Date(n).toISOString().replace("T", " ").slice(0, 19); } catch (e) { return ""; }
   }
 
-  function setProofStatus(card, state, label, detail) {
-    var node = card.querySelector("[data-proof-status]");
-    if (!node) return;
-    node.className = "proof-live proof-" + state;
-    node.textContent = label + (detail ? " · " + detail : "");
+  function commitLink(repoBase, commit) {
+    var text = String(commit || "");
+    if (!text) return '<span class="muted">not recorded on-chain</span>';
+    var short = shortText(text, 10, 8);
+    if (repoBase && /^[0-9a-f]{7,64}$/i.test(text)) {
+      return '<a href="' + esc(repoBase + "/commit/" + encodeURIComponent(text)) + '" rel="noopener" target="_blank"><code title="' + esc(text) + '">' + esc(short) + '</code></a>';
+    }
+    return '<code title="' + esc(text) + '">' + esc(short) + '</code>';
   }
 
-  function setOverallProofStatus(section, state, label, detail) {
-    var node = section.querySelector("[data-proof-overall]");
-    if (!node) return;
-    node.className = "proof-live proof-" + state;
-    node.textContent = label + (detail ? " · " + detail : "");
+  function plainLink(href, label) {
+    var url = String(href || "");
+    if (!url) return esc(label || "");
+    return '<a href="' + esc(url) + '" rel="noopener">' + esc(label) + '</a>';
   }
 
-  function renderOnChainProofCard(input) {
+  var zstdDecoderPromise = null;
+  var liveManifestCache = {};
+
+  function loadZstdDecoder() {
+    if (!zstdDecoderPromise) {
+      zstdDecoderPromise = import("https://cdn.jsdelivr.net/npm/zstddec@0.2.0/dist/zstddec-stream.modern.js").then(function (mod) {
+        var decoder = new mod.ZSTDDecoder();
+        return decoder.init().then(function () { return decoder; });
+      });
+    }
+    return zstdDecoderPromise;
+  }
+
+  function tarString(bytes, start, length) {
+    var end = start;
+    while (end < start + length && bytes[end] !== 0) end += 1;
+    return new TextDecoder().decode(bytes.slice(start, end)).trim();
+  }
+
+  function tarSize(bytes, start) {
+    var raw = tarString(bytes, start + 124, 12).replace(/\\0/g, "").trim();
+    return raw ? parseInt(raw, 8) || 0 : 0;
+  }
+
+  function readTarMember(bytes, wanted) {
+    var offset = 0;
+    var textDecoder = new TextDecoder();
+    while (offset + 512 <= bytes.length) {
+      var name = tarString(bytes, offset, 100);
+      if (!name) return null;
+      var prefix = tarString(bytes, offset + 345, 155);
+      var fullName = prefix ? prefix + "/" + name : name;
+      var size = tarSize(bytes, offset);
+      var bodyStart = offset + 512;
+      if (fullName === wanted || fullName === "./" + wanted || fullName.replace(/^\\.\\//, "") === wanted) {
+        return {
+          bytes: bytes.slice(bodyStart, bodyStart + size),
+          text: textDecoder.decode(bytes.slice(bodyStart, bodyStart + size))
+        };
+      }
+      offset = bodyStart + Math.ceil(size / 512) * 512;
+    }
+    return null;
+  }
+
+  function normalizeRepoUrl(value) {
+    var text = String(value || "").trim();
+    if (!/^https?:\\/\\//.test(text)) return "";
+    return text.replace(/\\.git$/, "").replace(/\\/$/, "");
+  }
+
+  function releaseAuthorLine(authors) {
+    if (!Array.isArray(authors) || !authors.length) return "Unknown";
+    return authors.map(function (author) {
+      var suffix = author && author.agent_id ? " (" + author.agent_id + ")" : author && author.github ? " (@" + author.github + ")" : author && author.type ? " (" + author.type + ")" : "";
+      return String(author && author.name ? author.name : "Unknown") + suffix;
+    }).join(", ");
+  }
+
+  function metadataFromRelease(release, fallback) {
+    var asset = release && release.assets ? release.assets : {};
+    return {
+      id: String(asset.id || fallback.sui_object_id || ""),
+      title: String(asset.title || "On-chain Research Asset v" + (fallback.version || "?")),
+      authors: releaseAuthorLine(asset.authors),
+      abstract: String(asset.abstract || ""),
+      types: Array.isArray(asset.types) ? asset.types : ["asset"],
+      tags: Array.isArray(asset.tags) ? asset.tags : [],
+      created_at: String(release && release.created_at ? release.created_at : fallback.created_at || ""),
+      manifest_hash: fallback.manifest_hash,
+      repo_url: normalizeRepoUrl(release && release.repo),
+      repo_commit: String(fallback.repo_commit || release && release.commit || ""),
+      walrus_blob_id: fallback.walrus_blob_id,
+      sui_object_id: fallback.sui_object_id,
+      tx_digest: fallback.tx_digest,
+      href: asset.id ? "/abs/" + routeSegment(asset.id) + ".html" : ""
+    };
+  }
+
+  function fetchWalrusReleaseMetadata(input) {
+    if (!input.blobId || !input.manifestHash || !input.aggregatorUrl) return Promise.resolve(null);
+    var cacheKey = input.blobId + ":" + input.manifestHash;
+    if (liveManifestCache[cacheKey]) return liveManifestCache[cacheKey];
+    liveManifestCache[cacheKey] = fetch(input.aggregatorUrl.replace(/\\/$/, "") + "/v1/blobs/" + encodeURIComponent(input.blobId), { cache: "no-store" })
+      .then(function (res) {
+        if (!res.ok) throw new Error("Walrus blob HTTP " + res.status);
+        return res.arrayBuffer();
+      })
+      .then(function (buffer) {
+        return loadZstdDecoder().then(function (decoder) {
+          return decoder.decode(new Uint8Array(buffer));
+        });
+      })
+      .then(function (tarBytes) {
+        var manifest = readTarMember(tarBytes, "manifest.json");
+        if (!manifest) throw new Error("release manifest missing");
+        var release = JSON.parse(manifest.text);
+        if (release.manifest_hash !== input.manifestHash) {
+          throw new Error("manifest hash mismatch");
+        }
+        return metadataFromRelease(release, input);
+      })
+      .catch(function () { return null; });
+    return liveManifestCache[cacheKey];
+  }
+
+  function appendLiveIndexEntry(listing, asset, position, suiExplorer, walrusExplorer) {
+    var dt = document.createElement("dt");
+    var dd = document.createElement("dd");
+    var title = String(asset.title || asset.id || "Research Asset");
+    var titleHtml = asset.href ? plainLink(asset.href, title) : proofLabelLink(suiExplorer, "object", asset.sui_object_id, title);
+    var types = Array.isArray(asset.types) && asset.types.length ? asset.types : ["asset"];
+    var tags = Array.isArray(asset.tags) ? asset.tags : [];
+    var subjects = '<span class="primary-subject">' + esc(types[0] || "asset") + '</span>' + types.slice(1).map(function (type) { return '; ' + esc(type); }).join("") + (tags.length ? ' &middot; ' + esc(tags.join(", ")) : "");
+    var proof = asset.proof || {};
+    var verified = Boolean(proof.tx_success && proof.object_type_match && proof.owner_match && proof.blob_match && proof.manifest_match && proof.release_manifest_match);
+    var statusClass = verified ? "verified" : "warning";
+    var statusLabel = verified ? "Live indexed" : "Live partial";
+    var missing = [];
+    if (!proof.tx_success) missing.push("tx");
+    if (!proof.object_type_match) missing.push("type");
+    if (!proof.owner_match) missing.push("owner");
+    if (!proof.blob_match) missing.push("blob");
+    if (!proof.manifest_match) missing.push("object manifest");
+    if (!proof.release_manifest_match) missing.push("release manifest");
+    var actions = [
+      proofLabelLink(suiExplorer, "object", asset.sui_object_id, "object"),
+      proofLabelLink(suiExplorer, "tx", asset.tx_digest, "tx"),
+      proofBlobLabelLink(walrusExplorer, asset.walrus_blob_id, "walrus"),
+      asset.href ? plainLink(asset.href, "asset page") : ""
+    ].filter(Boolean);
+    dt.className = "chain-submission-entry";
+    dd.className = "chain-submission-entry";
+    dt.innerHTML = '<span class="list-identifier">[' + position + ']&nbsp;' + proofLabelLink(suiExplorer, "object", asset.sui_object_id, "ResearchAsset " + shortText(asset.sui_object_id, 8, 6)) + '</span> [' + actions.join(", ") + ']';
+    dd.innerHTML =
+      '<div class="list-title">' + titleHtml + '</div>' +
+      '<div class="list-authors">' + esc(asset.authors || "Unknown") + '</div>' +
+      '<div class="list-subjects">' + subjects + (asset.created_at ? ' &middot; published ' + esc(String(asset.created_at).replace("T", " ").slice(0, 19)) + ' UTC' : '') + '</div>' +
+      '<p class="chain-listing-note">' + esc(asset.abstract || "") + '</p>' +
+      '<p class="chain-source-note">Served by <code>/api/index</code>: the Vercel Function refreshes the Sui/Walrus index, persists it in Vercel Postgres, and returns proof-linked rows.</p>' +
+      '<div class="chain-proofline"><span class="chain-status chain-status-' + statusClass + '">' + esc(statusLabel) + '</span><span>' + esc(verified ? "event, tx, object, blob and release manifest agree" : missing.join(", ")) + '</span></div>' +
+      '<dl class="chain-facts">' +
+      '<div><dt>Sui object</dt><dd>' + proofLink(suiExplorer, "object", asset.sui_object_id) + '</dd></div>' +
+      '<div><dt>Sui tx</dt><dd>' + proofLink(suiExplorer, "tx", asset.tx_digest) + '</dd></div>' +
+      '<div><dt>Walrus blob</dt><dd>' + proofBlobLink(walrusExplorer, asset.walrus_blob_id) + '</dd></div>' +
+      '<div><dt>Manifest hash</dt><dd><code title="' + esc(asset.manifest_hash || "") + '">' + esc(shortText(asset.manifest_hash || "", 18, 12)) + '</code></dd></div>' +
+      (asset.repo_url ? '<div><dt>Repository</dt><dd>' + plainLink(asset.repo_url, asset.repo_url) + '</dd></div>' : '') +
+      '<div><dt>Repo commit</dt><dd>' + commitLink(asset.repo_url, asset.repo_commit) + '</dd></div>' +
+      '</dl>';
+    listing.appendChild(dt);
+    listing.appendChild(dd);
+  }
+
+  function appendOnChainSubmissionEntry(listing, input, position) {
     var event = input.event;
     var objectData = input.objectData;
     var txData = input.txData;
@@ -1378,28 +1654,20 @@ const SITE_JS = `
     var eventManifest = bytesToString(parsed.manifest_hash);
     var objectManifest = bytesToString(fields.manifest_hash);
     var repoCommit = bytesToString(parsed.repo_commit);
+    var metadata = input.metadataByManifest && eventManifest ? input.metadataByManifest[eventManifest] : null;
     var expectedType = packageId + "::research_asset::ResearchAsset";
     var txOk = Boolean(txData && txData.effects && txData.effects.status && txData.effects.status.status === "success");
     var typeOk = Boolean(objectData && objectData.type === expectedType);
     var ownerOk = Boolean(objectOwner && eventOwner && objectOwner === eventOwner);
     var blobOk = Boolean(eventBlob && objectBlob && eventBlob === objectBlob);
     var manifestOk = Boolean(eventManifest && objectManifest && eventManifest === objectManifest);
-    var card = document.createElement("article");
-    card.className = "proof-card";
-    card.innerHTML =
-      '<div><h3>ResearchAsset ' + esc(shortText(objectId, 8, 6)) + '</h3>' +
-      '<p>v' + esc(parsed.version || fields.version || "?") + ' · mask ' + esc(parsed.asset_type_mask || fields.asset_type_mask || "?") + ' · ' + esc(proofDate(parsed.created_ms || fields.created_ms)) + '</p></div>' +
-      '<div class="proof-live proof-pending" data-proof-status>Checking live chain...</div>' +
-      '<dl>' +
-      '<div><dt>Sui tx</dt><dd>' + proofLink(suiExplorer, "tx", txDigest) + '</dd></div>' +
-      '<div><dt>ResearchAsset</dt><dd>' + proofLink(suiExplorer, "object", objectId) + '</dd></div>' +
-      '<div><dt>Walrus blob</dt><dd>' + proofBlobLink(walrusExplorer, eventBlob) + '</dd></div>' +
-      '<div><dt>Manifest</dt><dd><code>' + esc(shortText(eventManifest, 18, 12)) + '</code></dd></div>' +
-      '<div><dt>Owner</dt><dd>' + proofLink(suiExplorer, "account", eventOwner) + '</dd></div>' +
-      (repoCommit ? '<div><dt>Repo commit</dt><dd><code title="' + esc(repoCommit) + '">' + esc(shortText(repoCommit, 8, 8)) + '</code></dd></div>' : '') +
-      '</dl>';
+    var statusClass = "warning";
+    var statusLabel = "Live mismatch";
+    var statusDetail = "";
     if (txOk && typeOk && ownerOk && blobOk && manifestOk) {
-      setProofStatus(card, "verified", "Live verified", "event, tx, object, blob and manifest agree");
+      statusClass = "verified";
+      statusLabel = "Live verified";
+      statusDetail = "event, tx, object, blob and manifest agree";
     } else {
       var missing = [];
       if (!txOk) missing.push("tx");
@@ -1407,37 +1675,116 @@ const SITE_JS = `
       if (!ownerOk) missing.push("owner");
       if (!blobOk) missing.push("blob");
       if (!manifestOk) missing.push("manifest");
-      setProofStatus(card, "warning", "Live mismatch", missing.join(", "));
+      statusDetail = missing.join(", ");
     }
-    return card;
+    var created = proofDate(parsed.created_ms || fields.created_ms);
+    var version = String(parsed.version || fields.version || "?");
+    var mask = String(parsed.asset_type_mask || fields.asset_type_mask || "?");
+    var title = metadata && metadata.title ? String(metadata.title) : "On-chain Research Asset v" + version;
+    var titleHtml = metadata && metadata.href ? plainLink(metadata.href, title) : proofLabelLink(suiExplorer, "object", objectId, title);
+    var authorsHtml = metadata && metadata.authors ? esc(String(metadata.authors)) : "Owner " + proofLink(suiExplorer, "account", eventOwner);
+    var types = metadata && Array.isArray(metadata.types) && metadata.types.length ? metadata.types : ["sui-testnet"];
+    var tags = metadata && Array.isArray(metadata.tags) ? metadata.tags : [];
+    var subjects = '<span class="primary-subject">' + esc(types[0] || "sui-testnet") + '</span>' + types.slice(1).map(function (type) { return '; ' + esc(type); }).join("") + (tags.length ? ' &middot; ' + esc(tags.join(", ")) : "");
+    var abstract = metadata && metadata.abstract ? String(metadata.abstract) : "This row is rendered from live ResearchAssetPublished events and cross-checked against the current Sui object, transaction effects, Walrus blob id, and manifest hash.";
+    var metadataSource = metadata
+      ? "Title, authors, abstract and repository are read from the Walrus release manifest addressed by the on-chain blob id; the release manifest hash matches this live Sui event."
+      : "Sui stores the registry anchor, not title or abstract fields. Metadata will appear after the on-chain Walrus release manifest is available.";
+    var dt = document.createElement("dt");
+    var dd = document.createElement("dd");
+    var actions = [
+      proofLabelLink(suiExplorer, "object", objectId, "object"),
+      proofLabelLink(suiExplorer, "tx", txDigest, "tx"),
+      proofBlobLabelLink(walrusExplorer, eventBlob, "walrus"),
+      metadata && metadata.href ? plainLink(metadata.href, "asset page") : ""
+    ].filter(Boolean);
+    dt.className = "chain-submission-entry";
+    dd.className = "chain-submission-entry";
+    dt.innerHTML = '<span class="list-identifier">[' + position + ']&nbsp;' + proofLabelLink(suiExplorer, "object", objectId, "ResearchAsset " + shortText(objectId, 8, 6)) + '</span> [' + actions.join(", ") + ']';
+    dd.innerHTML =
+      '<div class="list-title">' + titleHtml + '</div>' +
+      '<div class="list-authors">' + authorsHtml + '</div>' +
+      '<div class="list-subjects">' + subjects + '; asset_type_mask=' + esc(mask) + (created ? ' &middot; published ' + esc(created) + ' UTC' : '') + '</div>' +
+      '<p class="chain-listing-note">' + esc(abstract) + '</p>' +
+      '<p class="chain-source-note">' + esc(metadataSource) + '</p>' +
+      '<div class="chain-proofline"><span class="chain-status chain-status-' + statusClass + '">' + esc(statusLabel) + '</span><span>' + esc(statusDetail) + '</span></div>' +
+      '<dl class="chain-facts">' +
+      '<div><dt>Sui object</dt><dd>' + proofLink(suiExplorer, "object", objectId) + '</dd></div>' +
+      '<div><dt>Sui tx</dt><dd>' + proofLink(suiExplorer, "tx", txDigest) + '</dd></div>' +
+      '<div><dt>Walrus blob</dt><dd>' + proofBlobLink(walrusExplorer, eventBlob) + '</dd></div>' +
+      '<div><dt>Manifest hash</dt><dd><code title="' + esc(eventManifest) + '">' + esc(shortText(eventManifest, 18, 12)) + '</code></dd></div>' +
+      '<div><dt>Content source</dt><dd>' + (metadata ? proofBlobLabelLink(walrusExplorer, eventBlob, "Walrus release manifest") + ' <span class="muted">matched by hash</span>' : '<span class="muted">Sui anchor only</span>') + '</dd></div>' +
+      (metadata && metadata.repo_url ? '<div><dt>Repository</dt><dd>' + plainLink(metadata.repo_url, metadata.repo_url) + '</dd></div>' : '') +
+      '<div><dt>Repo commit</dt><dd>' + commitLink(metadata && metadata.repo_url ? metadata.repo_url : input.protocolRepo, repoCommit || (metadata && metadata.repo_commit)) + '</dd></div>' +
+      '<div><dt>Package</dt><dd>' + proofLink(suiExplorer, "object", packageId) + '</dd></div>' +
+      '</dl>';
+    listing.appendChild(dt);
+    listing.appendChild(dd);
   }
 
-  function setupTestnetProof() {
-    var section = document.querySelector(".testnet-proof[data-proof-rpc][data-proof-package]");
-    if (!section || !window.fetch) return;
-    var rpcUrl = section.getAttribute("data-proof-rpc");
-    var packageId = section.getAttribute("data-proof-package");
-    var eventType = section.getAttribute("data-proof-event-type") || (packageId + "::research_asset::ResearchAssetPublished");
-    var limit = Math.max(1, Math.min(20, Number(section.getAttribute("data-proof-limit")) || 6));
-    var grid = section.querySelector("[data-proof-grid]");
-    var suiExplorer = section.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
-    var walrusExplorer = section.getAttribute("data-walrus-explorer") || "https://walruscan.com/testnet";
-    if (!rpcUrl || !packageId || !grid) return;
-    setOverallProofStatus(section, "pending", "Querying Sui events", "suix_queryEvents");
+  function setupChainSubmissions() {
+    var source = document.querySelector("[data-chain-source][data-chain-rpc][data-chain-package]");
+    var listing = document.querySelector("[data-chain-submissions]");
+    if (!source || !listing || !window.fetch) return;
+    var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
+    var rpcUrl = source.getAttribute("data-chain-rpc");
+    var packageId = source.getAttribute("data-chain-package");
+    var eventType = source.getAttribute("data-chain-event-type") || (packageId + "::research_asset::ResearchAssetPublished");
+    var limit = Math.max(1, Math.min(20, Number(source.getAttribute("data-chain-limit")) || 6));
+    var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
+    var walrusExplorer = source.getAttribute("data-walrus-explorer") || "https://walruscan.com/testnet";
+    var walrusAggregator = source.getAttribute("data-walrus-aggregator") || "https://aggregator.walrus-testnet.walrus.space";
+    var protocolRepo = source.getAttribute("data-protocol-repo") || "";
+    if (!rpcUrl || !packageId) return;
+    listing.setAttribute("aria-busy", "true");
+
+    function renderFromLiveIndex(data) {
+      var assets = data && Array.isArray(data.assets) ? data.assets : [];
+      if (!assets.length) {
+        listing.setAttribute("aria-busy", "false");
+        listing.innerHTML = '<dt><span class="list-identifier">No live submissions found</span></dt><dd><p class="muted">The live index API returned no ResearchAssetPublished assets for the configured package.</p></dd>';
+        notifyListingsUpdated();
+        return;
+      }
+      listing.innerHTML = "";
+      listing.setAttribute("aria-busy", "false");
+      assets.forEach(function (asset, index) {
+        appendLiveIndexEntry(listing, asset, index + 1, suiExplorer, walrusExplorer);
+      });
+      notifyListingsUpdated();
+    }
+
+    function loadDirectFromChain() {
     rpcCall(rpcUrl, "suix_queryEvents", [{ MoveEventType: eventType }, null, limit, true]).then(function (page) {
       var events = (page && page.data ? page.data : []).filter(function (event) {
         return event && event.id && event.id.txDigest && event.parsedJson && event.parsedJson.asset_id;
       });
       if (!events.length) {
-        setOverallProofStatus(section, "warning", "No live ResearchAssetPublished events found", eventType);
-        grid.innerHTML = "";
+        listing.setAttribute("aria-busy", "false");
+        listing.innerHTML = '<dt><span class="list-identifier">No live submissions found</span></dt><dd><p class="muted">Sui RPC returned no ResearchAssetPublished events for the configured package.</p></dd>';
+        notifyListingsUpdated();
         return null;
       }
       var objectIds = events.map(function (event) { return event.parsedJson.asset_id; });
       var txDigests = events.map(function (event) { return event.id.txDigest; });
       return Promise.all([
         rpcCall(rpcUrl, "sui_multiGetObjects", [objectIds, { showType: true, showOwner: true, showContent: true }]),
-        rpcCall(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showEffects: true, showEvents: true }])
+        rpcCall(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showEffects: true, showEvents: true }]),
+        Promise.all(events.map(function (event) {
+          var parsed = event.parsedJson || {};
+          return fetchWalrusReleaseMetadata({
+            aggregatorUrl: walrusAggregator,
+            blobId: bytesToString(parsed.walrus_blob_id),
+            manifestHash: bytesToString(parsed.manifest_hash),
+            repo_commit: bytesToString(parsed.repo_commit),
+            created_at: proofDate(parsed.created_ms),
+            version: String(parsed.version || ""),
+            walrus_blob_id: bytesToString(parsed.walrus_blob_id),
+            manifest_hash: bytesToString(parsed.manifest_hash),
+            sui_object_id: String(parsed.asset_id || ""),
+            tx_digest: event.id && event.id.txDigest ? event.id.txDigest : ""
+          });
+        }))
       ]).then(function (results) {
       var objectById = {};
       (results[0] || []).forEach(function (entry) {
@@ -1447,22 +1794,44 @@ const SITE_JS = `
       (results[1] || []).forEach(function (entry) {
         if (entry && entry.digest) txByDigest[entry.digest] = entry;
       });
-        grid.innerHTML = "";
-        events.forEach(function (event) {
-          grid.appendChild(renderOnChainProofCard({
+        var metadataByManifest = {};
+        (results[2] || []).forEach(function (metadata) {
+          if (metadata && metadata.manifest_hash) metadataByManifest[metadata.manifest_hash] = metadata;
+        });
+        listing.innerHTML = "";
+        listing.setAttribute("aria-busy", "false");
+        events.forEach(function (event, index) {
+          appendOnChainSubmissionEntry(listing, {
             event: event,
             objectData: objectById[event.parsedJson.asset_id],
             txData: txByDigest[event.id.txDigest],
             packageId: packageId,
             suiExplorer: suiExplorer,
-            walrusExplorer: walrusExplorer
-          }));
+            walrusExplorer: walrusExplorer,
+            protocolRepo: protocolRepo,
+            metadataByManifest: metadataByManifest
+          }, index + 1);
         });
-        setOverallProofStatus(section, "verified", "Live chain query complete", events.length + " ResearchAssetPublished events");
+        notifyListingsUpdated();
       });
     }).catch(function (err) {
-      setOverallProofStatus(section, "warning", "Live check unavailable", err && err.message ? err.message : "RPC error");
-      if (grid) grid.innerHTML = "";
+      listing.setAttribute("aria-busy", "false");
+      listing.innerHTML = '<dt><span class="list-identifier">Live submissions unavailable</span></dt><dd><p class="muted">Could not read Sui testnet right now: ' + esc(err && err.message ? err.message : "RPC error") + '</p></dd>';
+      notifyListingsUpdated();
+    });
+    }
+
+    var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=" + encodeURIComponent(String(limit));
+    fetch(indexUrl, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("index API HTTP " + res.status);
+      return res.json();
+    }).then(function (data) {
+      if (!data || data.source !== "live-sui-testnet+walrus-release-manifest") {
+        throw new Error("index API did not return live source");
+      }
+      renderFromLiveIndex(data);
+    }).catch(function () {
+      loadDirectFromChain();
     });
   }
 
@@ -1650,7 +2019,7 @@ const SITE_JS = `
   function init() {
     setupCopy();
     setupFilter();
-    setupTestnetProof();
+    setupChainSubmissions();
     setupGraph();
     setupPaperViewer();
   }
@@ -1662,6 +2031,7 @@ const SITE_JS = `
 
 export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: string): Promise<string> {
   const index = await readIndex(localnetRoot);
+  const resolvedLocalnetRoot = localnetRoot ?? DEFAULT_LOCALNET_DIR;
   const explorer = loadExplorerConfig();
   const onChainProofConfig = loadOnChainProofConfig();
   const walrusSitesResources = await readExistingWalrusSitesResources(outputDir);
@@ -1680,7 +2050,6 @@ export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: st
   const assets = Object.values(index.assets);
   const skills = Object.values(index.skills);
   const relationshipCount = Object.keys(index.relationships).length;
-  const listingParts: string[] = [];
 
   const searchBody = `
 <p class="muted">Static search snapshot generated from the local index. Filtering runs entirely in your browser.</p>
@@ -1795,14 +2164,15 @@ ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status<
     const seg = routeSegment(asset.id);
     const absHref = webPath("abs", `${seg}.html`);
     const paper = asset.manifest.assets.assets?.paper;
-    const paperPdf = await copyPaperArtifact(outputDir, asset.id, asset.repo_url, paper?.path);
-    const paperSource = await copyPaperArtifact(outputDir, asset.id, asset.repo_url, paper?.source);
-    const paperSourceText = await readPaperSource(asset.repo_url, paper?.source);
+    const artifactSource = { localnetRoot: resolvedLocalnetRoot, walrusBlobId: asset.walrus_blob_id };
+    const paperPdf = await copyPaperArtifact(outputDir, asset.id, asset.repo_url, paper?.path, artifactSource);
+    const paperSource = await copyPaperArtifact(outputDir, asset.id, asset.repo_url, paper?.source, artifactSource);
+    const paperSourceText = await readPaperSource(asset.repo_url, paper?.source, artifactSource);
     // Markdown rendering path (HANDOFF §2.4-1): paper.md declared as source, or repo-level
     // paper/paper.md + README.md picked up even when the manifest only knows LaTeX/PDF.
     const sourceIsMarkdown = Boolean(paper?.source?.endsWith(".md"));
-    const paperMdText = sourceIsMarkdown ? paperSourceText : await readPaperSource(asset.repo_url, "paper/paper.md");
-    const readmeText = await readPaperSource(asset.repo_url, "README.md");
+    const paperMdText = sourceIsMarkdown ? paperSourceText : await readPaperSource(asset.repo_url, "paper/paper.md", artifactSource);
+    const readmeText = await readPaperSource(asset.repo_url, "README.md", artifactSource);
     const workflowPath = asset.manifest.assets.assets?.workflow?.path;
     const assetAccess = asset.manifest.assets.access ?? {
       visibility: asset.manifest.assets.publish.visibility === "encrypted"
@@ -1837,14 +2207,6 @@ ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status<
       paperSourceText: sourceIsMarkdown ? undefined : paperSourceText,
       rendered
     });
-    const accessLinks = formatLinks(paperPdf, paperSource, seg, rendered.hasContent);
-    listingParts.push(`<dt><span class="list-identifier">[${listingParts.length + 1}]&nbsp;<a href="${escapeHtml(absHref)}">${escapeHtml(paperCode(asset.id))}</a></span>${accessLinks.length ? ` [${accessLinks.join(", ")}]` : ""}</dt>
-<dd>
-  <div class="list-title"><a href="${escapeHtml(absHref)}">${escapeHtml(asset.title)}</a></div>
-  <div class="list-authors">${escapeHtml(authors)}</div>
-  <div class="list-subjects"><span class="primary-subject">${escapeHtml(asset.types[0] ?? "asset")}</span>${asset.types.slice(1).map((type) => `; ${escapeHtml(type)}`).join("")}${asset.tags.length ? ` &middot; ${escapeHtml(asset.tags.join(", "))}` : ""}</div>
-  <p>${escapeHtml(asset.abstract)}</p>
-</dd>`);
     const body = `
 <div class="abs-grid">
   <div class="abs-main">
@@ -1879,7 +2241,7 @@ ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status<
         ${repoLink(asset.repo_url)}
       </ul>
       <p class="muted">${escapeHtml(accessNote)}</p>
-      ${assetReports.length ? `<ul class="small-list">${assetReports.map((report) => `<li>${escapeHtml(report.visibility)} report: <code>${escapeHtml(report.id)}</code></li>`).join("")}</ul>` : ""}
+      ${assetReports.length ? `<h3>Research reports</h3>${renderAssetReports(assetReports, explorer)}` : ""}
     </div>
     <div class="sidebar-section">
       <h3>Tools</h3>
@@ -1920,11 +2282,14 @@ ${delegationRows ? `<table class="data-table"><thead><tr><th>Job</th><th>Status<
 
   const homeBody = `
 <p class="intro">An agent-native, decentralized research asset network. Papers, skills, workflows, datasets and code are authored in Git, snapshotted on Walrus, registered on Sui, and indexed as one verifiable graph for humans and agents alike.</p>
-<p class="stats-line">${assets.length} research asset${assets.length === 1 ? "" : "s"} &middot; ${skills.length} skill${skills.length === 1 ? "" : "s"} &middot; ${relationshipCount} graph relationship${relationshipCount === 1 ? "" : "s"} &middot; ${index.events.length} protocol event${index.events.length === 1 ? "" : "s"} &middot; indexed ${escapeHtml(humanDate(index.updated_at))}</p>
-${renderPublicShowcaseProof(onChainProofConfig, explorer)}
+<p class="stats-line">Live Sui ${escapeHtml(onChainProofConfig.network)} registry &middot; package ${explorerLink("object", onChainProofConfig.packageId, explorer)} &middot; event <code>ResearchAssetPublished</code></p>
 <div class="search-box"><input id="filter" type="search" placeholder="Search titles, authors, tags&hellip;" autocomplete="off" aria-label="Search submissions"></div>
 <h2>Recent submissions</h2>
-${listingParts.length ? `<dl class="listing">${listingParts.join("")}</dl>` : "<p class=\"muted\">No indexed assets yet. Run <code>research publish</code> first.</p>"}`;
+${renderChainSubmissionSource(onChainProofConfig, explorer)}
+<dl class="listing" data-chain-submissions aria-live="polite" aria-busy="true">
+  <dt><span class="list-identifier">Loading live Sui testnet submissions</span></dt>
+  <dd><p class="chain-listing-note">Reading <code>ResearchAssetPublished</code> anchors from Sui RPC, then resolving title and abstract from the Walrus release manifest referenced by each on-chain blob id.</p></dd>
+</dl>`;
   await fs.writeFile(path.join(outputDir, "index.html"), shell("Home", homeBody, { subject: "Research Network" }), "utf8");
 
   // Account page (HANDOFF §2.4-5): session + GitHub binding live in the browser, so the page
@@ -1938,7 +2303,13 @@ ${listingParts.length ? `<dl class="listing">${listingParts.join("")}</dl>` : "<
     githubs: (asset.manifest.assets.authors ?? [])
       .map((author) => author.github)
       .filter((github): github is string => Boolean(github)),
-    created_at: asset.created_at
+    created_at: asset.created_at,
+    abstract: asset.abstract,
+    types: asset.types,
+    tags: asset.tags,
+    manifest_hash: asset.manifest_hash,
+    repo_url: asset.repo_url,
+    repo_commit: asset.repo_commit
   }));
   await fs.writeFile(
     path.join(outputDir, "site-data.json"),

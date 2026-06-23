@@ -1,0 +1,41 @@
+schema: research-workflow/v0.1
+name: publish-loop-engine-asset
+version: 0.1.0
+description: Turns an autonomous research loop into a verifiable Research Network asset.
+inputs:
+  - agent trace
+  - workspace diff
+  - evidence ledger
+  - reviewer checks
+outputs:
+  - loop state graph
+  - asset manifest
+  - Walrus release archive
+  - Sui registry anchor
+stages:
+  - id: observe
+    name: Bind observation state
+    instructions: Collect workspace state, chain state, evidence URLs, and existing graph context.
+  - id: plan
+    name: Commit loop intent
+    instructions: Declare the next action, expected artifact, and acceptance condition before execution.
+  - id: execute
+    name: Produce artifact delta
+    instructions: Run tools or edits and capture resulting files, checksums, receipts, and errors.
+  - id: critique
+    name: Attach review evidence
+    instructions: Record tests, reviewer objections, failed paths, and residual risks.
+  - id: publish
+    name: Publish loop asset
+    instructions: Package the paper, skill, workflow, and loop evidence; store on Walrus and register on Sui.
+quality_gates:
+  - id: no-opaque-claims
+    check: Public claims point to evidence, a tool receipt, or an explicit assumption.
+  - id: replayable-state
+    check: Each loop transition has input summary, output summary, and artifact references.
+  - id: publishable-graph
+    check: Asset relationships include source protocol, derived assets, skill, and workflow edges.
+tools:
+  - research validate
+  - research package
+  - research deploy:testnet

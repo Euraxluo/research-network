@@ -1,6 +1,12 @@
 {
   "buildCommand": "npm run vercel:shell && npm run web:vite:build",
   "outputDirectory": ".vercel-shell",
+  "crons": [
+    {
+      "path": "/api/index/ingest",
+      "schedule": "*/10 * * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/",

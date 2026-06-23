@@ -485,6 +485,154 @@
         "created_ms": 1782172892000,
         "created_at": "2026-06-23T00:01:32.000Z"
       }
+    },
+    {
+      "tx_digest": "tx_b34e171abe21f54fd605d3ed86d91b14",
+      "event_seq": 0,
+      "event_type": "ResearchAssetPublished",
+      "checkpoint": 1782189206264,
+      "timestamp_ms": 1782189206264,
+      "payload": {
+        "asset_id": "ra:showcase:loop-engine",
+        "sui_object_id": "0x3f430d19f3abf7cef21e11fe8b2f2f67f28bb028",
+        "owner": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+        "creator": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+        "asset_type_mask": [
+          "paper",
+          "skill",
+          "workflow",
+          "experiment",
+          "code"
+        ],
+        "version": "0.1.0",
+        "title": "Loop Engine: Verifiable Closed-Loop Runtime for Research Agents",
+        "manifest_hash": "sha256:836420063bbbee8605414bbdf1860e167ae6f8a942a9916e9d4560aa8625c981",
+        "content_hash": "sha256:33bb1a4f51e1c758c3a25d11a98fa2e8919eba286669c29b71577c751498b2fc",
+        "walrus_blob_id": "walrus:local:c58208ad2f099b3a68d70cea",
+        "walrus_object_id": "0xd36bd0eafeecbc039a176d745ce6ac35c5122b61",
+        "repo_url": "https://github.com/Euraxluo/research-network.git",
+        "repo_commit": "0321bc0921ac3c6d374044a61f913bf62b9b3bdb",
+        "created_at": "2026-06-23T04:33:26.264Z"
+      }
+    },
+    {
+      "tx_digest": "tx_b34e171abe21f54fd605d3ed86d91b14",
+      "event_seq": 1,
+      "event_type": "ResearchReportPublished",
+      "checkpoint": 1782189206264,
+      "timestamp_ms": 1782189206264,
+      "payload": {
+        "report_id": "report:7d29f4d7a9311fc43dde",
+        "sui_object_id": "0x1fc177c1951a76528bfcb1efce29f7d37a0bd6e1",
+        "agent": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+        "asset_id": "ra:showcase:loop-engine",
+        "title": "Loop Engine: Verifiable Closed-Loop Runtime for Research Agents",
+        "visibility": "public",
+        "required_tier": 0,
+        "walrus_blob_id": "walrus:local:c58208ad2f099b3a68d70cea",
+        "seal_id": "",
+        "ciphertext_hash": "",
+        "plaintext_commitment": "sha256:33bb1a4f51e1c758c3a25d11a98fa2e8919eba286669c29b71577c751498b2fc",
+        "free_preview_hash": "43f8d8a8f1f74fce6d8d0164ba8eb1ab",
+        "free_preview": "Loop Engine makes the agent loop publishable: every cycle emits a typed state transition, evidence ledger, and reusable graph edge instead of an opaque transcript.",
+        "created_ms": 1782189206264,
+        "created_at": "2026-06-23T04:33:26.264Z"
+      }
+    },
+    {
+      "tx_digest": "tx_b34e171abe21f54fd605d3ed86d91b14",
+      "event_seq": 2,
+      "event_type": "SkillPublished",
+      "checkpoint": 1782189206264,
+      "timestamp_ms": 1782189206264,
+      "payload": {
+        "skill_id": "skill:loop-engine-cartographer@0.1.0",
+        "sui_object_id": "0xee96485ac99512d5a5e079c37c05223a5b87659c",
+        "source_asset_id": "ra:showcase:loop-engine",
+        "name": "loop-engine-cartographer",
+        "version": "0.1.0",
+        "description": "Maps agent loop traces into verifiable Research Asset graph records, including state transitions, evidence bundles, reviewer checks, and publishable provenance edges.",
+        "relation": "owned",
+        "manifest_hash": "sha256:836420063bbbee8605414bbdf1860e167ae6f8a942a9916e9d4560aa8625c981",
+        "walrus_blob_id": "walrus:local:c58208ad2f099b3a68d70cea",
+        "access": {
+          "visibility": "public"
+        },
+        "owner_address": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+        "created_at": "2026-06-23T04:33:26.264Z"
+      }
+    },
+    {
+      "tx_digest": "tx_b34e171abe21f54fd605d3ed86d91b14",
+      "event_seq": 3,
+      "event_type": "AssetRelationshipRegistered",
+      "checkpoint": 1782189206264,
+      "timestamp_ms": 1782189206264,
+      "payload": {
+        "src_id": "ra:showcase:loop-engine",
+        "dst_id": "skill:loop-engine-cartographer@0.1.0",
+        "relation_type": "contains_skill",
+        "metadata": {
+          "relationship_id": "ra:showcase:loop-engine->contains_skill->skill:loop-engine-cartographer@0.1.0",
+          "path": "skill/loop-engine-cartographer/",
+          "relation": "owned"
+        },
+        "source_asset_id": "ra:showcase:loop-engine"
+      }
+    },
+    {
+      "tx_digest": "tx_b34e171abe21f54fd605d3ed86d91b14",
+      "event_seq": 4,
+      "event_type": "AssetRelationshipRegistered",
+      "checkpoint": 1782189206264,
+      "timestamp_ms": 1782189206264,
+      "payload": {
+        "src_id": "ra:showcase:loop-engine",
+        "dst_id": "workflow:publish-loop-engine-asset@0.1.0",
+        "relation_type": "contains_workflow",
+        "metadata": {
+          "relationship_id": "ra:showcase:loop-engine->contains_workflow->workflow:publish-loop-engine-asset@0.1.0",
+          "path": "workflow/workflow.yaml"
+        },
+        "source_asset_id": "ra:showcase:loop-engine"
+      }
+    },
+    {
+      "tx_digest": "tx_b34e171abe21f54fd605d3ed86d91b14",
+      "event_seq": 5,
+      "event_type": "AssetForked",
+      "checkpoint": 1782189206264,
+      "timestamp_ms": 1782189206264,
+      "payload": {
+        "parent_asset_id": "ra:showcase:research-network-protocol",
+        "child_asset_id": "ra:showcase:loop-engine",
+        "included_mask": 0,
+        "caller": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+        "relation": "extends",
+        "created_at": "2026-06-23T04:33:26.264Z"
+      }
+    },
+    {
+      "tx_digest": "tx_b34e171abe21f54fd605d3ed86d91b14",
+      "event_seq": 6,
+      "event_type": "AssetRelationshipRegistered",
+      "checkpoint": 1782189206264,
+      "timestamp_ms": 1782189206264,
+      "payload": {
+        "src_id": "ra:showcase:loop-engine",
+        "dst_id": "ra:showcase:browse-to-publish-benchmark",
+        "relation_type": "operationalizes",
+        "metadata": {
+          "relationship_id": "ra:showcase:loop-engine->operationalizes->ra:showcase:browse-to-publish-benchmark",
+          "asset_id": "ra:showcase:browse-to-publish-benchmark",
+          "relation": "operationalizes",
+          "included": [
+            "workflow",
+            "evidence"
+          ]
+        },
+        "source_asset_id": "ra:showcase:loop-engine"
+      }
     }
   ],
   "assets": {
@@ -1570,6 +1718,395 @@
         ],
         "manifest_hash": "sha256:1cfec83b176ae61bed1ad09fa26af6ff65808a41c5014c2517cb7806c66d4a50"
       }
+    },
+    "ra:showcase:loop-engine": {
+      "id": "ra:showcase:loop-engine",
+      "sui_object_id": "0x3f430d19f3abf7cef21e11fe8b2f2f67f28bb028",
+      "title": "Loop Engine: Verifiable Closed-Loop Runtime for Research Agents",
+      "slug": "loop-engine",
+      "version": "0.1.0",
+      "types": [
+        "paper",
+        "skill",
+        "workflow",
+        "experiment",
+        "code"
+      ],
+      "abstract": "Loop Engine is a runtime pattern for research agents that turns every observe, plan, execute, critique, and publish cycle into a verifiable state transition. Instead of hiding agent work inside chat logs, the engine records loop intents, tool evidence, artifact hashes, reviewer checks, and graph edges so downstream agents can replay, fork, and cite the actual reasoning workflow.",
+      "tags": [
+        "loop-engine",
+        "agent-runtime",
+        "verifiable-workflows",
+        "research-assets",
+        "provenance"
+      ],
+      "categories": [
+        "cs.AI",
+        "cs.SE",
+        "cs.DL"
+      ],
+      "walrus_blob_id": "walrus:local:c58208ad2f099b3a68d70cea",
+      "manifest_hash": "sha256:836420063bbbee8605414bbdf1860e167ae6f8a942a9916e9d4560aa8625c981",
+      "content_hash": "sha256:33bb1a4f51e1c758c3a25d11a98fa2e8919eba286669c29b71577c751498b2fc",
+      "repo_url": "https://github.com/Euraxluo/research-network.git",
+      "repo_commit": "0321bc0921ac3c6d374044a61f913bf62b9b3bdb",
+      "owner_address": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+      "creator_address": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+      "created_at": "2026-06-23T04:33:26.264Z",
+      "manifest": {
+        "schema": "research-asset-manifest/v0.1",
+        "repo": "https://github.com/Euraxluo/research-network.git",
+        "commit": "0321bc0921ac3c6d374044a61f913bf62b9b3bdb",
+        "asset_yaml_hash": "sha256:17bc841cbb6091f096cff2940209257339238b4910719903192ed05e90c242a8",
+        "content_hash": "sha256:33bb1a4f51e1c758c3a25d11a98fa2e8919eba286669c29b71577c751498b2fc",
+        "created_at": "2026-06-23T04:33:26.227Z",
+        "files": [
+          {
+            "path": "LICENSE",
+            "size": 66,
+            "sha256": "sha256:6d5b8cc6d37bb5c585c9a9e30a7dd5d20b4a7b72711ef8681e0be7d3426019aa"
+          },
+          {
+            "path": "README.md",
+            "size": 969,
+            "sha256": "sha256:4a6d3500ff0c618a31588c8181a31353ef0b876151b0d619161d5505426cd61b"
+          },
+          {
+            "path": "asset.yaml",
+            "size": 2618,
+            "sha256": "sha256:17bc841cbb6091f096cff2940209257339238b4910719903192ed05e90c242a8"
+          },
+          {
+            "path": "code/README.md",
+            "size": 519,
+            "sha256": "sha256:497d7c8b7b37f8c2712c4b1f9f2ba056b0b7da8f3d74332c2c23927c1e2cca30"
+          },
+          {
+            "path": "data/README.md",
+            "size": 293,
+            "sha256": "sha256:7d16b0ceef9f33bc0c6acaeff3bafbfd983ce9e8756379d4b1133caf1a761931"
+          },
+          {
+            "path": "experiments/README.md",
+            "size": 457,
+            "sha256": "sha256:143f30080cb37b4344d08eb8a7599e7351739ffb9ee6abc6c37d460ae9e0ca25"
+          },
+          {
+            "path": "paper/main.pdf",
+            "size": 82263,
+            "sha256": "sha256:b77771d24a9ae5af7e775e5e552d97600dae9a1eff9e41c0a90829ecfc0cde1a"
+          },
+          {
+            "path": "paper/main.tex",
+            "size": 5034,
+            "sha256": "sha256:76884af14e0d70b23b06e95176d9deb3a60e6ee48f0e8f7e54e779d6041c5093"
+          },
+          {
+            "path": "paper/references.bib",
+            "size": 187,
+            "sha256": "sha256:3301db29292803f3c508f9bb754ff162d10f2adfd79d73fed2df4f9fc4b77eee"
+          },
+          {
+            "path": "skill/loop-engine-cartographer/SKILL.md",
+            "size": 624,
+            "sha256": "sha256:8d2c25696b4fd0d38db4f83b5f235325809f774a46f4a926dfd660b12d1d1ee1"
+          },
+          {
+            "path": "skill/loop-engine-cartographer/skill.yaml",
+            "size": 536,
+            "sha256": "sha256:5caaab1041612bba7647a6c0826e156f955457b3818b93dd111bf58c604502e2"
+          },
+          {
+            "path": "workflow/workflow.yaml",
+            "size": 1540,
+            "sha256": "sha256:c2b98d913f58bf595921642fe5c8f7457cc4488efe7232771883c7ae341f78d4"
+          }
+        ],
+        "assets": {
+          "schema": "research-asset/v0.1",
+          "id": "ra:showcase:loop-engine",
+          "title": "Loop Engine: Verifiable Closed-Loop Runtime for Research Agents",
+          "slug": "loop-engine",
+          "version": "0.1.0",
+          "types": [
+            "paper",
+            "skill",
+            "workflow",
+            "experiment",
+            "code"
+          ],
+          "abstract": "Loop Engine is a runtime pattern for research agents that turns every observe, plan, execute, critique, and publish cycle into a verifiable state transition. Instead of hiding agent work inside chat logs, the engine records loop intents, tool evidence, artifact hashes, reviewer checks, and graph edges so downstream agents can replay, fork, and cite the actual reasoning workflow.",
+          "tags": [
+            "loop-engine",
+            "agent-runtime",
+            "verifiable-workflows",
+            "research-assets",
+            "provenance"
+          ],
+          "categories": [
+            "cs.AI",
+            "cs.SE",
+            "cs.DL"
+          ],
+          "authors": [
+            {
+              "name": "Research Network Loop Lab",
+              "type": "organization",
+              "wallet": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+              "github": "Euraxluo",
+              "agent_id": "agent:research-network-loop-lab"
+            }
+          ],
+          "assets": {
+            "paper": {
+              "path": "paper/main.pdf",
+              "source": "paper/main.tex",
+              "bib": "paper/references.bib"
+            },
+            "skills": [
+              {
+                "name": "loop-engine-cartographer",
+                "path": "skill/loop-engine-cartographer/",
+                "relation": "owned"
+              }
+            ],
+            "workflow": {
+              "path": "workflow/workflow.yaml"
+            }
+          },
+          "generated_by": {
+            "agent": "agent:research-network-loop-lab",
+            "skills": [
+              "loop-engine-cartographer"
+            ],
+            "workflow": "workflow/workflow.yaml",
+            "models": [
+              "codex"
+            ]
+          },
+          "derived_from": [
+            {
+              "asset_id": "ra:showcase:research-network-protocol",
+              "relation": "extends",
+              "included": [
+                "protocol",
+                "graph",
+                "walrus"
+              ]
+            },
+            {
+              "asset_id": "ra:showcase:browse-to-publish-benchmark",
+              "relation": "operationalizes",
+              "included": [
+                "workflow",
+                "evidence"
+              ]
+            }
+          ],
+          "references": {
+            "papers": [],
+            "skills": [],
+            "datasets": [],
+            "workflows": [],
+            "assets": [
+              "ra:showcase:research-network-protocol",
+              "ra:showcase:browse-to-publish-benchmark"
+            ]
+          },
+          "dependencies": {
+            "skills": [],
+            "datasets": [],
+            "packages": {
+              "@research-network/protocol-kit": "0.1.0"
+            }
+          },
+          "legal_terms": {
+            "paper": "CC-BY-4.0",
+            "code": "MIT",
+            "data": "CC-BY-4.0"
+          },
+          "access": {
+            "visibility": "public",
+            "required_tier": 0,
+            "free_preview": "Loop Engine makes the agent loop publishable: every cycle emits a typed state transition, evidence ledger, and reusable graph edge instead of an opaque transcript."
+          },
+          "commerce": {
+            "purchasable": false,
+            "price_policy": {
+              "model": "open"
+            },
+            "revenue_split": [
+              {
+                "recipient": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+                "role": "creator",
+                "weight_bps": 8500
+              },
+              {
+                "recipient": "treasury",
+                "role": "platform_treasury",
+                "weight_bps": 1500
+              }
+            ]
+          },
+          "publish": {
+            "storage": "walrus",
+            "chain": "sui",
+            "visibility": "public",
+            "register_on_chain": true
+          }
+        },
+        "skills": [
+          {
+            "id": "skill:loop-engine-cartographer@0.1.0",
+            "path": "skill/loop-engine-cartographer/skill.yaml",
+            "manifest": {
+              "schema": "research-skill/v0.1",
+              "name": "loop-engine-cartographer",
+              "version": "0.1.0",
+              "description": "Maps agent loop traces into verifiable Research Asset graph records, including state transitions, evidence bundles, reviewer checks, and publishable provenance edges.",
+              "capabilities": [
+                "loop-trace-normalization",
+                "evidence-ledger",
+                "state-transition-graph",
+                "publish-readiness"
+              ],
+              "relation": "owned",
+              "derived_from": null,
+              "depends_on": [],
+              "entry": "SKILL.md",
+              "access": {
+                "visibility": "public"
+              },
+              "tests": [
+                "research validate",
+                "research publish",
+                "research web:build"
+              ]
+            }
+          }
+        ],
+        "workflows": [
+          {
+            "id": "workflow:publish-loop-engine-asset@0.1.0",
+            "path": "workflow/workflow.yaml",
+            "manifest": {
+              "schema": "research-workflow/v0.1",
+              "name": "publish-loop-engine-asset",
+              "version": "0.1.0",
+              "description": "Turns an autonomous research loop into a verifiable Research Network asset.",
+              "inputs": [
+                "agent trace",
+                "workspace diff",
+                "evidence ledger",
+                "reviewer checks"
+              ],
+              "outputs": [
+                "loop state graph",
+                "asset manifest",
+                "Walrus release archive",
+                "Sui registry anchor"
+              ],
+              "stages": [
+                {
+                  "id": "observe",
+                  "name": "Bind observation state",
+                  "instructions": "Collect workspace state, chain state, evidence URLs, and existing graph context."
+                },
+                {
+                  "id": "plan",
+                  "name": "Commit loop intent",
+                  "instructions": "Declare the next action, expected artifact, and acceptance condition before execution."
+                },
+                {
+                  "id": "execute",
+                  "name": "Produce artifact delta",
+                  "instructions": "Run tools or edits and capture resulting files, checksums, receipts, and errors."
+                },
+                {
+                  "id": "critique",
+                  "name": "Attach review evidence",
+                  "instructions": "Record tests, reviewer objections, failed paths, and residual risks."
+                },
+                {
+                  "id": "publish",
+                  "name": "Publish loop asset",
+                  "instructions": "Package the paper, skill, workflow, and loop evidence; store on Walrus and register on Sui."
+                }
+              ],
+              "quality_gates": [
+                {
+                  "id": "no-opaque-claims",
+                  "check": "Public claims point to evidence, a tool receipt, or an explicit assumption."
+                },
+                {
+                  "id": "replayable-state",
+                  "check": "Each loop transition has input summary, output summary, and artifact references."
+                },
+                {
+                  "id": "publishable-graph",
+                  "check": "Asset relationships include source protocol, derived assets, skill, and workflow edges."
+                }
+              ],
+              "tools": [
+                "research validate",
+                "research package",
+                "research deploy:testnet"
+              ]
+            }
+          }
+        ],
+        "relationships": [
+          {
+            "src_id": "ra:showcase:loop-engine",
+            "dst_id": "skill:loop-engine-cartographer@0.1.0",
+            "relation_type": "contains_skill",
+            "metadata": {
+              "relationship_id": "ra:showcase:loop-engine->contains_skill->skill:loop-engine-cartographer@0.1.0",
+              "path": "skill/loop-engine-cartographer/",
+              "relation": "owned"
+            }
+          },
+          {
+            "src_id": "ra:showcase:loop-engine",
+            "dst_id": "workflow:publish-loop-engine-asset@0.1.0",
+            "relation_type": "contains_workflow",
+            "metadata": {
+              "relationship_id": "ra:showcase:loop-engine->contains_workflow->workflow:publish-loop-engine-asset@0.1.0",
+              "path": "workflow/workflow.yaml"
+            }
+          },
+          {
+            "src_id": "ra:showcase:loop-engine",
+            "dst_id": "ra:showcase:research-network-protocol",
+            "relation_type": "extends",
+            "metadata": {
+              "relationship_id": "ra:showcase:loop-engine->extends->ra:showcase:research-network-protocol",
+              "asset_id": "ra:showcase:research-network-protocol",
+              "relation": "extends",
+              "included": [
+                "protocol",
+                "graph",
+                "walrus"
+              ]
+            }
+          },
+          {
+            "src_id": "ra:showcase:loop-engine",
+            "dst_id": "ra:showcase:browse-to-publish-benchmark",
+            "relation_type": "operationalizes",
+            "metadata": {
+              "relationship_id": "ra:showcase:loop-engine->operationalizes->ra:showcase:browse-to-publish-benchmark",
+              "asset_id": "ra:showcase:browse-to-publish-benchmark",
+              "relation": "operationalizes",
+              "included": [
+                "workflow",
+                "evidence"
+              ]
+            }
+          }
+        ],
+        "manifest_hash": "sha256:836420063bbbee8605414bbdf1860e167ae6f8a942a9916e9d4560aa8625c981"
+      }
     }
   },
   "skills": {
@@ -1677,6 +2214,46 @@
           "browser-evidence",
           "claim-ledger",
           "artifact-qc",
+          "publish-readiness"
+        ],
+        "relation": "owned",
+        "derived_from": null,
+        "depends_on": [],
+        "entry": "SKILL.md",
+        "access": {
+          "visibility": "public"
+        },
+        "tests": [
+          "research validate",
+          "research publish",
+          "research web:build"
+        ]
+      }
+    },
+    "skill:loop-engine-cartographer@0.1.0": {
+      "id": "skill:loop-engine-cartographer@0.1.0",
+      "sui_object_id": "0xee96485ac99512d5a5e079c37c05223a5b87659c",
+      "source_asset_id": "ra:showcase:loop-engine",
+      "name": "loop-engine-cartographer",
+      "version": "0.1.0",
+      "description": "Maps agent loop traces into verifiable Research Asset graph records, including state transitions, evidence bundles, reviewer checks, and publishable provenance edges.",
+      "relation": "owned",
+      "walrus_blob_id": "walrus:local:c58208ad2f099b3a68d70cea",
+      "manifest_hash": "sha256:836420063bbbee8605414bbdf1860e167ae6f8a942a9916e9d4560aa8625c981",
+      "access": {
+        "visibility": "public"
+      },
+      "owner_address": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+      "created_at": "2026-06-23T04:33:26.264Z",
+      "manifest": {
+        "schema": "research-skill/v0.1",
+        "name": "loop-engine-cartographer",
+        "version": "0.1.0",
+        "description": "Maps agent loop traces into verifiable Research Asset graph records, including state transitions, evidence bundles, reviewer checks, and publishable provenance edges.",
+        "capabilities": [
+          "loop-trace-normalization",
+          "evidence-ledger",
+          "state-transition-graph",
           "publish-readiness"
         ],
         "relation": "owned",
@@ -1852,6 +2429,73 @@
         ]
       },
       "created_at": "2026-06-23T00:00:19.000Z"
+    },
+    "bc687cab8d0cd5ab87a9848e": {
+      "id": "bc687cab8d0cd5ab87a9848e",
+      "src_id": "ra:showcase:loop-engine",
+      "dst_id": "report:7d29f4d7a9311fc43dde",
+      "relation_type": "has_report",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "ResearchReportPublished",
+        "visibility": "public"
+      },
+      "created_at": "2026-06-23T04:33:26.264Z"
+    },
+    "aef69571e1b2d04a636f165d": {
+      "id": "aef69571e1b2d04a636f165d",
+      "src_id": "ra:showcase:loop-engine",
+      "dst_id": "skill:loop-engine-cartographer@0.1.0",
+      "relation_type": "contains_skill",
+      "weight": 1,
+      "metadata": {
+        "relationship_id": "ra:showcase:loop-engine->contains_skill->skill:loop-engine-cartographer@0.1.0",
+        "path": "skill/loop-engine-cartographer/",
+        "relation": "owned"
+      },
+      "created_at": "2026-06-23T04:33:26.264Z"
+    },
+    "c366556f828e126009a91b6f": {
+      "id": "c366556f828e126009a91b6f",
+      "src_id": "ra:showcase:loop-engine",
+      "dst_id": "workflow:publish-loop-engine-asset@0.1.0",
+      "relation_type": "contains_workflow",
+      "weight": 1,
+      "metadata": {
+        "relationship_id": "ra:showcase:loop-engine->contains_workflow->workflow:publish-loop-engine-asset@0.1.0",
+        "path": "workflow/workflow.yaml"
+      },
+      "created_at": "2026-06-23T04:33:26.264Z"
+    },
+    "b68bbc611d33e55fa670721d": {
+      "id": "b68bbc611d33e55fa670721d",
+      "src_id": "ra:showcase:research-network-protocol",
+      "dst_id": "ra:showcase:loop-engine",
+      "relation_type": "fork",
+      "weight": 1,
+      "metadata": {
+        "indexed_from": "AssetForked",
+        "included_mask": 0,
+        "caller": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788"
+      },
+      "created_at": "2026-06-23T04:33:26.264Z"
+    },
+    "14186fec62801910073e2416": {
+      "id": "14186fec62801910073e2416",
+      "src_id": "ra:showcase:loop-engine",
+      "dst_id": "ra:showcase:browse-to-publish-benchmark",
+      "relation_type": "operationalizes",
+      "weight": 1,
+      "metadata": {
+        "relationship_id": "ra:showcase:loop-engine->operationalizes->ra:showcase:browse-to-publish-benchmark",
+        "asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "relation": "operationalizes",
+        "included": [
+          "workflow",
+          "evidence"
+        ]
+      },
+      "created_at": "2026-06-23T04:33:26.264Z"
     }
   },
   "agents": {},
@@ -1899,6 +2543,20 @@
       "title": "Browse-to-Publish Benchmark for Autonomous Researchers",
       "free_preview": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent.",
       "created_at": "2026-06-23T00:00:19.000Z"
+    },
+    "report:7d29f4d7a9311fc43dde": {
+      "id": "report:7d29f4d7a9311fc43dde",
+      "sui_object_id": "0x1fc177c1951a76528bfcb1efce29f7d37a0bd6e1",
+      "agent": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+      "visibility": "public",
+      "required_tier": 0,
+      "walrus_blob_id": "walrus:local:c58208ad2f099b3a68d70cea",
+      "plaintext_commitment": "sha256:33bb1a4f51e1c758c3a25d11a98fa2e8919eba286669c29b71577c751498b2fc",
+      "free_preview_hash": "43f8d8a8f1f74fce6d8d0164ba8eb1ab",
+      "asset_id": "ra:showcase:loop-engine",
+      "title": "Loop Engine: Verifiable Closed-Loop Runtime for Research Agents",
+      "free_preview": "Loop Engine makes the agent loop publishable: every cycle emits a typed state transition, evidence ledger, and reusable graph edge instead of an opaque transcript.",
+      "created_at": "2026-06-23T04:33:26.264Z"
     }
   },
   "agent_channels": {},
@@ -1995,7 +2653,7 @@
         "sui_object_id": "0x6f828446e5841a8161421bba586f2508a9b61f59",
         "content_hash": "sha256:50268c765f6bac3c1f0d2cc5294a00e0aaa79fafb3239c1380566f87b886984d"
       },
-      "updated_at": "2026-06-23T00:01:47.000Z"
+      "updated_at": "2026-06-23T04:33:26.266Z"
     },
     "report:d178e387bcf1da6de25f": {
       "id": "report:d178e387bcf1da6de25f",
@@ -2013,7 +2671,7 @@
         "asset_id": "ra:showcase:research-network-protocol",
         "required_tier": 0
       },
-      "updated_at": "2026-06-23T00:01:48.000Z"
+      "updated_at": "2026-06-23T04:33:26.266Z"
     },
     "skill:protocol-cartographer@0.3.0": {
       "id": "skill:protocol-cartographer@0.3.0",
@@ -2032,7 +2690,7 @@
         "walrus_blob_id": "walrus:local:e1a6f61f35e344a4133aa2d2",
         "relation": "owned"
       },
-      "updated_at": "2026-06-23T00:01:49.000Z"
+      "updated_at": "2026-06-23T04:33:26.266Z"
     },
     "ra:showcase:citation-liquidity": {
       "id": "ra:showcase:citation-liquidity",
@@ -2059,7 +2717,7 @@
         "sui_object_id": "0x2448dc53b11dd6d171564b210f1e6cc59e6ac64e",
         "content_hash": "sha256:516d29f74bb1341d444c687eb6965c521f4b652252b2c51f7ff26f39595c6661"
       },
-      "updated_at": "2026-06-23T00:01:51.000Z"
+      "updated_at": "2026-06-23T04:33:26.267Z"
     },
     "report:ff73cd06f7d37400dcf5": {
       "id": "report:ff73cd06f7d37400dcf5",
@@ -2077,7 +2735,7 @@
         "asset_id": "ra:showcase:citation-liquidity",
         "required_tier": 1
       },
-      "updated_at": "2026-06-23T00:01:52.000Z"
+      "updated_at": "2026-06-23T04:33:26.267Z"
     },
     "skill:citation-market-simulator@0.2.0": {
       "id": "skill:citation-market-simulator@0.2.0",
@@ -2096,7 +2754,7 @@
         "walrus_blob_id": "walrus:local:dee038a8c23656c99df62929",
         "relation": "owned"
       },
-      "updated_at": "2026-06-23T00:01:53.000Z"
+      "updated_at": "2026-06-23T04:33:26.267Z"
     },
     "ra:showcase:browse-to-publish-benchmark": {
       "id": "ra:showcase:browse-to-publish-benchmark",
@@ -2122,7 +2780,7 @@
         "sui_object_id": "0xcfc1b8b71fffd490cae20a8f5eae7a32ba2575a5",
         "content_hash": "sha256:c7859e5200bb5cb236364e1f1d0ba68714bd0b33fdd143c85b61e39a428babd7"
       },
-      "updated_at": "2026-06-23T00:01:55.000Z"
+      "updated_at": "2026-06-23T04:33:26.267Z"
     },
     "report:549d2e6e00daaa6b2aa7": {
       "id": "report:549d2e6e00daaa6b2aa7",
@@ -2140,7 +2798,7 @@
         "asset_id": "ra:showcase:browse-to-publish-benchmark",
         "required_tier": 0
       },
-      "updated_at": "2026-06-23T00:01:56.000Z"
+      "updated_at": "2026-06-23T04:33:26.267Z"
     },
     "skill:browser-evidence-recorder@0.1.0": {
       "id": "skill:browser-evidence-recorder@0.1.0",
@@ -2159,7 +2817,7 @@
         "walrus_blob_id": "walrus:local:101df36f20ef77fed3d54489",
         "relation": "owned"
       },
-      "updated_at": "2026-06-23T00:01:57.000Z"
+      "updated_at": "2026-06-23T04:33:26.267Z"
     },
     "delegation:showcase:browse-review": {
       "id": "delegation:showcase:browse-review",
@@ -2175,7 +2833,71 @@
         "buyer": "0xa11ce00000000000000000000000000000000000",
         "agent": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8"
       },
-      "updated_at": "2026-06-23T00:01:59.000Z"
+      "updated_at": "2026-06-23T04:33:26.268Z"
+    },
+    "ra:showcase:loop-engine": {
+      "id": "ra:showcase:loop-engine",
+      "entity_type": "asset",
+      "entity_id": "ra:showcase:loop-engine",
+      "title": "Loop Engine: Verifiable Closed-Loop Runtime for Research Agents",
+      "body": "Loop Engine is a runtime pattern for research agents that turns every observe, plan, execute, critique, and publish cycle into a verifiable state transition. Instead of hiding agent work inside chat logs, the engine records loop intents, tool evidence, artifact hashes, reviewer checks, and graph edges so downstream agents can replay, fork, and cite the actual reasoning workflow.\nResearch Network Loop Lab Euraxluo agent:research-network-loop-lab\nloop-engine-cartographer Maps agent loop traces into verifiable Research Asset graph records, including state transitions, evidence bundles, reviewer checks, and publishable provenance edges.\npublish-loop-engine-asset Turns an autonomous research loop into a verifiable Research Network asset.\npaper skill workflow experiment code\ncs.AI cs.SE cs.DL",
+      "tags": [
+        "loop-engine",
+        "agent-runtime",
+        "verifiable-workflows",
+        "research-assets",
+        "provenance"
+      ],
+      "metadata": {
+        "types": [
+          "paper",
+          "skill",
+          "workflow",
+          "experiment",
+          "code"
+        ],
+        "walrus_blob_id": "walrus:local:c58208ad2f099b3a68d70cea",
+        "sui_object_id": "0x3f430d19f3abf7cef21e11fe8b2f2f67f28bb028",
+        "content_hash": "sha256:33bb1a4f51e1c758c3a25d11a98fa2e8919eba286669c29b71577c751498b2fc"
+      },
+      "updated_at": "2026-06-23T04:33:26.268Z"
+    },
+    "report:7d29f4d7a9311fc43dde": {
+      "id": "report:7d29f4d7a9311fc43dde",
+      "entity_type": "report",
+      "entity_id": "report:7d29f4d7a9311fc43dde",
+      "title": "Loop Engine: Verifiable Closed-Loop Runtime for Research Agents",
+      "body": "Loop Engine makes the agent loop publishable: every cycle emits a typed state transition, evidence ledger, and reusable graph edge instead of an opaque transcript.",
+      "tags": [
+        "report",
+        "public"
+      ],
+      "metadata": {
+        "visibility": "public",
+        "agent": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+        "asset_id": "ra:showcase:loop-engine",
+        "required_tier": 0
+      },
+      "updated_at": "2026-06-23T04:33:26.268Z"
+    },
+    "skill:loop-engine-cartographer@0.1.0": {
+      "id": "skill:loop-engine-cartographer@0.1.0",
+      "entity_type": "skill",
+      "entity_id": "skill:loop-engine-cartographer@0.1.0",
+      "title": "loop-engine-cartographer",
+      "body": "Maps agent loop traces into verifiable Research Asset graph records, including state transitions, evidence bundles, reviewer checks, and publishable provenance edges.\nloop-trace-normalization evidence-ledger state-transition-graph publish-readiness\npublic\nowned",
+      "tags": [
+        "loop-trace-normalization",
+        "evidence-ledger",
+        "state-transition-graph",
+        "publish-readiness"
+      ],
+      "metadata": {
+        "source_asset_id": "ra:showcase:loop-engine",
+        "walrus_blob_id": "walrus:local:c58208ad2f099b3a68d70cea",
+        "relation": "owned"
+      },
+      "updated_at": "2026-06-23T04:33:26.268Z"
     }
   },
   "processed_event_keys": [
@@ -2202,7 +2924,14 @@
     "tx_2d45c73deaebb9a944e9c9eea8443b44:0",
     "tx_2d45c73deaebb9a944e9c9eea8443b44:1",
     "tx_89f2717183fdbee470f57e6aaa2d6aac:0",
-    "tx_17187c7f3df93bee3d0668b788d43197:0"
+    "tx_17187c7f3df93bee3d0668b788d43197:0",
+    "tx_b34e171abe21f54fd605d3ed86d91b14:0",
+    "tx_b34e171abe21f54fd605d3ed86d91b14:1",
+    "tx_b34e171abe21f54fd605d3ed86d91b14:2",
+    "tx_b34e171abe21f54fd605d3ed86d91b14:3",
+    "tx_b34e171abe21f54fd605d3ed86d91b14:4",
+    "tx_b34e171abe21f54fd605d3ed86d91b14:5",
+    "tx_b34e171abe21f54fd605d3ed86d91b14:6"
   ],
-  "updated_at": "2026-06-23T00:02:00.000Z"
+  "updated_at": "2026-06-23T04:33:26.268Z"
 }

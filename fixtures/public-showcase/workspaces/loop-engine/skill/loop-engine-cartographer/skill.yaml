@@ -1,0 +1,20 @@
+schema: research-skill/v0.1
+name: loop-engine-cartographer
+version: 0.1.0
+description: Maps agent loop traces into verifiable Research Asset graph records, including
+  state transitions, evidence bundles, reviewer checks, and publishable provenance edges.
+capabilities:
+  - loop-trace-normalization
+  - evidence-ledger
+  - state-transition-graph
+  - publish-readiness
+relation: owned
+derived_from: null
+depends_on: []
+entry: SKILL.md
+access:
+  visibility: public
+tests:
+  - research validate
+  - research publish
+  - research web:build

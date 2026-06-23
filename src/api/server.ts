@@ -23,6 +23,8 @@ import { decodeJwtClaims, deriveUserSalt, deriveZkLoginAddress, requestZkProof, 
 import { readAuthState, readIndex } from "../core/local-store.js";
 import { forkWorkspace, installSkill } from "../core/workspace.js";
 import { validateWorkspace } from "../core/validator.js";
+import { handleNodeElysiaRequest } from "./elysia-node.js";
+import { researchIndexApi } from "./index-service.js";
 import type { CrossChainAuthProvider, GitProvider, WalletBinding } from "../core/types.js";
 
 const LOCAL_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -169,6 +171,14 @@ export function createApiServer(options: { localnetRoot?: string; workspaceRoot?
   app.get("/api/search", async (req, res, next) => {
     try {
       res.json({ results: await searchIndex(String(req.query.q ?? ""), req.query.type ? String(req.query.type) : undefined, options.localnetRoot) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.use("/api/index", async (req, res, next) => {
+    try {
+      await handleNodeElysiaRequest(researchIndexApi, req, res);
     } catch (error) {
       next(error);
     }

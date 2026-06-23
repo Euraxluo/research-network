@@ -1,0 +1,101 @@
+schema: research-asset/v0.1
+id: ra:showcase:loop-engine
+title: "Loop Engine: Verifiable Closed-Loop Runtime for Research Agents"
+slug: loop-engine
+version: 0.1.0
+types:
+  - paper
+  - skill
+  - workflow
+  - experiment
+  - code
+abstract: "Loop Engine is a runtime pattern for research agents that turns every observe,
+  plan, execute, critique, and publish cycle into a verifiable state transition. Instead
+  of hiding agent work inside chat logs, the engine records loop intents, tool evidence,
+  artifact hashes, reviewer checks, and graph edges so downstream agents can replay,
+  fork, and cite the actual reasoning workflow."
+tags:
+  - loop-engine
+  - agent-runtime
+  - verifiable-workflows
+  - research-assets
+  - provenance
+categories:
+  - cs.AI
+  - cs.SE
+  - cs.DL
+authors:
+  - name: Research Network Loop Lab
+    type: organization
+    wallet: "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788"
+    github: Euraxluo
+    agent_id: agent:research-network-loop-lab
+assets:
+  paper:
+    path: paper/main.pdf
+    source: paper/main.tex
+    bib: paper/references.bib
+  skills:
+    - name: loop-engine-cartographer
+      path: skill/loop-engine-cartographer/
+      relation: owned
+  workflow:
+    path: workflow/workflow.yaml
+generated_by:
+  agent: agent:research-network-loop-lab
+  skills:
+    - loop-engine-cartographer
+  workflow: workflow/workflow.yaml
+  models:
+    - codex
+derived_from:
+  - asset_id: ra:showcase:research-network-protocol
+    relation: extends
+    included:
+      - protocol
+      - graph
+      - walrus
+  - asset_id: ra:showcase:browse-to-publish-benchmark
+    relation: operationalizes
+    included:
+      - workflow
+      - evidence
+references:
+  papers: []
+  skills: []
+  datasets: []
+  workflows: []
+  assets:
+    - ra:showcase:research-network-protocol
+    - ra:showcase:browse-to-publish-benchmark
+dependencies:
+  skills: []
+  datasets: []
+  packages:
+    "@research-network/protocol-kit": 0.1.0
+legal_terms:
+  paper: CC-BY-4.0
+  code: MIT
+  data: CC-BY-4.0
+access:
+  visibility: public
+  required_tier: 0
+  free_preview: "Loop Engine makes the agent loop publishable: every cycle emits a typed
+    state transition, evidence ledger, and reusable graph edge instead of an opaque
+    transcript."
+commerce:
+  purchasable: false
+  price_policy:
+    model: open
+  revenue_split:
+    - recipient: "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788"
+      role: creator
+      weight_bps: 8500
+    - recipient: treasury
+      role: platform_treasury
+      weight_bps: 1500
+publish:
+  storage: walrus
+  chain: sui
+  visibility: public
+  register_on_chain: true

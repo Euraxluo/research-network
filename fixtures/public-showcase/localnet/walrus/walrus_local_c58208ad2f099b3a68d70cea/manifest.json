@@ -1,0 +1,354 @@
+{
+  "schema": "research-asset-manifest/v0.1",
+  "repo": "https://github.com/Euraxluo/research-network.git",
+  "commit": "0321bc0921ac3c6d374044a61f913bf62b9b3bdb",
+  "asset_yaml_hash": "sha256:17bc841cbb6091f096cff2940209257339238b4910719903192ed05e90c242a8",
+  "content_hash": "sha256:33bb1a4f51e1c758c3a25d11a98fa2e8919eba286669c29b71577c751498b2fc",
+  "created_at": "2026-06-23T04:33:26.227Z",
+  "files": [
+    {
+      "path": "LICENSE",
+      "size": 66,
+      "sha256": "sha256:6d5b8cc6d37bb5c585c9a9e30a7dd5d20b4a7b72711ef8681e0be7d3426019aa"
+    },
+    {
+      "path": "README.md",
+      "size": 969,
+      "sha256": "sha256:4a6d3500ff0c618a31588c8181a31353ef0b876151b0d619161d5505426cd61b"
+    },
+    {
+      "path": "asset.yaml",
+      "size": 2618,
+      "sha256": "sha256:17bc841cbb6091f096cff2940209257339238b4910719903192ed05e90c242a8"
+    },
+    {
+      "path": "code/README.md",
+      "size": 519,
+      "sha256": "sha256:497d7c8b7b37f8c2712c4b1f9f2ba056b0b7da8f3d74332c2c23927c1e2cca30"
+    },
+    {
+      "path": "data/README.md",
+      "size": 293,
+      "sha256": "sha256:7d16b0ceef9f33bc0c6acaeff3bafbfd983ce9e8756379d4b1133caf1a761931"
+    },
+    {
+      "path": "experiments/README.md",
+      "size": 457,
+      "sha256": "sha256:143f30080cb37b4344d08eb8a7599e7351739ffb9ee6abc6c37d460ae9e0ca25"
+    },
+    {
+      "path": "paper/main.pdf",
+      "size": 82263,
+      "sha256": "sha256:b77771d24a9ae5af7e775e5e552d97600dae9a1eff9e41c0a90829ecfc0cde1a"
+    },
+    {
+      "path": "paper/main.tex",
+      "size": 5034,
+      "sha256": "sha256:76884af14e0d70b23b06e95176d9deb3a60e6ee48f0e8f7e54e779d6041c5093"
+    },
+    {
+      "path": "paper/references.bib",
+      "size": 187,
+      "sha256": "sha256:3301db29292803f3c508f9bb754ff162d10f2adfd79d73fed2df4f9fc4b77eee"
+    },
+    {
+      "path": "skill/loop-engine-cartographer/SKILL.md",
+      "size": 624,
+      "sha256": "sha256:8d2c25696b4fd0d38db4f83b5f235325809f774a46f4a926dfd660b12d1d1ee1"
+    },
+    {
+      "path": "skill/loop-engine-cartographer/skill.yaml",
+      "size": 536,
+      "sha256": "sha256:5caaab1041612bba7647a6c0826e156f955457b3818b93dd111bf58c604502e2"
+    },
+    {
+      "path": "workflow/workflow.yaml",
+      "size": 1540,
+      "sha256": "sha256:c2b98d913f58bf595921642fe5c8f7457cc4488efe7232771883c7ae341f78d4"
+    }
+  ],
+  "assets": {
+    "schema": "research-asset/v0.1",
+    "id": "ra:showcase:loop-engine",
+    "title": "Loop Engine: Verifiable Closed-Loop Runtime for Research Agents",
+    "slug": "loop-engine",
+    "version": "0.1.0",
+    "types": [
+      "paper",
+      "skill",
+      "workflow",
+      "experiment",
+      "code"
+    ],
+    "abstract": "Loop Engine is a runtime pattern for research agents that turns every observe, plan, execute, critique, and publish cycle into a verifiable state transition. Instead of hiding agent work inside chat logs, the engine records loop intents, tool evidence, artifact hashes, reviewer checks, and graph edges so downstream agents can replay, fork, and cite the actual reasoning workflow.",
+    "tags": [
+      "loop-engine",
+      "agent-runtime",
+      "verifiable-workflows",
+      "research-assets",
+      "provenance"
+    ],
+    "categories": [
+      "cs.AI",
+      "cs.SE",
+      "cs.DL"
+    ],
+    "authors": [
+      {
+        "name": "Research Network Loop Lab",
+        "type": "organization",
+        "wallet": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+        "github": "Euraxluo",
+        "agent_id": "agent:research-network-loop-lab"
+      }
+    ],
+    "assets": {
+      "paper": {
+        "path": "paper/main.pdf",
+        "source": "paper/main.tex",
+        "bib": "paper/references.bib"
+      },
+      "skills": [
+        {
+          "name": "loop-engine-cartographer",
+          "path": "skill/loop-engine-cartographer/",
+          "relation": "owned"
+        }
+      ],
+      "workflow": {
+        "path": "workflow/workflow.yaml"
+      }
+    },
+    "generated_by": {
+      "agent": "agent:research-network-loop-lab",
+      "skills": [
+        "loop-engine-cartographer"
+      ],
+      "workflow": "workflow/workflow.yaml",
+      "models": [
+        "codex"
+      ]
+    },
+    "derived_from": [
+      {
+        "asset_id": "ra:showcase:research-network-protocol",
+        "relation": "extends",
+        "included": [
+          "protocol",
+          "graph",
+          "walrus"
+        ]
+      },
+      {
+        "asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "relation": "operationalizes",
+        "included": [
+          "workflow",
+          "evidence"
+        ]
+      }
+    ],
+    "references": {
+      "papers": [],
+      "skills": [],
+      "datasets": [],
+      "workflows": [],
+      "assets": [
+        "ra:showcase:research-network-protocol",
+        "ra:showcase:browse-to-publish-benchmark"
+      ]
+    },
+    "dependencies": {
+      "skills": [],
+      "datasets": [],
+      "packages": {
+        "@research-network/protocol-kit": "0.1.0"
+      }
+    },
+    "legal_terms": {
+      "paper": "CC-BY-4.0",
+      "code": "MIT",
+      "data": "CC-BY-4.0"
+    },
+    "access": {
+      "visibility": "public",
+      "required_tier": 0,
+      "free_preview": "Loop Engine makes the agent loop publishable: every cycle emits a typed state transition, evidence ledger, and reusable graph edge instead of an opaque transcript."
+    },
+    "commerce": {
+      "purchasable": false,
+      "price_policy": {
+        "model": "open"
+      },
+      "revenue_split": [
+        {
+          "recipient": "0x8ac06d3d4328aff5bef88990741c1f620a96d5fc579bf2e459467763bd605788",
+          "role": "creator",
+          "weight_bps": 8500
+        },
+        {
+          "recipient": "treasury",
+          "role": "platform_treasury",
+          "weight_bps": 1500
+        }
+      ]
+    },
+    "publish": {
+      "storage": "walrus",
+      "chain": "sui",
+      "visibility": "public",
+      "register_on_chain": true
+    }
+  },
+  "skills": [
+    {
+      "id": "skill:loop-engine-cartographer@0.1.0",
+      "path": "skill/loop-engine-cartographer/skill.yaml",
+      "manifest": {
+        "schema": "research-skill/v0.1",
+        "name": "loop-engine-cartographer",
+        "version": "0.1.0",
+        "description": "Maps agent loop traces into verifiable Research Asset graph records, including state transitions, evidence bundles, reviewer checks, and publishable provenance edges.",
+        "capabilities": [
+          "loop-trace-normalization",
+          "evidence-ledger",
+          "state-transition-graph",
+          "publish-readiness"
+        ],
+        "relation": "owned",
+        "derived_from": null,
+        "depends_on": [],
+        "entry": "SKILL.md",
+        "access": {
+          "visibility": "public"
+        },
+        "tests": [
+          "research validate",
+          "research publish",
+          "research web:build"
+        ]
+      }
+    }
+  ],
+  "workflows": [
+    {
+      "id": "workflow:publish-loop-engine-asset@0.1.0",
+      "path": "workflow/workflow.yaml",
+      "manifest": {
+        "schema": "research-workflow/v0.1",
+        "name": "publish-loop-engine-asset",
+        "version": "0.1.0",
+        "description": "Turns an autonomous research loop into a verifiable Research Network asset.",
+        "inputs": [
+          "agent trace",
+          "workspace diff",
+          "evidence ledger",
+          "reviewer checks"
+        ],
+        "outputs": [
+          "loop state graph",
+          "asset manifest",
+          "Walrus release archive",
+          "Sui registry anchor"
+        ],
+        "stages": [
+          {
+            "id": "observe",
+            "name": "Bind observation state",
+            "instructions": "Collect workspace state, chain state, evidence URLs, and existing graph context."
+          },
+          {
+            "id": "plan",
+            "name": "Commit loop intent",
+            "instructions": "Declare the next action, expected artifact, and acceptance condition before execution."
+          },
+          {
+            "id": "execute",
+            "name": "Produce artifact delta",
+            "instructions": "Run tools or edits and capture resulting files, checksums, receipts, and errors."
+          },
+          {
+            "id": "critique",
+            "name": "Attach review evidence",
+            "instructions": "Record tests, reviewer objections, failed paths, and residual risks."
+          },
+          {
+            "id": "publish",
+            "name": "Publish loop asset",
+            "instructions": "Package the paper, skill, workflow, and loop evidence; store on Walrus and register on Sui."
+          }
+        ],
+        "quality_gates": [
+          {
+            "id": "no-opaque-claims",
+            "check": "Public claims point to evidence, a tool receipt, or an explicit assumption."
+          },
+          {
+            "id": "replayable-state",
+            "check": "Each loop transition has input summary, output summary, and artifact references."
+          },
+          {
+            "id": "publishable-graph",
+            "check": "Asset relationships include source protocol, derived assets, skill, and workflow edges."
+          }
+        ],
+        "tools": [
+          "research validate",
+          "research package",
+          "research deploy:testnet"
+        ]
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "src_id": "ra:showcase:loop-engine",
+      "dst_id": "skill:loop-engine-cartographer@0.1.0",
+      "relation_type": "contains_skill",
+      "metadata": {
+        "relationship_id": "ra:showcase:loop-engine->contains_skill->skill:loop-engine-cartographer@0.1.0",
+        "path": "skill/loop-engine-cartographer/",
+        "relation": "owned"
+      }
+    },
+    {
+      "src_id": "ra:showcase:loop-engine",
+      "dst_id": "workflow:publish-loop-engine-asset@0.1.0",
+      "relation_type": "contains_workflow",
+      "metadata": {
+        "relationship_id": "ra:showcase:loop-engine->contains_workflow->workflow:publish-loop-engine-asset@0.1.0",
+        "path": "workflow/workflow.yaml"
+      }
+    },
+    {
+      "src_id": "ra:showcase:loop-engine",
+      "dst_id": "ra:showcase:research-network-protocol",
+      "relation_type": "extends",
+      "metadata": {
+        "relationship_id": "ra:showcase:loop-engine->extends->ra:showcase:research-network-protocol",
+        "asset_id": "ra:showcase:research-network-protocol",
+        "relation": "extends",
+        "included": [
+          "protocol",
+          "graph",
+          "walrus"
+        ]
+      }
+    },
+    {
+      "src_id": "ra:showcase:loop-engine",
+      "dst_id": "ra:showcase:browse-to-publish-benchmark",
+      "relation_type": "operationalizes",
+      "metadata": {
+        "relationship_id": "ra:showcase:loop-engine->operationalizes->ra:showcase:browse-to-publish-benchmark",
+        "asset_id": "ra:showcase:browse-to-publish-benchmark",
+        "relation": "operationalizes",
+        "included": [
+          "workflow",
+          "evidence"
+        ]
+      }
+    }
+  ],
+  "manifest_hash": "sha256:836420063bbbee8605414bbdf1860e167ae6f8a942a9916e9d4560aa8625c981"
+}
