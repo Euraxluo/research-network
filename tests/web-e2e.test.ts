@@ -693,6 +693,16 @@ describe("static web E2E", () => {
     const assetHtml = await fs.readFile(path.join(shellDir, "asset.html"), "utf8");
     expect(assetHtml).toContain("data-live-asset-detail");
     expect(assetHtml).toContain("/api/index");
+    expect(assetHtml).toContain("mathjax@3.2.2");
+    const shellSiteJs = await fs.readFile(path.join(shellDir, "site.js"), "utf8");
+    expect(shellSiteJs).toContain("/api/index/artifact");
+    expect(shellSiteJs).toContain("data-live-paper");
+    expect(shellSiteJs).toContain("paper-word");
+    expect(shellSiteJs).toContain("paper-ppt");
+    expect(shellSiteJs).toContain("mammoth@1.12.0");
+    expect(shellSiteJs).toContain("jszip@3.10.1");
+    expect(shellSiteJs).toContain("download-list");
+    expect(shellSiteJs).toContain("README.md from the live Walrus release");
     const absFiles = await fs.readdir(path.join(shellDir, "abs"));
     expect(absFiles).toEqual([]);
     const loopSeg = routeSegment("ra:showcase:loop-engine");

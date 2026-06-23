@@ -51,6 +51,19 @@ interface ReleaseManifest {
     types?: string[];
     tags?: string[];
     authors?: Array<{ name?: string; github?: string; agent_id?: string; type?: string }>;
+    assets?: {
+      paper?: {
+        path?: string;
+        source?: string;
+        bib?: string;
+        html?: string;
+        word?: string;
+        doc?: string;
+        docx?: string;
+        ppt?: string;
+        pptx?: string;
+      };
+    };
   };
 }
 
@@ -76,6 +89,15 @@ export interface LiveIndexAsset {
   sui_spent_mist: string;
   tx_digest: string;
   href?: string;
+  paper?: {
+    html_path?: string;
+    pdf_path?: string;
+    source_path?: string;
+    bib_path?: string;
+    word_path?: string;
+    ppt_path?: string;
+    readme_path?: string;
+  };
   proof: {
     tx_success: boolean;
     sender_match: boolean;
@@ -287,7 +309,7 @@ function readTarMember(bytes: Uint8Array, wanted: string): Uint8Array | undefine
   return undefined;
 }
 
-async function readReleaseManifest(blobId: string, aggregatorUrl: string): Promise<ReleaseManifest> {
+async function readReleaseArchive(blobId: string, aggregatorUrl: string): Promise<Uint8Array> {
   const response = await fetch(`${aggregatorUrl.replace(/\/$/, "")}/v1/blobs/${encodeURIComponent(blobId)}`, {
     cache: "no-store"
   });
@@ -295,12 +317,62 @@ async function readReleaseManifest(blobId: string, aggregatorUrl: string): Promi
     throw new Error(`Walrus blob ${blobId} HTTP ${response.status}`);
   }
   const decoder = await zstdDecoder();
-  const tarBytes = decoder.decode(new Uint8Array(await response.arrayBuffer()));
+  return decoder.decode(new Uint8Array(await response.arrayBuffer()));
+}
+
+async function readReleaseManifest(blobId: string, aggregatorUrl: string): Promise<ReleaseManifest> {
+  const tarBytes = await readReleaseArchive(blobId, aggregatorUrl);
   const manifestBytes = readTarMember(tarBytes, "manifest.json");
   if (!manifestBytes) {
     throw new Error(`Walrus blob ${blobId} does not contain manifest.json`);
   }
   return JSON.parse(new TextDecoder().decode(manifestBytes)) as ReleaseManifest;
+}
+
+function normalizeReleaseArtifactPath(path: string): string {
+  const normalized = path.replace(/\\/g, "/").replace(/^\.\//, "").trim();
+  if (
+    !normalized ||
+    normalized.startsWith("/") ||
+    normalized.includes("\0") ||
+    normalized.split("/").some((part) => part === "..")
+  ) {
+    throw new Error("invalid release artifact path");
+  }
+  return normalized;
+}
+
+function contentTypeForArtifact(path: string): string {
+  if (/\.html?$/i.test(path)) return "text/html; charset=utf-8";
+  if (/\.pdf$/i.test(path)) return "application/pdf";
+  if (/\.md$/i.test(path)) return "text/markdown; charset=utf-8";
+  if (/\.tex$/i.test(path)) return "application/x-tex; charset=utf-8";
+  if (/\.pptx$/i.test(path)) return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+  if (/\.ppt$/i.test(path)) return "application/vnd.ms-powerpoint";
+  if (/\.json$/i.test(path)) return "application/json; charset=utf-8";
+  if (/\.ya?ml$/i.test(path)) return "application/yaml; charset=utf-8";
+  if (/\.bib$/i.test(path)) return "text/plain; charset=utf-8";
+  if (/\.word$/i.test(path)) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (/\.docx$/i.test(path)) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (/\.doc$/i.test(path)) return "application/msword";
+  return "application/octet-stream";
+}
+
+export async function readLiveReleaseArtifact(input: {
+  blobId: string;
+  path: string;
+  aggregatorUrl?: string;
+}): Promise<{ path: string; filename: string; contentType: string; bytes: Uint8Array } | undefined> {
+  const artifactPath = normalizeReleaseArtifactPath(input.path);
+  const tarBytes = await readReleaseArchive(input.blobId, input.aggregatorUrl ?? DEFAULT_LIVE_INDEX_WALRUS_AGGREGATOR_URL);
+  const bytes = readTarMember(tarBytes, artifactPath);
+  if (!bytes) return undefined;
+  return {
+    path: artifactPath,
+    filename: artifactPath.split("/").pop() || "artifact",
+    contentType: contentTypeForArtifact(artifactPath),
+    bytes
+  };
 }
 
 function createdAt(release: ReleaseManifest, parsed: Record<string, unknown>): string {
@@ -383,6 +455,7 @@ function buildAsset(input: {
   const fields = input.objectData?.content?.fields ?? {};
   const release = input.release ?? {};
   const releaseAsset = release.assets ?? {};
+  const paper = releaseAsset.assets?.paper ?? {};
   const manifestHash = bytesToString(parsed.manifest_hash);
   const objectManifestHash = bytesToString(fields.manifest_hash);
   const blobId = bytesToString(parsed.walrus_blob_id);
@@ -433,6 +506,25 @@ function buildAsset(input: {
     sui_spent_mist: spentMist,
     tx_digest: txDigest,
     href: releaseAsset.id ? `/asset.html?id=${routeSegment(String(releaseAsset.id))}` : undefined,
+    paper: {
+      html_path: typeof paper.html === "string" && paper.html ? paper.html : undefined,
+      pdf_path: typeof paper.path === "string" && paper.path ? paper.path : undefined,
+      source_path: typeof paper.source === "string" && paper.source ? paper.source : undefined,
+      bib_path: typeof paper.bib === "string" && paper.bib ? paper.bib : undefined,
+      word_path: typeof paper.word === "string" && paper.word
+        ? paper.word
+        : typeof paper.docx === "string" && paper.docx
+          ? paper.docx
+          : typeof paper.doc === "string" && paper.doc
+            ? paper.doc
+            : undefined,
+      ppt_path: typeof paper.pptx === "string" && paper.pptx
+        ? paper.pptx
+        : typeof paper.ppt === "string" && paper.ppt
+          ? paper.ppt
+          : undefined,
+      readme_path: "README.md"
+    },
     proof
   };
 }

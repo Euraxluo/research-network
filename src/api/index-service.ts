@@ -1,6 +1,10 @@
 import { swagger } from "@elysiajs/swagger";
 import { Elysia, t } from "elysia";
 import {
+  DEFAULT_LIVE_INDEX_WALRUS_AGGREGATOR_URL,
+  readLiveReleaseArtifact
+} from "../core/live-index.js";
+import {
   ingestLiveIndex,
   latestLiveIndexRunAt,
   liveIndexStorageState,
@@ -116,6 +120,53 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
     tags: ["index"],
     detail: {
       summary: "Check index API and database status"
+    }
+  })
+  .get("/index/artifact", async ({ query, set }) => {
+    const blobId = cleanQuery(query.blob);
+    const artifactPath = cleanQuery(query.path);
+    if (!blobId || !artifactPath) {
+      set.status = 400;
+      return { error: "missing_release_artifact_query", message: "blob and path are required" };
+    }
+    try {
+      const artifact = await readLiveReleaseArtifact({
+        blobId,
+        path: artifactPath,
+        aggregatorUrl: cleanQuery(query.aggregator) ?? process.env.RN_WALRUS_AGGREGATOR_URL ?? process.env.WALRUS_AGGREGATOR_URL ?? DEFAULT_LIVE_INDEX_WALRUS_AGGREGATOR_URL
+      });
+      if (!artifact) {
+        set.status = 404;
+        return { error: "release_artifact_not_found", blob: blobId, path: artifactPath };
+      }
+      const body = artifact.bytes.buffer.slice(
+        artifact.bytes.byteOffset,
+        artifact.bytes.byteOffset + artifact.bytes.byteLength
+      ) as ArrayBuffer;
+      return new Response(body, {
+        headers: {
+          "content-type": artifact.contentType,
+          "cache-control": "public, max-age=300, stale-while-revalidate=3600",
+          "content-disposition": `inline; filename="${artifact.filename.replace(/"/g, "")}"`
+        }
+      });
+    } catch (error) {
+      set.status = 502;
+      return {
+        error: "release_artifact_unavailable",
+        message: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }, {
+    tags: ["index"],
+    query: t.Object({
+      blob: t.String({ description: "Walrus release blob id containing the packed research asset." }),
+      path: t.String({ description: "Artifact path inside the release tarball, for example paper/main.pdf." }),
+      aggregator: t.Optional(t.String({ description: "Optional Walrus aggregator URL override." }))
+    }),
+    detail: {
+      summary: "Read a file from a live Walrus release blob",
+      description: "Streams paper, TeX, README, and other release artifacts by unpacking the zstd-compressed Walrus release blob. Public pages use this to render the live paper view without local fixtures."
     }
   })
   .get("/index/ingest", async ({ query, request, set }) => {

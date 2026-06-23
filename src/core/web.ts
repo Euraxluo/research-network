@@ -1270,10 +1270,31 @@ canvas.pdfjs-page { display: block; max-width: 100%; height: auto !important; bo
 .pdfjs-loading { color: var(--muted); font-size: 14px; padding: 4px 0; }
 .format-panel .source-note { margin: 0 0 10px; padding: 0; font-size: 12px; color: var(--muted); font-family: var(--mono); }
 .format-panel-empty { padding: 0; }
+.live-paper-viewer { min-height: 220px; }
+.document-frame { display: block; width: 100%; min-height: 760px; border: 0; background: #fff; color: var(--ink); }
+.live-document-renderer { min-height: 160px; }
+.download-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.download-list li { display: grid; gap: 1px; padding-bottom: 7px; border-bottom: 1px solid #eee; }
+.download-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.download-list a { font-weight: 700; }
+.download-list code { display: block; width: 100%; background: transparent; padding: 0; color: var(--muted); overflow-wrap: anywhere; }
+.readme-sidebar .readme-box { border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 10px 0 0; max-width: none; background: transparent; font-size: 12.5px; line-height: 1.45; }
+.readme-sidebar .md-doc h2, .readme-sidebar .md-doc h3, .readme-sidebar .md-doc h4 { font-size: 13px; margin: 11px 0 5px; }
+.readme-sidebar .md-doc p, .readme-sidebar .md-doc ul, .readme-sidebar .md-doc ol { margin-bottom: 8px; }
 .tex-source { margin: 0; padding: 14px 0 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; color: #222; overflow-x: auto; background: transparent; border: 0; }
 .format-panel .ltx-page { border: 0; box-shadow: none; margin: 0; padding: 0; border-radius: 0; background: transparent; }
 .ltx-page { border: 0; border-radius: 0; background: transparent; box-shadow: none; padding: 0; margin: 0; }
 .ltx-document { font-family: var(--serif); font-size: 16.5px; line-height: 1.6; color: #111; max-width: 720px; margin: 0; }
+.office-document p { margin: 0 0 12px; }
+.office-document table { border-collapse: collapse; margin: 14px 0; max-width: 100%; }
+.office-document td, .office-document th { border: 1px solid var(--line); padding: 5px 8px; vertical-align: top; }
+.office-document img { max-width: 100%; height: auto; }
+.word-document { font-family: var(--serif); }
+.ppt-document { display: grid; gap: 20px; max-width: 760px; }
+.ppt-slide { position: relative; min-height: 360px; border: 1px solid #ddd; background: #fff; padding: 42px 52px; box-shadow: 0 1px 2px rgba(0,0,0,.06); font-family: var(--sans); }
+.ppt-slide-number { position: absolute; top: 14px; right: 18px; color: var(--muted); font: 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .4px; }
+.ppt-slide h2 { margin: 0 0 18px; font-size: 24px; line-height: 1.22; }
+.ppt-slide p { margin: 0 0 10px; font-size: 16px; line-height: 1.45; }
 .ltx-title { font-size: 24px; font-weight: 700; text-align: center; line-height: 1.3; margin: 0 0 14px; }
 .ltx-authors { text-align: center; font-size: 16px; margin: 0 0 30px; }
 .ltx-abstract { margin: 0 auto 30px; max-width: 88%; font-size: 15px; }
@@ -1284,6 +1305,8 @@ canvas.pdfjs-page { display: block; max-width: 100%; height: auto !important; bo
 .ltx-tag { margin-right: 12px; }
 .ltx-section p { margin: 0 0 13px; text-align: justify; hyphens: auto; }
 .ltx-section ul, .ltx-section ol { margin: 0 0 13px; padding-left: 28px; }
+.ltx-table { width: 100%; border-collapse: collapse; margin: 14px 0 16px; font-size: 14px; }
+.ltx-table td, .ltx-table th { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
 .ltx-verbatim { background: #f7f7f7; border: 1px solid #e3e3e3; padding: 12px 14px; font-size: 13px; overflow: auto; }
 .missing-note { color: var(--muted); font-style: italic; text-align: center; margin: 8px 0; }
 .math.display { display: block; text-align: center; margin: 14px 0; }
@@ -1345,6 +1368,10 @@ a.card h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--link); }
   .banner-search { width: 100%; }
   .banner-search input { width: 100%; max-width: none; flex: 1; }
   .ltx-page { padding: 26px 20px; }
+  .document-frame { min-height: 620px; }
+  .ppt-slide { min-height: 280px; padding: 36px 24px 28px; }
+  .ppt-slide h2 { font-size: 20px; }
+  .ppt-slide p { font-size: 14.5px; }
   h1.abs-title { font-size: 21px; }
   .workbench-form { grid-template-columns: 1fr; }
   .report-head { display: block; }
@@ -1913,6 +1940,543 @@ const SITE_JS = `
     load();
   }
 
+  function artifactApiFromIndex(indexApi) {
+    var clean = String(indexApi || "/api/index").split("?")[0].replace(/\\/$/, "");
+    return /\\/index$/.test(clean) ? clean + "/artifact" : "/api/index/artifact";
+  }
+
+  function artifactUrl(asset, pathValue, artifactApi, aggregatorUrl) {
+    if (!asset || !asset.walrus_blob_id || !pathValue) return "";
+    var params = new URLSearchParams();
+    params.set("blob", asset.walrus_blob_id);
+    params.set("path", pathValue);
+    if (aggregatorUrl) params.set("aggregator", aggregatorUrl);
+    return artifactApi + "?" + params.toString();
+  }
+
+  function artifactExt(pathValue) {
+    var clean = String(pathValue || "").split("?")[0].split("#")[0];
+    var match = clean.match(/\\.([A-Za-z0-9]+)$/);
+    return match ? match[1].toLowerCase() : "";
+  }
+
+  function hasArtifactExt(pathValue, exts) {
+    var ext = artifactExt(pathValue);
+    return exts.indexOf(ext) !== -1;
+  }
+
+  function pushUniqueDownload(list, seen, label, pathValue, url) {
+    if (!pathValue || !url || seen[pathValue]) return;
+    seen[pathValue] = true;
+    list.push({ label: label, path: pathValue, url: url });
+  }
+
+  function livePaperBundle(asset, artifactApi, aggregatorUrl) {
+    var paper = asset && asset.paper ? asset.paper : {};
+    var sourcePath = String(paper.source_path || "");
+    var htmlPath = paper.html_path || (hasArtifactExt(sourcePath, ["html", "htm"]) ? sourcePath : "");
+    var mdPath = hasArtifactExt(sourcePath, ["md", "markdown"]) ? sourcePath : "";
+    var texPath = hasArtifactExt(sourcePath, ["tex", "latex"]) ? sourcePath : "";
+    var pdfPath = paper.pdf_path || (hasArtifactExt(sourcePath, ["pdf"]) ? sourcePath : "");
+    var wordPath = paper.word_path || (hasArtifactExt(sourcePath, ["word", "docx", "doc"]) ? sourcePath : "");
+    var pptPath = paper.ppt_path || (hasArtifactExt(sourcePath, ["pptx", "ppt"]) ? sourcePath : "");
+    var bibPath = paper.bib_path || "";
+    var readmePath = paper.readme_path || "README.md";
+    var formats = [];
+    var downloads = [];
+    var seen = {};
+    function addFormat(kind, id, label, pathValue) {
+      var url = artifactUrl(asset, pathValue, artifactApi, aggregatorUrl);
+      if (!pathValue || !url) return;
+      formats.push({ kind: kind, id: id, label: label, path: pathValue, url: url });
+      pushUniqueDownload(downloads, seen, label + " raw", pathValue, url);
+    }
+    addFormat("html", "paper-html", "HTML", htmlPath);
+    addFormat("markdown", "paper-md", "Markdown", mdPath);
+    addFormat("tex", "paper-tex", "LaTeX", texPath);
+    addFormat("pdf", "pdf", "PDF", pdfPath);
+    addFormat("word", "paper-word", "Word", wordPath);
+    addFormat("ppt", "paper-ppt", "PPT", pptPath);
+    pushUniqueDownload(downloads, seen, "BibTeX raw", bibPath, artifactUrl(asset, bibPath, artifactApi, aggregatorUrl));
+    pushUniqueDownload(downloads, seen, "README raw", readmePath, artifactUrl(asset, readmePath, artifactApi, aggregatorUrl));
+    return {
+      formats: formats,
+      downloads: downloads,
+      readme: readmePath ? { path: readmePath, url: artifactUrl(asset, readmePath, artifactApi, aggregatorUrl) } : null
+    };
+  }
+
+  function livePaperDefaultId(formats) {
+    var preferred = formats.filter(function (format) { return format.kind !== "pdf"; })[0] || formats[0];
+    return preferred ? preferred.id : "";
+  }
+
+  function renderLivePaperViewer(formats) {
+    if (!formats.length) {
+      return '<div class="paper-viewer live-paper-viewer" data-live-paper><p class="format-panel-empty muted">No paper artifact path is declared in this live Walrus release manifest.</p></div>';
+    }
+    var defaultId = livePaperDefaultId(formats);
+    var nav = formats.map(function (format) {
+      return '<a class="format-tab" href="#' + esc(format.id) + '">' + esc(format.label) + '</a>';
+    }).join('<span class="format-sep" aria-hidden="true"> | </span>');
+    var panels = formats.map(function (format) {
+      var cls = "format-panel" + (format.id === defaultId ? " format-panel-default" : "");
+      if (format.kind === "pdf") {
+        return '<section id="' + esc(format.id) + '" class="' + cls + '" aria-label="PDF">' +
+          '<div class="pdfjs-viewer" data-pdf-url="' + esc(format.url) + '">' +
+          '<div class="pdfjs-pages" aria-busy="true" aria-label="PDF pages"></div>' +
+          '</div></section>';
+      }
+      if (format.kind === "html") {
+        return '<section id="' + esc(format.id) + '" class="' + cls + '" aria-label="HTML">' +
+          '<p class="source-note">Rendered from ' + esc(format.path) + ' &middot; <a href="' + esc(format.url) + '" download>download raw file</a></p>' +
+          '<iframe class="document-frame" sandbox src="' + esc(format.url) + '" title="HTML paper"></iframe>' +
+          '</section>';
+      }
+      return '<section id="' + esc(format.id) + '" class="' + cls + '" aria-label="' + esc(format.label) + '">' +
+        '<p class="source-note">Rendered from ' + esc(format.path) + ' &middot; <a href="' + esc(format.url) + '" download>download raw file</a></p>' +
+        '<div class="live-document-renderer" data-render-kind="' + esc(format.kind) + '" data-artifact-url="' + esc(format.url) + '" data-artifact-path="' + esc(format.path) + '">' +
+        '<p class="pdfjs-loading">Rendering ' + esc(format.label) + ' content...</p>' +
+        '</div></section>';
+    }).join("");
+    return '<div class="paper-viewer live-paper-viewer" data-paper-viewer data-live-paper>' +
+      '<nav class="format-nav" aria-label="Paper formats">' + nav + '</nav>' +
+      panels +
+      '</div>';
+  }
+
+  function renderDownloadList(downloads) {
+    if (!downloads.length) return '<p class="muted">No downloadable artifact paths are declared.</p>';
+    return '<ul class="download-list">' + downloads.map(function (item) {
+      return '<li><a href="' + esc(item.url) + '" download>' + esc(item.label) + '</a><code>' + esc(item.path) + '</code></li>';
+    }).join("") + '</ul>';
+  }
+
+  function fetchArtifactText(url) {
+    return fetch(url, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("artifact HTTP " + res.status);
+      return res.text();
+    });
+  }
+
+  function fetchArtifactBuffer(url) {
+    return fetch(url, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("artifact HTTP " + res.status);
+      return res.arrayBuffer();
+    });
+  }
+
+  function markdownToHtml(source) {
+    var lines = esc(source).replaceAll("\\r\\n", "\\n").split("\\n");
+    var out = [];
+    var paragraph = [];
+    var listMode = null;
+    var codeMode = false;
+    var codeLines = [];
+    var tick = String.fromCharCode(96);
+    var inlineCodePattern = new RegExp(tick + "([^" + tick + "]+)" + tick, "g");
+    var codeFence = tick + tick + tick;
+    function inline(text) {
+      return text
+        .replace(inlineCodePattern, "<code>$1</code>")
+        .replace(/\\*\\*([^*]+)\\*\\*/g, "<strong>$1</strong>")
+        .replace(/\\*([^*]+)\\*/g, "<em>$1</em>")
+        .replace(/\\[([^\\]]+)\\]\\(([^)\\s]+)\\)/g, function (match, label, href) {
+          return /^(https?:\\/\\/|\\/|#|\\.\\/)/.test(href) ? '<a href="' + href + '" rel="noopener">' + label + '</a>' : match;
+        });
+    }
+    function flushParagraph() {
+      if (!paragraph.length) return;
+      out.push("<p>" + inline(paragraph.join(" ")) + "</p>");
+      paragraph = [];
+    }
+    function flushList() {
+      if (!listMode) return;
+      out.push("</" + listMode + ">");
+      listMode = null;
+    }
+    lines.forEach(function (line) {
+      if (codeMode) {
+        if (line.indexOf(codeFence) === 0) {
+          out.push('<pre class="md-code">' + codeLines.join("\\n") + '</pre>');
+          codeLines = [];
+          codeMode = false;
+        } else {
+          codeLines.push(line);
+        }
+        return;
+      }
+      if (line.indexOf(codeFence) === 0) {
+        flushParagraph();
+        flushList();
+        codeMode = true;
+        return;
+      }
+      var heading = line.match(/^(#{1,4})\\s+(.*)$/);
+      if (heading) {
+        flushParagraph();
+        flushList();
+        var level = Math.min(heading[1].length + 1, 5);
+        out.push("<h" + level + ">" + inline(heading[2]) + "</h" + level + ">");
+        return;
+      }
+      var unordered = line.match(/^\\s*[-*]\\s+(.*)$/);
+      var ordered = line.match(/^\\s*\\d+[.)]\\s+(.*)$/);
+      if (unordered || ordered) {
+        flushParagraph();
+        var mode = unordered ? "ul" : "ol";
+        if (listMode !== mode) {
+          flushList();
+          out.push("<" + mode + ">");
+          listMode = mode;
+        }
+        out.push("<li>" + inline((unordered || ordered)[1]) + "</li>");
+        return;
+      }
+      if (!line.trim()) {
+        flushParagraph();
+        flushList();
+        return;
+      }
+      paragraph.push(line.trim());
+    });
+    if (codeMode && codeLines.length) out.push('<pre class="md-code">' + codeLines.join("\\n") + '</pre>');
+    flushParagraph();
+    flushList();
+    return out.join("\\n");
+  }
+
+  function renderMarkdownPaperClient(source, fallbackTitle, fallbackAuthors) {
+    var titleMatch = source.match(/^#\\s+(.+)\\n?/);
+    var body = titleMatch ? source.slice(titleMatch[0].length) : source;
+    return '<div class="ltx-page"><article class="ltx-document md-doc">' +
+      '<h1 class="ltx-title">' + esc(titleMatch && titleMatch[1] ? titleMatch[1].trim() : fallbackTitle) + '</h1>' +
+      '<div class="ltx-authors">' + esc(fallbackAuthors || "Unknown") + '</div>' +
+      markdownToHtml(body) +
+      '</article></div>';
+  }
+
+  var LATEX_BS = String.fromCharCode(92);
+
+  function latexCommandValue(source, command) {
+    var marker = LATEX_BS + command + "{";
+    var start = source.indexOf(marker);
+    if (start < 0) return "";
+    var i = start + marker.length;
+    var depth = 1;
+    var out = "";
+    for (; i < source.length; i += 1) {
+      var ch = source[i];
+      if (ch === "{") depth += 1;
+      else if (ch === "}") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+      out += ch;
+    }
+    return out.trim();
+  }
+
+  function latexInlineClient(value) {
+    var text = esc(String(value || ""));
+    var cmd = LATEX_BS + LATEX_BS;
+    text = text
+      .replace(new RegExp(cmd + "emph\\\\{([^{}]+)\\\\}", "g"), "<em>$1</em>")
+      .replace(new RegExp(cmd + "textbf\\\\{([^{}]+)\\\\}", "g"), "<strong>$1</strong>")
+      .replace(new RegExp(cmd + "texttt\\\\{([^{}]+)\\\\}", "g"), "<code>$1</code>")
+      .replace(/\\$([^$]+)\\$/g, '<span class="math">\\\\($1\\\\)</span>')
+      .replace(new RegExp(cmd + "&amp;", "g"), "&amp;")
+      .replace(new RegExp(cmd + "%", "g"), "%")
+      .replace(new RegExp(cmd + "_", "g"), "_")
+      .replace(new RegExp(cmd + "#", "g"), "#")
+      .replace(new RegExp(cmd + cmd, "g"), "<br>");
+    text = text.replace(new RegExp(cmd + "[a-zA-Z]+\\\\*?(?:\\\\[[^\\\\]]*\\\\])?(?:\\\\{[^{}]*\\\\})?", "g"), "");
+    return text.replace(/[{}]/g, "").trim();
+  }
+
+  function latexParagraphsOnlyClient(input) {
+    return String(input || "")
+      .split(/\\n\\s*\\n/)
+      .map(function (paragraph) { return latexInlineClient(paragraph.replace(/\\s*\\n\\s*/g, " ")); })
+      .filter(Boolean)
+      .map(function (paragraph) { return "<p>" + paragraph + "</p>"; })
+      .join("");
+  }
+
+  function latexListClient(env, body) {
+    var raw = String(body || "");
+    var chunks = raw.split(LATEX_BS + "item").slice(1);
+    var tag = env === "enumerate" ? "ol" : "ul";
+    var items = chunks.map(function (chunk) {
+      var label = "";
+      var text = chunk.trim();
+      if (text[0] === "[") {
+        var close = text.indexOf("]");
+        if (close >= 0) {
+          label = text.slice(1, close);
+          text = text.slice(close + 1).trim();
+        }
+      }
+      var bodyHtml = latexInlineClient(text.replace(/\\s*\\n\\s*/g, " "));
+      if (env === "description" && label) {
+        bodyHtml = "<strong>" + latexInlineClient(label) + "</strong> " + bodyHtml;
+      }
+      return bodyHtml ? "<li>" + bodyHtml + "</li>" : "";
+    }).filter(Boolean).join("");
+    return items ? "<" + tag + ">" + items + "</" + tag + ">" : "";
+  }
+
+  function latexTableClient(body) {
+    var rows = String(body || "").split(LATEX_BS + LATEX_BS).map(function (row) {
+      return row.replace(new RegExp(LATEX_BS + LATEX_BS + "hline", "g"), "").trim();
+    }).filter(Boolean);
+    if (!rows.length) return "";
+    return '<table class="ltx-table"><tbody>' + rows.map(function (row) {
+      var cells = row.split("&").map(function (cell) {
+        return "<td>" + latexInlineClient(cell.trim()) + "</td>";
+      }).join("");
+      return "<tr>" + cells + "</tr>";
+    }).join("") + "</tbody></table>";
+  }
+
+  function latexParagraphsClient(input) {
+    var text = String(input || "");
+    var tablePattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{tabular\\\\}\\\\{[^{}]*\\\\}([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{tabular\\\\}", "g");
+    text = text.replace(tablePattern, function (_match, body) {
+      return "\\n\\n@@RN_HTML::" + latexTableClient(body) + "\\n\\n";
+    });
+    var envPattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{(itemize|enumerate|description)\\\\}(?:\\\\[[^\\\\]]*\\\\])?([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{(?:itemize|enumerate|description)\\\\}", "g");
+    text = text.replace(envPattern, function (_match, env, body) {
+      return "\\n\\n@@RN_HTML::" + latexListClient(env, body) + "\\n\\n";
+    });
+    return text.split(/\\n\\s*\\n/).map(function (block) {
+      if (block.indexOf("@@RN_HTML::") === 0) return block.slice("@@RN_HTML::".length);
+      return latexParagraphsOnlyClient(block);
+    }).join("");
+  }
+
+  function renderLatexPaperClient(source, fallbackTitle, fallbackAuthors) {
+    var title = latexCommandValue(source, "title") || fallbackTitle;
+    var author = latexCommandValue(source, "author").replace(new RegExp(LATEX_BS + LATEX_BS + "and\\\\b", "g"), ", ") || fallbackAuthors || "Unknown";
+    var abstract = "";
+    var beginAbs = source.indexOf(LATEX_BS + "begin{abstract}");
+    var endAbs = source.indexOf(LATEX_BS + "end{abstract}");
+    if (beginAbs >= 0 && endAbs > beginAbs) {
+      abstract = source.slice(beginAbs + (LATEX_BS + "begin{abstract}").length, endAbs);
+    }
+    var bodyStart = Math.max(source.indexOf(LATEX_BS + "maketitle"), endAbs);
+    var body = bodyStart >= 0 ? source.slice(bodyStart) : source;
+    var endDoc = body.indexOf(LATEX_BS + "end{document}");
+    if (endDoc >= 0) body = body.slice(0, endDoc);
+    var bib = body.search(new RegExp(LATEX_BS + LATEX_BS + "bibliographystyle|" + LATEX_BS + LATEX_BS + "bibliography\\\\b|" + LATEX_BS + LATEX_BS + "begin\\\\{thebibliography\\\\}"));
+    if (bib >= 0) body = body.slice(0, bib);
+    body = body.replace(new RegExp(LATEX_BS + LATEX_BS + "maketitle", "g"), "");
+    body = body.replace(new RegExp(LATEX_BS + LATEX_BS + "(section|subsection)\\\\*?\\\\{([^{}]+)\\\\}", "g"), function (_match, kind, heading) {
+      return "\\n\\n@@RN_" + kind.toUpperCase() + "::" + heading + "\\n\\n";
+    });
+    var pieces = [
+      '<h1 class="ltx-title">' + latexInlineClient(title) + '</h1>',
+      '<div class="ltx-authors">' + latexInlineClient(author) + '</div>'
+    ];
+    if (abstract) pieces.push('<div class="ltx-abstract"><h6>Abstract</h6>' + latexParagraphsClient(abstract) + '</div>');
+    var sectionNumber = 0;
+    var subsectionNumber = 0;
+    body.split(/\\n\\s*\\n/).forEach(function (block) {
+      var section = block.match(/^@@RN_(SECTION|SUBSECTION)::([\\s\\S]*)$/);
+      if (section && section[1] === "SECTION") {
+        sectionNumber += 1;
+        subsectionNumber = 0;
+        pieces.push('<section class="ltx-section"><h2><span class="ltx-tag">' + sectionNumber + '</span>' + latexInlineClient(section[2]) + '</h2></section>');
+        return;
+      }
+      if (section && section[1] === "SUBSECTION") {
+        subsectionNumber += 1;
+        pieces.push('<section class="ltx-section"><h3><span class="ltx-tag">' + sectionNumber + "." + subsectionNumber + '</span>' + latexInlineClient(section[2]) + '</h3></section>');
+        return;
+      }
+      var html = latexParagraphsClient(block);
+      if (html) pieces.push('<section class="ltx-section">' + html + '</section>');
+    });
+    return '<div class="ltx-page"><article class="ltx-document">' + pieces.join("") + '</article></div>';
+  }
+
+  var externalScriptPromises = {};
+  function loadExternalScript(src, test) {
+    if (test && test()) return Promise.resolve();
+    if (externalScriptPromises[src]) return externalScriptPromises[src];
+    externalScriptPromises[src] = new Promise(function (resolve, reject) {
+      var script = document.createElement("script");
+      script.src = src;
+      script.crossOrigin = "anonymous";
+      script.onload = function () { resolve(); };
+      script.onerror = function () { reject(new Error("could not load " + src)); };
+      document.head.appendChild(script);
+    });
+    return externalScriptPromises[src];
+  }
+
+  function loadMammoth() {
+    return loadExternalScript("https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js", function () { return Boolean(window.mammoth); })
+      .then(function () { return window.mammoth; });
+  }
+
+  function loadJSZip() {
+    return loadExternalScript("https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js", function () { return Boolean(window.JSZip); })
+      .then(function () { return window.JSZip; });
+  }
+
+  function sanitizeDocumentHtml(html) {
+    var template = document.createElement("template");
+    template.innerHTML = String(html || "");
+    Array.prototype.slice.call(template.content.querySelectorAll("script,style,iframe,object,embed,form")).forEach(function (node) {
+      node.remove();
+    });
+    Array.prototype.slice.call(template.content.querySelectorAll("*")).forEach(function (el) {
+      Array.prototype.slice.call(el.attributes).forEach(function (attr) {
+        var name = attr.name.toLowerCase();
+        var value = attr.value || "";
+        if (name.indexOf("on") === 0 || name === "style" || (/^(href|src)$/i.test(name) && /^\\s*javascript:/i.test(value))) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+    return template.innerHTML;
+  }
+
+  function printableRunsFromText(text) {
+    var seen = {};
+    return (String(text || "").match(/[A-Za-z0-9][A-Za-z0-9\\s.,;:!?()[\\]{}'"_#@%+\\-\\/=]{7,}/g) || [])
+      .map(function (line) { return line.replace(/\\s+/g, " ").trim(); })
+      .filter(function (line) {
+        if (line.length < 8 || seen[line]) return false;
+        seen[line] = true;
+        return true;
+      })
+      .slice(0, 80);
+  }
+
+  function renderBinaryTextPreview(buffer, label) {
+    var bytes = new Uint8Array(buffer);
+    var ascii = "";
+    for (var i = 0; i < bytes.length; i += 1) {
+      var code = bytes[i];
+      ascii += code >= 32 && code <= 126 ? String.fromCharCode(code) : " ";
+    }
+    var text = "";
+    try { text += new TextDecoder("utf-16le").decode(bytes) + "\\n"; } catch (e) { /* ignore */ }
+    text += ascii;
+    var lines = printableRunsFromText(text);
+    if (!lines.length) {
+      return '<div class="ltx-page"><article class="ltx-document"><p class="missing-note">' + esc(label) + ' is present in the live release, but this legacy binary file did not expose readable text in the browser. Use the raw download for the original file.</p></article></div>';
+    }
+    return '<div class="ltx-page"><article class="ltx-document office-document"><h1 class="ltx-title">' + esc(label) + '</h1>' +
+      lines.map(function (line) { return '<p>' + esc(line) + '</p>'; }).join("") +
+      '</article></div>';
+  }
+
+  function renderWordBuffer(buffer, pathValue) {
+    return loadMammoth().then(function (mammoth) {
+      return mammoth.convertToHtml({ arrayBuffer: buffer });
+    }).then(function (result) {
+      var body = sanitizeDocumentHtml(result && result.value ? result.value : "");
+      if (!body.trim()) return renderBinaryTextPreview(buffer, "Word document");
+      return '<div class="ltx-page"><article class="ltx-document office-document word-document">' + body + '</article></div>';
+    }).catch(function () {
+      return renderBinaryTextPreview(buffer, hasArtifactExt(pathValue, ["doc"]) ? "Legacy Word document" : "Word document");
+    });
+  }
+
+  function renderPptSlides(slides, fallbackTitle) {
+    if (!slides.length) {
+      return '<div class="ltx-page"><article class="ltx-document"><p class="missing-note">The presentation is present in the live release, but no slide text could be extracted. Use the raw download for the original deck.</p></article></div>';
+    }
+    return '<div class="ppt-document">' + slides.map(function (slide, index) {
+      var lines = slide.lines || [];
+      var title = lines[0] || fallbackTitle || ("Slide " + (index + 1));
+      var body = lines.slice(1);
+      return '<section class="ppt-slide">' +
+        '<div class="ppt-slide-number">Slide ' + (index + 1) + '</div>' +
+        '<h2>' + esc(title) + '</h2>' +
+        (body.length ? body.map(function (line) { return '<p>' + esc(line) + '</p>'; }).join("") : '<p class="muted">No body text on this slide.</p>') +
+        '</section>';
+    }).join("") + '</div>';
+  }
+
+  function renderPptxBuffer(buffer, pathValue) {
+    if (!hasArtifactExt(pathValue, ["pptx"])) {
+      return Promise.resolve(renderBinaryTextPreview(buffer, "Legacy PowerPoint deck"));
+    }
+    return loadJSZip().then(function (JSZip) {
+      return JSZip.loadAsync(buffer);
+    }).then(function (zip) {
+      var slideNames = Object.keys(zip.files).filter(function (name) {
+        return /^ppt\\/slides\\/slide\\d+\\.xml$/.test(name);
+      }).sort(function (a, b) {
+        var am = a.match(/slide(\\d+)\\.xml/) || ["", "0"];
+        var bm = b.match(/slide(\\d+)\\.xml/) || ["", "0"];
+        return Number(am[1]) - Number(bm[1]);
+      });
+      return Promise.all(slideNames.map(function (name) {
+        return zip.file(name).async("string").then(function (xmlText) {
+          var xml = new DOMParser().parseFromString(xmlText, "application/xml");
+          var nodes = Array.prototype.slice.call(xml.getElementsByTagName("a:t"));
+          if (!nodes.length) nodes = Array.prototype.slice.call(xml.getElementsByTagName("t"));
+          var lines = nodes.map(function (node) { return String(node.textContent || "").trim(); }).filter(Boolean);
+          return { name: name, lines: lines };
+        });
+      }));
+    }).then(function (slides) {
+      return renderPptSlides(slides, pathValue.split("/").pop() || "Presentation");
+    }).catch(function () {
+      return renderBinaryTextPreview(buffer, "PowerPoint deck");
+    });
+  }
+
+  function typesetMathIfAvailable(root) {
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      try { window.MathJax.typesetPromise([root]); } catch (e) { /* ignore */ }
+    }
+  }
+
+  function renderLiveArtifactPanels(scope, asset) {
+    Array.prototype.slice.call(scope.querySelectorAll(".live-document-renderer:not([data-rendered])")).forEach(function (target) {
+      var kind = target.getAttribute("data-render-kind") || "";
+      var url = target.getAttribute("data-artifact-url") || "";
+      var pathValue = target.getAttribute("data-artifact-path") || "";
+      target.setAttribute("data-rendered", "true");
+      var done = function (html) {
+        target.innerHTML = html;
+        typesetMathIfAvailable(target);
+      };
+      var fail = function (err) {
+        target.innerHTML = '<p class="pdfjs-loading">Could not render ' + esc(pathValue || kind) + ': ' + esc(err && err.message ? err.message : "request failed") + '. <a href="' + esc(url) + '" download>Download raw file</a></p>';
+      };
+      if (kind === "markdown") {
+        fetchArtifactText(url).then(function (text) { done(renderMarkdownPaperClient(text, asset.title || asset.id || "Research Asset", asset.authors || "Unknown")); }).catch(fail);
+      } else if (kind === "tex") {
+        fetchArtifactText(url).then(function (text) { done(renderLatexPaperClient(text, asset.title || asset.id || "Research Asset", asset.authors || "Unknown")); }).catch(fail);
+      } else if (kind === "word") {
+        fetchArtifactBuffer(url).then(function (buffer) { return renderWordBuffer(buffer, pathValue); }).then(done).catch(fail);
+      } else if (kind === "ppt") {
+        fetchArtifactBuffer(url).then(function (buffer) { return renderPptxBuffer(buffer, pathValue); }).then(done).catch(fail);
+      }
+    });
+  }
+
+  function setupLiveReadme(root, readme) {
+    var box = root.querySelector("[data-live-readme]");
+    if (!box || !readme || !readme.url) return;
+    fetchArtifactText(readme.url).then(function (text) {
+      box.innerHTML = '<div class="readme-box readme-sidebar-box md-doc">' + markdownToHtml(text) + '</div>';
+    }).catch(function () {
+      box.innerHTML = '<p class="muted">README.md is not present in this live Walrus release, or it could not be loaded.</p>';
+    });
+  }
+
+  function proofOrMuted(html) {
+    return html || '<span class="muted">not recorded</span>';
+  }
+
   function setupLiveAssetDetail() {
     var root = document.querySelector("[data-live-asset-detail]");
     var source = document.querySelector("[data-chain-source][data-chain-index-api]");
@@ -1920,6 +2484,8 @@ const SITE_JS = `
     var params = new URLSearchParams(location.search);
     var wanted = params.get("id") || params.get("object") || "";
     var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
+    var artifactApi = artifactApiFromIndex(indexApi);
+    var aggregatorUrl = source.getAttribute("data-walrus-aggregator") || "";
     var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
     var walrusExplorer = source.getAttribute("data-walrus-explorer") || "https://walruscan.com/testnet";
     var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=20";
@@ -1931,28 +2497,60 @@ const SITE_JS = `
       var assets = Array.isArray(data.assets) ? data.assets : [];
       var asset = assets.find(function (item) {
         return routeSegment(item.id || "") === wanted || item.id === wanted || item.sui_object_id === wanted;
-      }) || assets[0];
+      }) || (wanted ? null : assets[0]);
       if (!asset) {
-        root.innerHTML = '<p class="muted">No live asset is available from the backend index.</p>';
+        root.innerHTML = '<p class="muted">No live asset matched this URL in the backend index.</p>';
         return;
       }
       var state = liveProofState(asset);
+      var bundle = livePaperBundle(asset, artifactApi, aggregatorUrl);
+      var types = Array.isArray(asset.types) && asset.types.length ? asset.types.join("; ") : "Research Asset";
+      var tags = Array.isArray(asset.tags) ? asset.tags : [];
+      var signer = asset.tx_sender || asset.event_owner_address || asset.creator_address || "";
       root.innerHTML =
-        '<div class="dateline">Live Sui testnet asset · ' + esc(formatMembershipDate(asset.created_at)) + '</div>' +
-        '<h1 class="abs-title">' + esc(asset.title || asset.id) + '</h1>' +
-        '<div class="abs-authors">' + esc(asset.authors || "Unknown") + '</div>' +
-        '<blockquote class="abstract"><span class="descriptor">Abstract:</span> ' + esc(asset.abstract || "") + '</blockquote>' +
-        '<div class="abs-tags">' + (Array.isArray(asset.tags) ? asset.tags.map(function (tag) { return '<span class="tag">' + esc(tag) + '</span>'; }).join("") : "") + '</div>' +
-        '<div class="chain-proofline"><span class="chain-status chain-status-' + (state.verified ? "verified" : "warning") + '">' + esc(state.label) + '</span><span>' + esc(state.detail) + '</span></div>' +
-        '<dl class="verification">' +
-          '<div><dt>Sui object</dt><dd>' + proofLink(suiExplorer, "object", asset.sui_object_id) + '</dd></div>' +
-          '<div><dt>Sui tx</dt><dd>' + proofLink(suiExplorer, "tx", asset.tx_digest) + '</dd></div>' +
-          '<div><dt>Walrus blob</dt><dd>' + proofBlobLink(walrusExplorer, asset.walrus_blob_id) + '</dd></div>' +
-          '<div><dt>Repository</dt><dd>' + (asset.repo_url ? plainLink(asset.repo_url, asset.repo_url) : '<span class="muted">not recorded</span>') + '</dd></div>' +
-          '<div><dt>Commit</dt><dd>' + commitLink(asset.repo_url, asset.repo_commit) + '</dd></div>' +
-          '<div><dt>Signer</dt><dd>' + proofLink(suiExplorer, "account", asset.tx_sender || asset.event_owner_address || asset.creator_address) + '</dd></div>' +
-          '<div><dt>Manifest</dt><dd><code title="' + esc(asset.manifest_hash || "") + '">' + esc(shortText(asset.manifest_hash || "", 18, 12)) + '</code></dd></div>' +
-        '</dl>';
+        '<div class="abs-grid live-asset-paper">' +
+          '<div class="abs-main">' +
+            '<div class="dateline">[Live Sui testnet submission on ' + esc(formatMembershipDate(asset.created_at)) + ']</div>' +
+            '<h1 class="abs-title">' + esc(asset.title || asset.id || "Research Asset") + '</h1>' +
+            '<div class="abs-authors">' + esc(asset.authors || "Unknown") + '</div>' +
+            '<blockquote class="abstract"><span class="descriptor">Abstract:</span> ' + esc(asset.abstract || "") + '</blockquote>' +
+            '<div class="abs-tags">' + tags.map(function (tag) { return '<span class="tag">' + esc(tag) + '</span>'; }).join("") + '</div>' +
+            '<div class="metatable"><table>' +
+              '<tr><td class="label">Subjects:</td><td>' + esc(types) + '</td></tr>' +
+              '<tr><td class="label">Asset ID:</td><td><code>' + esc(asset.id || asset.sui_object_id || "") + '</code></td></tr>' +
+              '<tr><td class="label">Repository:</td><td>' + (asset.repo_url ? plainLink(asset.repo_url, asset.repo_url) : '<span class="muted">not recorded in release manifest</span>') + '</td></tr>' +
+              '<tr><td class="label">Commit:</td><td>' + commitLink(asset.repo_url, asset.repo_commit) + '</td></tr>' +
+              '<tr><td class="label">Verification:</td><td><span class="chain-status chain-status-' + (state.verified ? "verified" : "warning") + '">' + esc(state.label) + '</span> <span class="muted">' + esc(state.detail) + '</span></td></tr>' +
+            '</table></div>' +
+            renderLivePaperViewer(bundle.formats) +
+          '</div>' +
+          '<aside class="extra-services">' +
+            '<div class="access-box">' +
+              '<h2>Read & Download</h2>' +
+              renderDownloadList(bundle.downloads) +
+            '</div>' +
+            '<div class="sidebar-section readme-sidebar">' +
+              '<h3>README.md</h3>' +
+              '<div data-live-readme><p class="muted">Loading README.md from the live Walrus release...</p></div>' +
+            '</div>' +
+            '<div class="sidebar-section">' +
+              '<h3>Verifiable Record</h3>' +
+              '<dl class="verification">' +
+                '<div><dt>Sui object</dt><dd>' + proofOrMuted(proofLink(suiExplorer, "object", asset.sui_object_id)) + '</dd></div>' +
+                '<div><dt>Sui tx</dt><dd>' + proofOrMuted(proofLink(suiExplorer, "tx", asset.tx_digest)) + '</dd></div>' +
+                '<div><dt>Walrus blob</dt><dd>' + proofOrMuted(proofBlobLink(walrusExplorer, asset.walrus_blob_id)) + '</dd></div>' +
+                '<div><dt>Signer</dt><dd>' + proofOrMuted(proofLink(suiExplorer, "account", signer)) + '</dd></div>' +
+                '<div><dt>Gas owner</dt><dd>' + proofOrMuted(proofLink(suiExplorer, "account", asset.gas_owner || signer)) + '</dd></div>' +
+                '<div><dt>Gas spent</dt><dd><code>' + esc(asset.sui_spent_mist || "not indexed") + '</code></dd></div>' +
+                '<div><dt>Manifest</dt><dd><code title="' + esc(asset.manifest_hash || "") + '">' + esc(shortText(asset.manifest_hash || "", 18, 12)) + '</code></dd></div>' +
+              '</dl>' +
+            '</div>' +
+          '</aside>' +
+        '</div>';
+      setupPaperViewer();
+      renderLiveArtifactPanels(root, asset);
+      setupLiveReadme(root, bundle.readme);
+      setupPdfRender();
     }).catch(function (err) {
       root.innerHTML = '<p class="muted">Could not load live asset detail: ' + esc(err && err.message ? err.message : "request failed") + '</p>';
     });
@@ -2621,7 +3219,7 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 <section data-live-asset-detail aria-live="polite">
   <p class="muted">Loading live asset detail from <code>/api/index</code>...</p>
 </section>`;
-  await fs.writeFile(path.join(outputDir, "asset.html"), shell("Live Asset", assetDetailBody, { subject: "Live Asset" }), "utf8");
+  await fs.writeFile(path.join(outputDir, "asset.html"), shell("Live Asset", assetDetailBody, { subject: "Live Asset", math: true }), "utf8");
 
   for (const asset of assets) {
     const seg = routeSegment(asset.id);
