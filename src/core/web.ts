@@ -1106,6 +1106,11 @@ h2 { font-size: 19px; margin: 26px 0 10px; }
 .live-dashboard-asset strong { display: block; margin-bottom: 2px; font-size: 14px; color: var(--ink); }
 .live-dashboard-asset p { margin: 5px 0 0; max-width: 520px; color: #333; }
 .live-dashboard-proof { display: flex; flex-direction: column; gap: 4px; }
+.data-table.live-membership-table th:nth-child(1) { width: 25%; }
+.data-table.live-membership-table th:nth-child(2) { width: 25%; }
+.data-table.live-membership-table th:nth-child(3) { width: 25%; }
+.data-table.live-membership-table th:nth-child(4) { width: 25%; }
+.membership-event-name { font-weight: 700; color: var(--ink); }
 dl.listing { margin: 12px 0 0; }
 dl.listing > dt { padding: 12px 0 2px; font-size: 14px; border-top: 1px solid var(--line); }
 dl.listing > dt:first-child { border-top: 0; }
@@ -1704,6 +1709,112 @@ const SITE_JS = `
     '</tr>';
   }
 
+  function formatMembershipDate(value) {
+    if (!value) return "not recorded";
+    return String(value).replace("T", " ").slice(0, 19) + " UTC";
+  }
+
+  function formatMist(value) {
+    if (!value) return "not recorded";
+    var n = Number(value);
+    if (Number.isFinite(n) && n >= 1000000000) {
+      return (n / 1000000000).toFixed(4).replace(/0+$/, "").replace(/\\.$/, "") + " SUI";
+    }
+    return String(value) + " MIST";
+  }
+
+  function renderMembershipLiveRow(event, index, suiExplorer) {
+    var eventName = String(event.event_type || "MembershipEvent");
+    var subject = String(event.subject_address || event.signer || "");
+    var objectId = String(event.object_id || "");
+    var amount = event.amount_mist ? formatMist(event.amount_mist) : "";
+    var fee = event.platform_fee_mist ? "platform fee " + formatMist(event.platform_fee_mist) : "";
+    var objectLine = objectId
+      ? proofLabelLink(suiExplorer, "object", objectId, shortText(objectId, 12, 10))
+      : (amount || "event only");
+    var detail = [
+      event.tier ? "tier " + event.tier : "",
+      event.access_type ? "access " + event.access_type : "",
+      event.period_id ? "period " + event.period_id : "",
+      event.report_id ? "report " + shortText(event.report_id, 12, 10) : "",
+      event.agent_address ? "agent " + shortText(event.agent_address, 8, 6) : "",
+      amount,
+      fee
+    ].filter(Boolean).join(" · ");
+    return '<tr>' +
+      '<td>' +
+        '<div class="membership-event-name">' + esc(eventName) + '</div>' +
+        '<div class="muted">[' + (index + 1) + '] ' + esc(event.module || "protocol") + ' · ' + esc(formatMembershipDate(event.created_at)) + '</div>' +
+      '</td>' +
+      '<td>' +
+        '<div class="mono">account: ' + proofLabelLink(suiExplorer, "account", subject, shortText(subject, 12, 10)) + '</div>' +
+        '<div class="mono">signer: ' + proofLabelLink(suiExplorer, "account", event.signer || subject, shortText(event.signer || subject, 12, 10)) + '</div>' +
+      '</td>' +
+      '<td>' +
+        '<div class="mono">' + objectLine + '</div>' +
+        '<div class="muted">' + esc(detail || "chain event recorded") + '</div>' +
+      '</td>' +
+      '<td>' +
+        '<div class="mono">tx: ' + proofLabelLink(suiExplorer, "tx", event.tx_digest, shortText(event.tx_digest, 12, 10)) + '</div>' +
+        '<div class="mono">gas: ' + proofLabelLink(suiExplorer, "account", event.gas_owner || event.signer, shortText(event.gas_owner || event.signer, 8, 6)) + '</div>' +
+        '<div class="muted">' + esc(formatMist(event.sui_spent_mist)) + '</div>' +
+      '</td>' +
+    '</tr>';
+  }
+
+  function setupMembershipIndex() {
+    var root = document.querySelector("[data-live-membership]");
+    var source = document.querySelector("[data-chain-source][data-chain-index-api]");
+    if (!root || !source || !window.fetch) return;
+    var stats = root.querySelector("[data-live-membership-stats]");
+    var status = root.querySelector("[data-live-membership-status]");
+    var rows = root.querySelector("[data-live-membership-rows]");
+    var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
+    var sourceLimit = Number(source.getAttribute("data-chain-limit")) || 6;
+    var limit = Math.max(1, Math.min(20, Number(root.getAttribute("data-live-membership-limit")) || sourceLimit));
+    var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
+    var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=" + encodeURIComponent(String(limit));
+    root.setAttribute("aria-busy", "true");
+    fetch(indexUrl, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("index API HTTP " + res.status);
+      return res.json();
+    }).then(function (data) {
+      var membership = data && data.membership ? data.membership : {};
+      var counts = membership.counts || {};
+      var events = Array.isArray(membership.recent_events) ? membership.recent_events : [];
+      var eventTypes = Array.isArray(membership.event_types) ? membership.event_types : [];
+      if (stats) {
+        stats.innerHTML =
+          '<div class="stat"><b>' + Number(counts.platform_membership_passes || 0) + '</b><span>Live passes</span></div>' +
+          '<div class="stat"><b>' + Number(counts.agent_subscription_passes || 0) + '</b><span>Live subscriptions</span></div>' +
+          '<div class="stat"><b>' + Number(counts.access_receipts || 0) + '</b><span>Live receipts</span></div>' +
+          '<div class="stat"><b>' + Number(counts.total_events || events.length || 0) + '</b><span>Membership events</span></div>';
+      }
+      if (status) {
+        status.innerHTML = 'Loaded from ' + plainLink(indexUrl, "/api/index") +
+          ' · membership event types ' + esc(String(eventTypes.length || 0)) +
+          ' · package ' + proofLabelLink(suiExplorer, "object", data.package_id || source.getAttribute("data-chain-package"), shortText(data.package_id || source.getAttribute("data-chain-package"), 12, 10));
+      }
+      if (rows) {
+        rows.innerHTML = events.length
+          ? events.map(function (event, index) { return renderMembershipLiveRow(event, index, suiExplorer); }).join("")
+          : '<tr><td colspan="4"><p class="muted">The backend checked Sui live events for membership, subscription, receipt, settlement, and claim types. This package has no matching live events yet.</p></td></tr>';
+      }
+      root.setAttribute("aria-busy", "false");
+    }).catch(function (err) {
+      root.setAttribute("aria-busy", "false");
+      if (stats) {
+        stats.innerHTML = '<div class="stat"><b>API</b><span>Unavailable</span></div>';
+      }
+      if (status) {
+        status.innerHTML = 'Could not load ' + plainLink(indexUrl, "/api/index") + ': ' + esc(err && err.message ? err.message : "request failed");
+      }
+      if (rows) {
+        rows.innerHTML = '<tr><td colspan="4"><p class="muted">Membership data is intentionally served only by the backend live index. Check <code>/api/index/health</code> and Vercel Function logs.</p></td></tr>';
+      }
+    });
+  }
+
   function setupLiveDashboard() {
     var root = document.querySelector("[data-live-dashboard]");
     var source = document.querySelector("[data-chain-source][data-chain-index-api]");
@@ -2152,6 +2263,7 @@ const SITE_JS = `
     setupFilter();
     setupChainSubmissions();
     setupLiveDashboard();
+    setupMembershipIndex();
     setupGraph();
     setupPaperViewer();
   }
@@ -2218,13 +2330,27 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 </section>`;
   await fs.writeFile(path.join(outputDir, "dashboard.html"), shell("Dashboard", dashboardBody, { subject: "Dashboard" }), "utf8");
   const membershipBody = `
-<p class="muted">Platform membership will unlock encrypted research reports through Seal once membership receipts and settlement events are indexed from Sui. This public page intentionally does not render protocol-kit fixture receipts as live agent data.</p>
-<div class="stats">
-  <div class="stat"><b>0</b><span>Live passes</span></div>
-  <div class="stat"><b>0</b><span>Live subscriptions</span></div>
-  <div class="stat"><b>0</b><span>Live receipts</span></div>
-</div>
-<p class="muted">No live membership receipts are indexed yet. Live research assets are available on the Dashboard through <code>/api/index</code>.</p>`;
+${renderChainSubmissionSource(onChainProofConfig, explorer)}
+<section class="live-dashboard" data-live-membership data-live-membership-limit="20" aria-live="polite" aria-busy="true">
+  <div class="live-dashboard-head">
+    <h2>Live Membership Rails</h2>
+    <span class="live-dashboard-api"><a href="/api/index?limit=20" rel="noopener">/api/index?limit=20</a></span>
+  </div>
+  <p class="chain-listing-note">Membership rows are loaded from the backend live index. The Function checks Sui testnet access and settlement events for platform passes, agent subscriptions, access receipts, membership settlement, and agent claims. Fixture receipts are never rendered as public live data.</p>
+  <div class="stats" data-live-membership-stats>
+    <div class="stat"><b>...</b><span>Live passes</span></div>
+    <div class="stat"><b>...</b><span>Live subscriptions</span></div>
+    <div class="stat"><b>...</b><span>Live receipts</span></div>
+    <div class="stat"><b>...</b><span>Membership events</span></div>
+  </div>
+  <p class="chain-source-note" data-live-membership-status>Loading live membership events from <code>/api/index</code>...</p>
+  <table class="data-table events-table live-dashboard-table live-membership-table">
+    <thead><tr><th>Event</th><th>Account</th><th>Object or amount</th><th>Sui proof</th></tr></thead>
+    <tbody data-live-membership-rows>
+      <tr><td colspan="4"><p class="muted">Loading membership, subscription, receipt, settlement, and claim events from Sui testnet...</p></td></tr>
+    </tbody>
+  </table>
+</section>`;
   await fs.writeFile(path.join(outputDir, "membership.html"), shell("Membership", membershipBody, { subject: "Membership" }), "utf8");
   const delegationsBody = `
 <p class="muted">Private Delegation results are encrypted on Walrus and decryptable only by the buyer and agent, with temporary arbitration access during disputes.</p>

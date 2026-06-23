@@ -22,6 +22,10 @@ describe("live Sui/Walrus index", () => {
       }
       rpcBodies.push(body);
       if (body.method === "suix_queryEvents") {
+        const filter = body.params?.[0] as { MoveEventType?: string } | undefined;
+        if (!filter?.MoveEventType?.endsWith("::research_asset::ResearchAssetPublished")) {
+          return Response.json({ result: { data: [] } });
+        }
         return Response.json({
           result: {
             data: [{
@@ -96,5 +100,99 @@ describe("live Sui/Walrus index", () => {
         manifest_match: true
       }
     });
+  });
+
+  it("indexes live membership events from Sui access and settlement modules", async () => {
+    const packageId = "0xabc";
+    const signer = `0x${"8a".repeat(32)}`;
+    const passId = `0x${"ef".repeat(32)}`;
+    const txDigest = "3CXbhwf9N8NYauAPo6kE6u54BbjBMAPNTVDY4RbSv8xG";
+    const seenMoveEventTypes: string[] = [];
+    globalThis.fetch = vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string; params?: unknown[] };
+      if (body.method === "suix_queryEvents") {
+        const filter = body.params?.[0] as { MoveEventType?: string } | undefined;
+        const moveEventType = String(filter?.MoveEventType ?? "");
+        seenMoveEventTypes.push(moveEventType);
+        if (moveEventType.endsWith("::research_asset::ResearchAssetPublished")) {
+          return Response.json({ result: { data: [] } });
+        }
+        if (moveEventType.endsWith("::access::PlatformMembershipPurchased")) {
+          return Response.json({
+            result: {
+              data: [{
+                id: { txDigest, eventSeq: "0" },
+                type: moveEventType,
+                sender: signer,
+                parsedJson: {
+                  pass_id: passId,
+                  owner: signer,
+                  tier: 1,
+                  started_ms: "1782207002124",
+                  expires_ms: "1784799002124"
+                },
+                timestampMs: "1782207002124"
+              }]
+            }
+          });
+        }
+        if (moveEventType.endsWith("::settlement::PlatformMembershipPaid")) {
+          return Response.json({
+            result: {
+              data: [{
+                id: { txDigest, eventSeq: "1" },
+                type: moveEventType,
+                sender: signer,
+                parsedJson: {
+                  buyer: signer,
+                  amount: "1000000",
+                  platform_fee: "200000",
+                  duration_ms: "2592000000",
+                  created_ms: "1782207002124"
+                },
+                timestampMs: "1782207002124"
+              }]
+            }
+          });
+        }
+        return Response.json({ result: { data: [] } });
+      }
+      if (body.method === "sui_multiGetTransactionBlocks") {
+        return Response.json({
+          result: [{
+            digest: txDigest,
+            transaction: { data: { sender: signer, gasData: { owner: signer } } },
+            effects: { status: { status: "success" } },
+            balanceChanges: [{ owner: { AddressOwner: signer }, coinType: "0x2::sui::SUI", amount: "-3776280" }]
+          }]
+        });
+      }
+      if (body.method === "sui_multiGetObjects") {
+        return Response.json({ result: [] });
+      }
+      throw new Error(`unexpected RPC method ${body.method}`);
+    }) as typeof fetch;
+
+    const index = await buildLiveIndex({
+      rpcUrl: "https://sui.test",
+      aggregatorUrl: "https://walrus.test",
+      packageId,
+      limit: 20
+    });
+
+    expect(seenMoveEventTypes).toContain(`${packageId}::access::PlatformMembershipPurchased`);
+    expect(seenMoveEventTypes).toContain(`${packageId}::settlement::PlatformMembershipPaid`);
+    expect(index.membership.counts).toMatchObject({
+      platform_membership_passes: 1,
+      platform_membership_payments: 1,
+      total_events: 2
+    });
+    expect(index.membership.recent_events[0]).toMatchObject({
+      tx_digest: txDigest,
+      signer,
+      gas_owner: signer,
+      sui_spent_mist: "3776280"
+    });
+    expect(index.membership.recent_events.some((event) => event.object_id === passId)).toBe(true);
   });
 });

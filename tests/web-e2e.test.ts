@@ -233,8 +233,10 @@ describe("static web E2E", () => {
       expect(dashboard).not.toContain("local-badge");
 
       const membership = await (await fetch(sitePath(server.url, "/membership.html"))).text();
-      expect(membership).toContain("No live membership receipts are indexed yet");
+      expect(membership).toContain("data-live-membership");
+      expect(membership).toContain("Live Membership Rails");
       expect(membership).toContain("/api/index");
+      expect(membership).not.toContain("<b>0</b><span>Live passes</span>");
       expect(membership).not.toContain("read:web");
       expect(membership).not.toContain("rep:web");
       expect(membership).not.toContain("0xA");
