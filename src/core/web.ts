@@ -1106,8 +1106,6 @@ h2 { font-size: 19px; margin: 26px 0 10px; }
 .live-dashboard-asset strong { display: block; margin-bottom: 2px; font-size: 14px; color: var(--ink); }
 .live-dashboard-asset p { margin: 5px 0 0; max-width: 520px; color: #333; }
 .live-dashboard-proof { display: flex; flex-direction: column; gap: 4px; }
-.dev-dashboard { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 12px; }
-.dev-dashboard summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 dl.listing { margin: 12px 0 0; }
 dl.listing > dt { padding: 12px 0 2px; font-size: 14px; border-top: 1px solid var(--line); }
 dl.listing > dt:first-child { border-top: 0; }
@@ -2183,7 +2181,6 @@ export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: st
 
   const assets = Object.values(index.assets);
   const skills = Object.values(index.skills);
-  const relationshipCount = Object.keys(index.relationships).length;
 
   const searchBody = `
 <p class="muted">Static search snapshot generated from the local index. Filtering runs entirely in your browser.</p>
@@ -2191,33 +2188,10 @@ export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: st
 ${Object.values(index.search_documents).map((document) => `<a class="result" href="${document.entity_type === "asset" ? escapeHtml(webPath("abs", `${routeSegment(document.entity_id)}.html`)) : document.entity_type === "skill" ? escapeHtml(webPath("skill", `${routeSegment(document.entity_id)}.html`)) : "#"}"><strong>${escapeHtml(document.title)}</strong><br><span class="muted">${escapeHtml(document.entity_type)} &middot; ${escapeHtml(document.tags.join(", "))}</span></a>`).join("")}`;
   await fs.writeFile(path.join(outputDir, "search.html"), shell("Search", searchBody, { subject: "Search" }), "utf8");
 
-  const revenuePools = Object.values(index.revenue_pools);
-  const payments = Object.values(index.payments);
   const reports = Object.values(index.reports);
-  const encryptedReports = reports.filter((report) => report.visibility === "encrypted");
-  const privateReports = reports.filter((report) => report.visibility === "private_delegation");
-  const accessReceipts = Object.values(index.access_receipts);
   const delegations = Object.values(index.delegations);
-  const agentEarnings = Object.values(index.agent_earnings);
-  const totalReceived = revenuePools.reduce((sum, pool) => sum + pool.total_received, 0);
-  const totalClaimed = revenuePools.reduce((sum, pool) => sum + pool.total_claimed, 0);
-  const poolRows = revenuePools
-    .map((pool) => `<tr><td>${escapeHtml(pool.id)}</td><td>${escapeHtml(pool.asset_id)}</td><td>${pool.total_received}</td><td>${pool.total_claimed}</td><td>${pool.total_received - pool.total_claimed}</td></tr>`)
-    .join("");
-  const paymentRows = payments
-    .map((payment) => `<tr><td>${escapeHtml(payment.order_hash)}</td><td>${escapeHtml(payment.source_chain)}</td><td>${escapeHtml(payment.buyer)}</td><td>${payment.amount}</td></tr>`)
-    .join("");
-  const reportRows = reports
-    .map((report) => `<tr><td>${escapeHtml(report.id)}</td><td>${escapeHtml(report.visibility)}</td><td>${escapeHtml(report.agent)}</td><td>${escapeHtml(report.title ?? "")}</td></tr>`)
-    .join("");
-  const receiptRows = accessReceipts
-    .map((receipt) => `<tr><td>${escapeHtml(receipt.id)}</td><td>${receipt.period_id}</td><td>${escapeHtml(receipt.report_id)}</td><td>${escapeHtml(receipt.agent)}</td><td>${escapeHtml(receipt.access_type)}</td></tr>`)
-    .join("");
   const delegationRows = delegations
     .map((job) => `<tr><td>${escapeHtml(job.id)}</td><td>${escapeHtml(job.status)}</td><td>${escapeHtml(job.buyer)}</td><td>${escapeHtml(job.agent)}</td><td>${job.budget}</td></tr>`)
-    .join("");
-  const earningsRows = agentEarnings
-    .map((row) => `<tr><td>${escapeHtml(row.agent)}</td><td>${row.total_earned}</td><td>${row.total_claimed}</td><td>${row.total_earned - row.total_claimed}</td></tr>`)
     .join("");
 
   const dashboardBody = `
@@ -2241,39 +2215,7 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
       <tr><td colspan="4"><p class="muted">Loading live Sui testnet assets through the backend index...</p></td></tr>
     </tbody>
   </table>
-</section>
-<details class="dev-dashboard">
-<summary>Protocol-kit fixture diagnostics</summary>
-<p class="muted">These diagnostics are generated from the checked-in protocol-kit fixture index for local development and regression tests. Public ResearchAsset rows above are served by <code>/api/index</code>.</p>
-<div class="stats">
-  <div class="stat"><b>${assets.length}</b><span>Assets</span></div>
-  <div class="stat"><b>${skills.length}</b><span>Skills</span></div>
-  <div class="stat"><b>${reports.length}</b><span>Reports</span></div>
-  <div class="stat"><b>${encryptedReports.length}</b><span>Encrypted</span></div>
-  <div class="stat"><b>${privateReports.length}</b><span>Private</span></div>
-  <div class="stat"><b>${relationshipCount}</b><span>Relationships</span></div>
-  <div class="stat"><b>${index.events.length}</b><span>Fixture events</span></div>
-  <div class="stat"><b>${accessReceipts.length}</b><span>Access receipts</span></div>
-</div>
-<p class="muted">Commerce figures are projected from indexed protocol events. Encrypted reports store only Walrus/Seal references here; private delegation reports are never indexed as searchable public content.</p>
-<h2>Seal Access</h2>
-${reports.length ? `<table class="data-table"><thead><tr><th>Report</th><th>Visibility</th><th>Agent</th><th>Title</th></tr></thead><tbody>${reportRows}</tbody></table>` : `<p class="muted">No reports indexed yet.</p>`}
-<h2>Membership Reads</h2>
-${accessReceipts.length ? `<table class="data-table"><thead><tr><th>Receipt</th><th>Period</th><th>Report</th><th>Agent</th><th>Type</th></tr></thead><tbody>${receiptRows}</tbody></table>` : `<p class="muted">No access receipts indexed yet.</p>`}
-<h2>Agent Earnings</h2>
-${agentEarnings.length ? `<table class="data-table"><thead><tr><th>Agent</th><th>Earned</th><th>Claimed</th><th>Unclaimed</th></tr></thead><tbody>${earningsRows}</tbody></table>` : `<p class="muted">No agent earnings indexed yet.</p>`}
-<h2>Legacy Revenue Pools</h2>
-<div class="stats">
-  <div class="stat"><b>${totalReceived}</b><span>Total received</span></div>
-  <div class="stat"><b>${totalClaimed}</b><span>Total claimed</span></div>
-  <div class="stat"><b>${totalReceived - totalClaimed}</b><span>Unclaimed</span></div>
-</div>
-${revenuePools.length ? `<table class="data-table"><thead><tr><th>Pool</th><th>Asset</th><th>Received</th><th>Claimed</th><th>Unclaimed</th></tr></thead><tbody>${poolRows}</tbody></table>` : `<p class="muted">No revenue pools indexed yet.</p>`}
-<h2>Delegations</h2>
-${delegations.length ? `<table class="data-table"><thead><tr><th>Job</th><th>Status</th><th>Buyer</th><th>Agent</th><th>Budget</th></tr></thead><tbody>${delegationRows}</tbody></table>` : `<p class="muted">No private delegation jobs indexed yet.</p>`}
-<h2>Cross-chain Payments</h2>
-${payments.length ? `<table class="data-table"><thead><tr><th>Order</th><th>Source chain</th><th>Buyer</th><th>Amount</th></tr></thead><tbody>${paymentRows}</tbody></table>` : `<p class="muted">No settlements indexed yet.</p>`}
-</details>`;
+</section>`;
   await fs.writeFile(path.join(outputDir, "dashboard.html"), shell("Dashboard", dashboardBody, { subject: "Dashboard" }), "utf8");
   const membershipBody = `
 <p class="muted">Platform membership will unlock encrypted research reports through Seal once membership receipts and settlement events are indexed from Sui. This public page intentionally does not render protocol-kit fixture receipts as live agent data.</p>

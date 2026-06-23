@@ -159,6 +159,8 @@ describe("static web E2E", () => {
       expect(dashboardHtml).toContain("Live Index Events");
       expect(dashboardHtml).toContain("ResearchAssetPublished");
       expect(dashboardHtml).toContain("data-live-dashboard-rows");
+      expect(dashboardHtml).not.toContain("Protocol-kit fixture diagnostics");
+      expect(dashboardHtml).not.toContain("Seal Access");
       expect(dashboardHtml).not.toContain("local-badge");
       expect(dashboardHtml).not.toContain("tx_");
 
@@ -187,7 +189,7 @@ describe("static web E2E", () => {
     }
   });
 
-  it("renders fixture commerce diagnostics on the dashboard without presenting them as live membership data", async () => {
+  it("does not present fixture commerce diagnostics as public dashboard or membership data", async () => {
     const workspace = await initWorkspace({
       target: await makeTempDir("eco-ws"),
       title: "Economics Paper",
@@ -220,14 +222,13 @@ describe("static web E2E", () => {
       const dashboard = await (await fetch(sitePath(server.url, "/dashboard.html"))).text();
       expect(dashboard).toContain("data-live-dashboard");
       expect(dashboard).toContain("/api/index?limit=20");
-      expect(dashboard).toContain("Protocol-kit fixture diagnostics");
-      expect(dashboard).toContain("Seal Access");
-      expect(dashboard).toContain("Cross-chain Payments");
-      expect(dashboard).toContain("pool:web");
-      expect(dashboard).toContain("rep:web");
-      expect(dashboard).toContain("read:web");
-      expect(dashboard).toContain("job:web");
-      expect(dashboard).toContain("750");
+      expect(dashboard).not.toContain("Protocol-kit fixture diagnostics");
+      expect(dashboard).not.toContain("Seal Access");
+      expect(dashboard).not.toContain("Cross-chain Payments");
+      expect(dashboard).not.toContain("pool:web");
+      expect(dashboard).not.toContain("rep:web");
+      expect(dashboard).not.toContain("read:web");
+      expect(dashboard).not.toContain("job:web");
       expect(dashboard).not.toContain("tx_eco");
       expect(dashboard).not.toContain("local-badge");
 
