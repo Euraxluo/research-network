@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { researchIndexApi } from "../src/api/index-service.js";
 
@@ -18,6 +19,13 @@ describe("live index Elysia API", () => {
     expect(spec.paths["/api/index/artifact"]).toBeTruthy();
     expect(spec.paths["/api/index/ingest"]).toBeTruthy();
     expect(spec.paths["/api/index/health"]).toBeTruthy();
+  });
+
+  it("ships Vercel function entrypoints for Elysia subroutes", async () => {
+    await expect(fs.access("api/index/artifact.ts")).resolves.toBeUndefined();
+    await expect(fs.access("api/index/health.ts")).resolves.toBeUndefined();
+    await expect(fs.access("api/index/persisted.ts")).resolves.toBeUndefined();
+    await expect(fs.access("api/index/ingest.ts")).resolves.toBeUndefined();
   });
 
   it("reports database configuration without requiring a live ingest", async () => {
