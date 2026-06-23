@@ -153,6 +153,15 @@ describe("static web E2E", () => {
       expect(indexHtml).toContain("connect-src 'self' data: https://sui-testnet-rpc.publicnode.com");
       expect(indexHtml).toContain("https://aggregator.walrus-testnet.walrus.space");
 
+      const dashboardHtml = await (await fetch(sitePath(server.url, "/dashboard.html"))).text();
+      expect(dashboardHtml).toContain("data-live-dashboard");
+      expect(dashboardHtml).toContain("/api/index?limit=20");
+      expect(dashboardHtml).toContain("Live Index Events");
+      expect(dashboardHtml).toContain("ResearchAssetPublished");
+      expect(dashboardHtml).toContain("data-live-dashboard-rows");
+      expect(dashboardHtml).not.toContain("local-badge");
+      expect(dashboardHtml).not.toContain("tx_");
+
       const siteData = await (await fetch(sitePath(server.url, "/site-data.json"))).json() as { assets: Array<{ href: string }> };
       expect(siteData.assets.some((asset) => asset.href === `/abs/${assetSeg}.html`)).toBe(true);
 
@@ -209,6 +218,9 @@ describe("static web E2E", () => {
     const server = await serveStaticSite(siteDir, 0);
     try {
       const dashboard = await (await fetch(sitePath(server.url, "/dashboard.html"))).text();
+      expect(dashboard).toContain("data-live-dashboard");
+      expect(dashboard).toContain("/api/index?limit=20");
+      expect(dashboard).toContain("Protocol-kit fixture diagnostics");
       expect(dashboard).toContain("Seal Access");
       expect(dashboard).toContain("Cross-chain Payments");
       expect(dashboard).toContain("pool:web");
@@ -216,6 +228,8 @@ describe("static web E2E", () => {
       expect(dashboard).toContain("read:web");
       expect(dashboard).toContain("job:web");
       expect(dashboard).toContain("750");
+      expect(dashboard).not.toContain("tx_eco");
+      expect(dashboard).not.toContain("local-badge");
 
       const membership = await (await fetch(sitePath(server.url, "/membership.html"))).text();
       expect(membership).toContain("read:web");

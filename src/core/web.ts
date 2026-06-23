@@ -529,19 +529,6 @@ function explorerLink(kind: "object" | "tx" | "account" | "walrus-blob", value: 
   return escaped;
 }
 
-function isLocalTxDigest(value: unknown): boolean {
-  return String(value ?? "").startsWith("tx_");
-}
-
-function renderEventTxDigest(event: { tx_digest: string; event_seq: number }, explorer: ExplorerConfig): string {
-  const rendered = explorerLink("tx", event.tx_digest, explorer);
-  const eventSeq = `<span class="muted">#${event.event_seq}</span>`;
-  if (isLocalTxDigest(event.tx_digest)) {
-    return `<span class="local-tx" title="Local/demo simulated event ID, not a Sui transaction digest. Real Sui transaction digests link to the configured explorer.">${escapeHtml(event.tx_digest)}</span>${eventSeq}<span class="local-badge" title="This row comes from the local/demo event log, not from Sui RPC.">local</span>`;
-  }
-  return `${rendered}${eventSeq}`;
-}
-
 function loadOnChainProofConfig(env: NodeJS.ProcessEnv = process.env): OnChainProofConfig {
   const limit = Number.parseInt(env.RN_SHOWCASE_EVENT_LIMIT ?? "6", 10);
   return {
@@ -1103,6 +1090,24 @@ h2 { font-size: 19px; margin: 26px 0 10px; }
 .chain-facts dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
 .chain-facts dd { margin: 0; min-width: 0; font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
 .chain-facts code { font-size: 1em; }
+.live-dashboard { border-top: 2px solid var(--arxiv-red); padding-top: 12px; margin-bottom: 24px; }
+.live-dashboard-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.live-dashboard-head h2 { margin-top: 0; }
+.live-dashboard-api { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.data-table.live-dashboard-table { table-layout: fixed; }
+.data-table.live-dashboard-table th:nth-child(1) { width: 56%; }
+.data-table.live-dashboard-table th:nth-child(2) { width: 18%; }
+.data-table.live-dashboard-table th:nth-child(3) { width: 13%; }
+.data-table.live-dashboard-table th:nth-child(4) { width: 13%; }
+.data-table.live-dashboard-table td { font-family: var(--sans); vertical-align: top; word-break: normal; overflow-wrap: break-word; }
+.data-table.live-dashboard-table .live-dashboard-asset strong,
+.data-table.live-dashboard-table .live-dashboard-asset strong a { word-break: normal; overflow-wrap: normal; }
+.data-table.live-dashboard-table .mono { font-family: var(--mono); font-size: 12px; word-break: normal; overflow-wrap: anywhere; }
+.live-dashboard-asset strong { display: block; margin-bottom: 2px; font-size: 14px; color: var(--ink); }
+.live-dashboard-asset p { margin: 5px 0 0; max-width: 520px; color: #333; }
+.live-dashboard-proof { display: flex; flex-direction: column; gap: 4px; }
+.dev-dashboard { border-top: 1px solid var(--line); margin-top: 28px; padding-top: 12px; }
+.dev-dashboard summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 dl.listing { margin: 12px 0 0; }
 dl.listing > dt { padding: 12px 0 2px; font-size: 14px; border-top: 1px solid var(--line); }
 dl.listing > dt:first-child { border-top: 0; }
@@ -1636,6 +1641,127 @@ const SITE_JS = `
     listing.appendChild(dd);
   }
 
+  function liveProofState(asset) {
+    var proof = asset && asset.proof ? asset.proof : {};
+    var checks = [
+      ["tx", proof.tx_success],
+      ["type", proof.object_type_match],
+      ["owner", proof.owner_match],
+      ["blob", proof.blob_match],
+      ["manifest", proof.manifest_match],
+      ["release manifest", proof.release_manifest_match]
+    ];
+    var missing = checks.filter(function (check) { return !check[1]; }).map(function (check) { return check[0]; });
+    return {
+      verified: missing.length === 0,
+      missing: missing,
+      label: missing.length === 0 ? "Live verified" : "Live partial",
+      detail: missing.length === 0 ? "event, tx, object, blob and release manifest agree" : "missing: " + missing.join(", ")
+    };
+  }
+
+  function renderDashboardLiveRow(asset, index, suiExplorer, walrusExplorer) {
+    var state = liveProofState(asset);
+    var statusClass = state.verified ? "verified" : "warning";
+    var title = String(asset.title || asset.id || "Research Asset");
+    var assetHref = asset.href || (asset.id ? "/abs/" + routeSegment(asset.id) + ".html" : "");
+    var titleHtml = assetHref ? plainLink(assetHref, title) : proofLabelLink(suiExplorer, "object", asset.sui_object_id, title);
+    var types = Array.isArray(asset.types) && asset.types.length ? asset.types.join(", ") : "asset";
+    var tags = Array.isArray(asset.tags) && asset.tags.length ? " · " + asset.tags.join(", ") : "";
+    var created = asset.created_at ? String(asset.created_at).replace("T", " ").slice(0, 19) + " UTC" : "not recorded";
+    var repoText = asset.repo_url ? asset.repo_url.replace(/^https?:\\/\\/(www\\.)?github\\.com\\//, "") : "";
+    var repoHtml = asset.repo_url ? plainLink(asset.repo_url, repoText || asset.repo_url) : '<span class="muted">not recorded in release manifest</span>';
+    return '<tr>' +
+      '<td class="live-dashboard-asset">' +
+        '<strong>' + titleHtml + '</strong>' +
+        '<div class="muted">[' + (index + 1) + '] ' + esc(asset.id || asset.sui_object_id || "") + '</div>' +
+        '<div>' + esc(asset.authors || "Unknown") + '</div>' +
+        '<div class="muted">' + esc(types + tags) + ' · published ' + esc(created) + '</div>' +
+        '<p>' + esc(shortText(asset.abstract || "Indexed from a live Sui ResearchAssetPublished event and its Walrus release manifest.", 160, 40)) + '</p>' +
+      '</td>' +
+      '<td class="live-dashboard-proof">' +
+        '<span><strong>ResearchAssetPublished</strong></span>' +
+        '<span class="mono">object: ' + proofLabelLink(suiExplorer, "object", asset.sui_object_id, shortText(asset.sui_object_id, 12, 10)) + '</span>' +
+        '<span class="mono">tx: ' + proofLabelLink(suiExplorer, "tx", asset.tx_digest, shortText(asset.tx_digest, 12, 10)) + '</span>' +
+        '<span class="chain-status chain-status-' + statusClass + '">' + esc(state.label) + '</span>' +
+        '<span class="muted">' + esc(state.detail) + '</span>' +
+      '</td>' +
+      '<td>' +
+        '<div class="mono">' + proofBlobLabelLink(walrusExplorer, asset.walrus_blob_id, shortText(asset.walrus_blob_id, 12, 10)) + '</div>' +
+        '<div class="muted">manifest</div>' +
+        '<div class="mono"><code title="' + esc(asset.manifest_hash || "") + '">' + esc(shortText(asset.manifest_hash || "", 16, 12)) + '</code></div>' +
+      '</td>' +
+      '<td>' +
+        '<div>' + repoHtml + '</div>' +
+        '<div class="muted">commit</div>' +
+        '<div class="mono">' + commitLink(asset.repo_url, asset.repo_commit) + '</div>' +
+      '</td>' +
+    '</tr>';
+  }
+
+  function setupLiveDashboard() {
+    var root = document.querySelector("[data-live-dashboard]");
+    var source = document.querySelector("[data-chain-source][data-chain-index-api]");
+    if (!root || !source || !window.fetch) return;
+    var stats = root.querySelector("[data-live-dashboard-stats]");
+    var status = root.querySelector("[data-live-dashboard-status]");
+    var rows = root.querySelector("[data-live-dashboard-rows]");
+    var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
+    var sourceLimit = Number(source.getAttribute("data-chain-limit")) || 6;
+    var limit = Math.max(1, Math.min(20, Number(root.getAttribute("data-live-dashboard-limit")) || sourceLimit));
+    var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
+    var walrusExplorer = source.getAttribute("data-walrus-explorer") || "https://walruscan.com/testnet";
+    var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=" + encodeURIComponent(String(limit));
+    root.setAttribute("aria-busy", "true");
+    fetch(indexUrl, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("index API HTTP " + res.status);
+      return res.json();
+    }).then(function (data) {
+      if (!data || data.source !== "live-sui-testnet+walrus-release-manifest") {
+        throw new Error("index API did not return live source");
+      }
+      var assets = Array.isArray(data.assets) ? data.assets : [];
+      var verified = assets.filter(function (asset) { return liveProofState(asset).verified; }).length;
+      var repos = {};
+      assets.forEach(function (asset) {
+        if (asset.repo_url) repos[asset.repo_url] = true;
+      });
+      var storage = data.storage || {};
+      var mode = data.serving_mode || (data.persisted ? "live-refresh-with-postgres" : "live-refresh-without-persistence");
+      var storageLabel = storage.configured ? "Postgres persistence enabled" : "DB not bound: refreshed from Sui/Walrus on read";
+      if (stats) {
+        stats.innerHTML =
+          '<div class="stat"><b>' + assets.length + '</b><span>Live assets</span></div>' +
+          '<div class="stat"><b>' + verified + '</b><span>Verified proofs</span></div>' +
+          '<div class="stat"><b>' + Object.keys(repos).length + '</b><span>Git repos</span></div>' +
+          '<div class="stat"><b>' + esc(storage.configured ? "DB" : "Live") + '</b><span>Serving mode</span></div>';
+      }
+      if (status) {
+        status.innerHTML = 'Loaded from ' + plainLink(indexUrl, "/api/index") +
+          ' · generated ' + esc(String(data.generated_at || "now").replace("T", " ").slice(0, 19)) +
+          ' · package ' + proofLabelLink(suiExplorer, "object", data.package_id || source.getAttribute("data-chain-package"), shortText(data.package_id || source.getAttribute("data-chain-package"), 12, 10)) +
+          ' · ' + esc(mode) + ' · ' + esc(storageLabel);
+      }
+      if (rows) {
+        rows.innerHTML = assets.length
+          ? assets.map(function (asset, index) { return renderDashboardLiveRow(asset, index, suiExplorer, walrusExplorer); }).join("")
+          : '<tr><td colspan="4"><p class="muted">/api/index returned no live ResearchAssetPublished rows for this package.</p></td></tr>';
+      }
+      root.setAttribute("aria-busy", "false");
+    }).catch(function (err) {
+      root.setAttribute("aria-busy", "false");
+      if (stats) {
+        stats.innerHTML = '<div class="stat"><b>0</b><span>Live assets</span></div><div class="stat"><b>API</b><span>Unavailable</span></div>';
+      }
+      if (status) {
+        status.innerHTML = 'Could not load ' + plainLink(indexUrl, "/api/index") + ': ' + esc(err && err.message ? err.message : "request failed");
+      }
+      if (rows) {
+        rows.innerHTML = '<tr><td colspan="4"><p class="muted">Dashboard data is intentionally served only by the backend live index. Check <code>/api/index/health</code> and Vercel Function logs.</p></td></tr>';
+      }
+    });
+  }
+
   function appendOnChainSubmissionEntry(listing, input, position) {
     var event = input.event;
     var objectData = input.objectData;
@@ -2020,6 +2146,7 @@ const SITE_JS = `
     setupCopy();
     setupFilter();
     setupChainSubmissions();
+    setupLiveDashboard();
     setupGraph();
     setupPaperViewer();
   }
@@ -2088,30 +2215,31 @@ ${Object.values(index.search_documents).map((document) => `<a class="result" hre
     .map((row) => `<tr><td>${escapeHtml(row.agent)}</td><td>${row.total_earned}</td><td>${row.total_claimed}</td><td>${row.total_earned - row.total_claimed}</td></tr>`)
     .join("");
 
-  // Explorer-style event listing (HANDOFF §2.4-3): one row per event, newest first, with the
-  // payload reduced to its scalar fields — never a raw JSON dump.
-  const eventDetail = (payload: Record<string, unknown>): string => Object.entries(payload)
-    .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value))
-    .slice(0, 4)
-    .map(([key, value]) => {
-      const text = String(value);
-      const rendered = /^0x[0-9a-fA-F]{4,64}$/.test(text)
-        ? explorerLink("object", text, explorer)
-        : escapeHtml(text.length > 46 ? `${text.slice(0, 45)}…` : text);
-      return `<span class="event-field"><span class="event-key">${escapeHtml(key)}</span>=${rendered}</span>`;
-    })
-    .join(" ");
-  const eventRows = [...index.events]
-    .sort((a, b) => b.timestamp_ms - a.timestamp_ms || b.event_seq - a.event_seq)
-    .slice(0, 50)
-    .map((event) => `<tr>
-      <td class="event-name">${escapeHtml(event.event_type)}</td>
-      <td>${renderEventTxDigest(event, explorer)}</td>
-      <td class="event-time">${escapeHtml(new Date(event.timestamp_ms).toISOString().replace("T", " ").slice(0, 19))}</td>
-      <td>${eventDetail(event.payload)}</td>
-    </tr>`);
-
   const dashboardBody = `
+${renderChainSubmissionSource(onChainProofConfig, explorer)}
+<section class="live-dashboard" data-live-dashboard data-live-dashboard-limit="20" aria-live="polite" aria-busy="true">
+  <div class="live-dashboard-head">
+    <h2>Live Index Events</h2>
+    <span class="live-dashboard-api"><a href="/api/index?limit=20" rel="noopener">/api/index?limit=20</a></span>
+  </div>
+  <p class="chain-listing-note">Dashboard rows are loaded from the backend index. The Function reads Sui <code>ResearchAssetPublished</code> events, verifies Sui object and transaction state, resolves the Walrus release manifest, then returns repository and commit metadata for the UI.</p>
+  <div class="stats" data-live-dashboard-stats>
+    <div class="stat"><b>...</b><span>Live assets</span></div>
+    <div class="stat"><b>...</b><span>Verified proofs</span></div>
+    <div class="stat"><b>...</b><span>Git repos</span></div>
+    <div class="stat"><b>API</b><span>Serving mode</span></div>
+  </div>
+  <p class="chain-source-note" data-live-dashboard-status>Loading live backend index from <code>/api/index</code>...</p>
+  <table class="data-table events-table live-dashboard-table">
+    <thead><tr><th>Research asset</th><th>Sui proof</th><th>Walrus content</th><th>Repository</th></tr></thead>
+    <tbody data-live-dashboard-rows>
+      <tr><td colspan="4"><p class="muted">Loading live Sui testnet assets through the backend index...</p></td></tr>
+    </tbody>
+  </table>
+</section>
+<details class="dev-dashboard">
+<summary>Protocol-kit fixture diagnostics</summary>
+<p class="muted">These diagnostics are generated from the checked-in protocol-kit fixture index for local development and regression tests. Public ResearchAsset rows above are served by <code>/api/index</code>.</p>
 <div class="stats">
   <div class="stat"><b>${assets.length}</b><span>Assets</span></div>
   <div class="stat"><b>${skills.length}</b><span>Skills</span></div>
@@ -2119,7 +2247,7 @@ ${Object.values(index.search_documents).map((document) => `<a class="result" hre
   <div class="stat"><b>${encryptedReports.length}</b><span>Encrypted</span></div>
   <div class="stat"><b>${privateReports.length}</b><span>Private</span></div>
   <div class="stat"><b>${relationshipCount}</b><span>Relationships</span></div>
-  <div class="stat"><b>${index.events.length}</b><span>Events</span></div>
+  <div class="stat"><b>${index.events.length}</b><span>Fixture events</span></div>
   <div class="stat"><b>${accessReceipts.length}</b><span>Access receipts</span></div>
 </div>
 <p class="muted">Commerce figures are projected from indexed protocol events. Encrypted reports store only Walrus/Seal references here; private delegation reports are never indexed as searchable public content.</p>
@@ -2140,10 +2268,7 @@ ${revenuePools.length ? `<table class="data-table"><thead><tr><th>Pool</th><th>A
 ${delegations.length ? `<table class="data-table"><thead><tr><th>Job</th><th>Status</th><th>Buyer</th><th>Agent</th><th>Budget</th></tr></thead><tbody>${delegationRows}</tbody></table>` : `<p class="muted">No private delegation jobs indexed yet.</p>`}
 <h2>Cross-chain Payments</h2>
 ${payments.length ? `<table class="data-table"><thead><tr><th>Order</th><th>Source chain</th><th>Buyer</th><th>Amount</th></tr></thead><tbody>${paymentRows}</tbody></table>` : `<p class="muted">No settlements indexed yet.</p>`}
-<h2>Events</h2>
-${eventRows.length
-    ? `<table class="data-table events-table"><thead><tr><th>Event</th><th>Tx digest</th><th>Time</th><th>Details</th></tr></thead><tbody>${eventRows.join("")}</tbody></table>`
-    : `<p class="muted">No protocol events indexed yet.</p>`}`;
+</details>`;
   await fs.writeFile(path.join(outputDir, "dashboard.html"), shell("Dashboard", dashboardBody, { subject: "Dashboard" }), "utf8");
   const membershipBody = `
 <p class="muted">Platform membership unlocks encrypted research reports through Seal. Monthly fees are settled to the reports each member actually opened.</p>

@@ -32,6 +32,16 @@ function cronAuthorized(headers: Headers): boolean {
   return headers.get("authorization") === `Bearer ${secret}`;
 }
 
+function liveIndexResponse(index: Awaited<ReturnType<typeof readOrRefreshLiveIndex>>) {
+  const storage = liveIndexStorageState();
+  return {
+    ...index,
+    storage,
+    persisted: storage.configured,
+    serving_mode: storage.configured ? "live-refresh-with-postgres" : "live-refresh-without-persistence"
+  };
+}
+
 export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
   .use(swagger({
     path: "/index/swagger",
@@ -40,7 +50,7 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
       info: {
         title: "Research Network Live Index API",
         version: "0.1.0",
-        description: "Live Sui testnet + Walrus release-manifest index, persisted in Vercel Postgres and exposed for the public showcase."
+        description: "Live Sui testnet + Walrus release-manifest index, optionally persisted in Vercel Postgres and exposed for the public showcase."
       },
       tags: [
         { name: "index", description: "Read the public research asset index" },
@@ -50,11 +60,12 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
   }))
   .get("/index", async ({ query, set }) => {
     try {
-      return await readOrRefreshLiveIndex({
+      const index = await readOrRefreshLiveIndex({
         limit: intQuery(query.limit, Number(process.env.RN_SHOWCASE_EVENT_LIMIT ?? 20)),
         query: cleanQuery(query.q),
         refresh: boolQuery(query.refresh)
       });
+      return liveIndexResponse(index);
     } catch (error) {
       set.status = 502;
       return {
@@ -72,7 +83,7 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
     }),
     detail: {
       summary: "Read the live public research index",
-      description: "By default this refreshes from Sui testnet + Walrus, persists into Vercel Postgres, then returns the indexed assets. If live refresh fails, it falls back to the latest persisted rows."
+      description: "By default this refreshes from Sui testnet + Walrus, persists into Vercel Postgres when configured, then returns the indexed assets. If live refresh fails, it falls back to the latest persisted rows."
     }
   })
   .get("/index/persisted", async ({ query }) => {
