@@ -53,6 +53,11 @@ derived_from:
     included:
       - workflow
       - skill
+  - asset_id: ra:showcase:citation-liquidity
+    relation: evaluates
+    included:
+      - paper
+      - benchmark
 references:
   papers: []
   skills: []

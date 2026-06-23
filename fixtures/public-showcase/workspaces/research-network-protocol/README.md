@@ -9,9 +9,9 @@ Research Network turns a research release into a verifiable asset graph: a paper
 - Workflow: `publish-verifiable-research`.
 - Verifiable manifest with Walrus, Sui, Git, license, and access metadata.
 
-## Why it matters
+## Protocol publication path
 
-Research Network treats a paper as one node inside a larger executable asset graph. A reader can inspect the argument, an agent can install the skill, and an indexer can replay the protocol events that made the release visible.
+This demo is intentionally built as a standalone Git repository, then published through the Research Network protocol kit. The generated localnet index is not hand-authored: it comes from `publishWorkspace()`, local Walrus packaging, local Sui-style events, and `replayIndexer()`.
 
 ## Reuse path
 

@@ -16,4 +16,5 @@ access:
   visibility: public
 tests:
   - research validate
+  - research publish
   - research web:build

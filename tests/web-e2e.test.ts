@@ -665,6 +665,25 @@ describe("static web E2E", () => {
     expect(rootRewrite?.destination).toBe("/index.html");
   });
 
+  it("keeps the production showcase backed by protocol kit publish events", async () => {
+    const showcaseRoot = path.resolve("fixtures", "public-showcase", "localnet");
+    const index = JSON.parse(await fs.readFile(path.join(showcaseRoot, "index.json"), "utf8")) as {
+      assets: Record<string, unknown>;
+      skills: Record<string, unknown>;
+      events: Array<{ event_type: string }>;
+    };
+    const walrusEntries = await fs.readdir(path.join(showcaseRoot, "walrus"));
+    expect(Object.keys(index.assets)).toHaveLength(3);
+    expect(Object.keys(index.skills)).toHaveLength(3);
+    expect(index.events.filter((event) => event.event_type === "ResearchAssetPublished")).toHaveLength(3);
+    expect(index.events.filter((event) => event.event_type === "SkillPublished")).toHaveLength(3);
+    expect(walrusEntries).toHaveLength(3);
+    for (const entry of walrusEntries) {
+      expect(await exists(path.join(showcaseRoot, "walrus", entry, "manifest.json"))).toBe(true);
+      expect(await exists(path.join(showcaseRoot, "walrus", entry, "release.tar.zst"))).toBe(true);
+    }
+  });
+
   it("serves a PDF-only asset with embedded PDF and no TeX source", async () => {
     const workspace = await initPdfOnlyWorkspace({
       target: await makeTempDir("pdf-only"),

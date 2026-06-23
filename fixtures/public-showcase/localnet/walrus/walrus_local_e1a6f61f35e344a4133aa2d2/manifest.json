@@ -1,0 +1,300 @@
+{
+  "schema": "research-asset-manifest/v0.1",
+  "repo": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/research-network-protocol",
+  "commit": "939ae939707d18f857dceb2d14a6929de31e57c6",
+  "asset_yaml_hash": "sha256:a43cad5a30da4e908d9945a8a757b5b8f94b0cd34c2dafe27798fc6b2f1e87f2",
+  "content_hash": "sha256:50268c765f6bac3c1f0d2cc5294a00e0aaa79fafb3239c1380566f87b886984d",
+  "created_at": "2026-06-23T00:00:00.000Z",
+  "files": [
+    {
+      "path": "LICENSE",
+      "size": 69,
+      "sha256": "sha256:2d04bec7ef26d4745f70e3dc061fbebd13c9fb2a4c1fb8ffa2335dd2e04129ef"
+    },
+    {
+      "path": "README.md",
+      "size": 1098,
+      "sha256": "sha256:6451f146de044831867ea1dbce10b52e2ab05cb7d0f62429a92bf4f6c6d91faa"
+    },
+    {
+      "path": "asset.yaml",
+      "size": 2266,
+      "sha256": "sha256:a43cad5a30da4e908d9945a8a757b5b8f94b0cd34c2dafe27798fc6b2f1e87f2"
+    },
+    {
+      "path": "code/README.md",
+      "size": 140,
+      "sha256": "sha256:023758418a1d4e20670fb58adebbd3d4f20ff1cb53ec99e0bae5a7f08a1d7f27"
+    },
+    {
+      "path": "data/README.md",
+      "size": 87,
+      "sha256": "sha256:68af328c0fa3196d37c5767dc5d1a329602ac2258815e23ddfa0eecfbd07e7ce"
+    },
+    {
+      "path": "experiments/README.md",
+      "size": 169,
+      "sha256": "sha256:40bc2768e863857b8f68eed3d69cd8cf3b12db2a70d7978a0ea69b66bb66ecdb"
+    },
+    {
+      "path": "paper/main.pdf",
+      "size": 84182,
+      "sha256": "sha256:4b42b27800dcfd6aa8b302b27a7bd7ff9b6f1edfa502ea6d8d1c973b9e0ad81c"
+    },
+    {
+      "path": "paper/main.tex",
+      "size": 2327,
+      "sha256": "sha256:9fd68b050cccbc5a99cc19299dc4b75b9f00e289bbad45823e7dbedae2df8a48"
+    },
+    {
+      "path": "paper/references.bib",
+      "size": 137,
+      "sha256": "sha256:f2cdd17a55f08d4940de27dbaab3922bf5d0e8055c852281ebca2256f52e30db"
+    },
+    {
+      "path": "skill/protocol-cartographer/SKILL.md",
+      "size": 414,
+      "sha256": "sha256:e93e0e83ae7789a5d0674b3bb09e9817e8265748853f9cec7f80697daec68101"
+    },
+    {
+      "path": "skill/protocol-cartographer/skill.yaml",
+      "size": 462,
+      "sha256": "sha256:e5155ab27fa431dadd47708f2c832c85aa9b8b388360b8a6917f4c3956b33cdf"
+    },
+    {
+      "path": "workflow/workflow.yaml",
+      "size": 1449,
+      "sha256": "sha256:e833adfbeaed8b889b365eaf693d35d3d9a0d447f01b22d33f2bf35806430c46"
+    }
+  ],
+  "assets": {
+    "schema": "research-asset/v0.1",
+    "id": "ra:showcase:research-network-protocol",
+    "title": "Research Network: Agent-Native Asset Protocol",
+    "slug": "research-network-protocol",
+    "version": "0.4.0",
+    "types": [
+      "paper",
+      "skill",
+      "workflow",
+      "code"
+    ],
+    "abstract": "Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse.",
+    "tags": [
+      "agent-native",
+      "walrus",
+      "sui",
+      "research-assets",
+      "reproducibility"
+    ],
+    "categories": [
+      "cs.DL",
+      "cs.AI",
+      "econ.GN"
+    ],
+    "authors": [
+      {
+        "name": "Research Network Core",
+        "type": "organization",
+        "wallet": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "github": "research-network",
+        "agent_id": "agent:research-network-core"
+      }
+    ],
+    "assets": {
+      "paper": {
+        "path": "paper/main.pdf",
+        "source": "paper/main.tex",
+        "bib": "paper/references.bib"
+      },
+      "skills": [
+        {
+          "name": "protocol-cartographer",
+          "path": "skill/protocol-cartographer/",
+          "relation": "owned"
+        }
+      ],
+      "workflow": {
+        "path": "workflow/workflow.yaml"
+      }
+    },
+    "generated_by": {
+      "agent": "agent:research-network-core",
+      "skills": [
+        "protocol-cartographer"
+      ],
+      "workflow": "workflow/workflow.yaml",
+      "models": [
+        "codex",
+        "review-agents"
+      ]
+    },
+    "derived_from": [],
+    "references": {
+      "papers": [],
+      "skills": [],
+      "datasets": [],
+      "workflows": [],
+      "assets": []
+    },
+    "dependencies": {
+      "skills": [],
+      "datasets": [],
+      "packages": {
+        "@research-network/protocol-kit": "0.1.0"
+      }
+    },
+    "legal_terms": {
+      "paper": "CC-BY-4.0",
+      "code": "MIT",
+      "data": "CC-BY-4.0"
+    },
+    "access": {
+      "visibility": "public",
+      "required_tier": 0,
+      "free_preview": "Research Network turns a research release into a verifiable asset graph: a paper, agent skill, workflow, code, access policy, Walrus snapshot, and Sui registry record travel together. The protocol keeps reading open by default while giving agents a native way to install, fork, cite, and settle reuse."
+    },
+    "commerce": {
+      "purchasable": false,
+      "price_policy": {
+        "model": "open"
+      },
+      "revenue_split": [
+        {
+          "recipient": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+          "role": "creator",
+          "weight_bps": 8500
+        },
+        {
+          "recipient": "treasury",
+          "role": "platform_treasury",
+          "weight_bps": 1500
+        }
+      ]
+    },
+    "publish": {
+      "storage": "walrus",
+      "chain": "sui",
+      "visibility": "public",
+      "register_on_chain": true
+    }
+  },
+  "skills": [
+    {
+      "id": "skill:protocol-cartographer@0.3.0",
+      "path": "skill/protocol-cartographer/skill.yaml",
+      "manifest": {
+        "schema": "research-skill/v0.1",
+        "name": "protocol-cartographer",
+        "version": "0.3.0",
+        "description": "Inspects a repository and emits a Research Asset manifest, graph edges, reuse hints, and verification notes.",
+        "capabilities": [
+          "manifest-authoring",
+          "provenance-graph",
+          "walrus-sites-export",
+          "sui-registry"
+        ],
+        "relation": "owned",
+        "derived_from": null,
+        "depends_on": [],
+        "entry": "SKILL.md",
+        "access": {
+          "visibility": "public"
+        },
+        "tests": [
+          "research validate",
+          "research publish",
+          "research web:build"
+        ]
+      }
+    }
+  ],
+  "workflows": [
+    {
+      "id": "workflow:publish-verifiable-research@0.4.0",
+      "path": "workflow/workflow.yaml",
+      "manifest": {
+        "schema": "research-workflow/v0.1",
+        "name": "publish-verifiable-research",
+        "version": "0.4.0",
+        "description": "A public workflow for turning a Git repository into a readable, installable, and indexable Research Network asset.",
+        "inputs": [
+          "repository",
+          "paper source",
+          "agent run log",
+          "evaluation evidence"
+        ],
+        "outputs": [
+          "asset manifest",
+          "static abstract page",
+          "skill package",
+          "workflow graph"
+        ],
+        "stages": [
+          {
+            "id": "profile",
+            "name": "Profile the contribution",
+            "instructions": "Identify the scientific claim, executable components, access model, and provenance anchors."
+          },
+          {
+            "id": "package",
+            "name": "Package the asset",
+            "instructions": "Assemble paper, skill, workflow, checksums, license terms, and dependency metadata."
+          },
+          {
+            "id": "publish",
+            "name": "Publish through protocol kit",
+            "instructions": "Run publishWorkspace so local Walrus packaging, Sui-style events, and index replay produce the public graph."
+          },
+          {
+            "id": "reuse",
+            "name": "Prepare reuse",
+            "instructions": "Expose install, fork, citation, and settlement paths for downstream humans and agents."
+          }
+        ],
+        "quality_gates": [
+          {
+            "id": "manifest-complete",
+            "check": "asset.yaml validates and declares paper, skill, and workflow paths"
+          },
+          {
+            "id": "protocol-published",
+            "check": "localnet events contain ResearchAssetPublished and SkillPublished"
+          },
+          {
+            "id": "agent-assets-visible",
+            "check": "skill cards and graph edges are visible in the static site"
+          }
+        ],
+        "tools": [
+          "research validate",
+          "research publish",
+          "research replay",
+          "research web:build"
+        ]
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "src_id": "ra:showcase:research-network-protocol",
+      "dst_id": "skill:protocol-cartographer@0.3.0",
+      "relation_type": "contains_skill",
+      "metadata": {
+        "relationship_id": "ra:showcase:research-network-protocol->contains_skill->skill:protocol-cartographer@0.3.0",
+        "path": "skill/protocol-cartographer/",
+        "relation": "owned"
+      }
+    },
+    {
+      "src_id": "ra:showcase:research-network-protocol",
+      "dst_id": "workflow:publish-verifiable-research@0.4.0",
+      "relation_type": "contains_workflow",
+      "metadata": {
+        "relationship_id": "ra:showcase:research-network-protocol->contains_workflow->workflow:publish-verifiable-research@0.4.0",
+        "path": "workflow/workflow.yaml"
+      }
+    }
+  ],
+  "manifest_hash": "sha256:71e7c2a39e517f35a09d075603b80d1704e2196f797f2de3d3166b787518e918"
+}

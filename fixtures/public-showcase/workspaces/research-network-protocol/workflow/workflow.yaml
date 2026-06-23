@@ -21,21 +21,22 @@ stages:
   - id: package
     name: Package the asset
     instructions: Assemble paper, skill, workflow, checksums, license terms, and dependency metadata.
-  - id: verify
-    name: Verify and index
-    instructions: Validate the manifest, render the paper, replay protocol events, and inspect
-      graph edges.
+  - id: publish
+    name: Publish through protocol kit
+    instructions: Run publishWorkspace so local Walrus packaging, Sui-style events, and index
+      replay produce the public graph.
   - id: reuse
     name: Prepare reuse
     instructions: Expose install, fork, citation, and settlement paths for downstream humans and agents.
 quality_gates:
   - id: manifest-complete
     check: asset.yaml validates and declares paper, skill, and workflow paths
-  - id: rendered-paper
-    check: abstract page includes HTML rendering or PDF preview
+  - id: protocol-published
+    check: localnet events contain ResearchAssetPublished and SkillPublished
   - id: agent-assets-visible
     check: skill cards and graph edges are visible in the static site
 tools:
   - research validate
+  - research publish
+  - research replay
   - research web:build
-  - Research Network indexer

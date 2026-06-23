@@ -3,20 +3,18 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
-import { applyEvents } from "../src/core/indexer.js";
-import { emptyIndexState } from "../src/core/local-store.js";
-import { objectId, sha256Bytes, sha256File, shortHash } from "../src/core/crypto.js";
-import { listFiles, writeJsonFile } from "../src/core/fs.js";
-import type {
-  AssetType,
-  IndexState,
-  ProtocolEvent,
-  ReleaseFile,
-  ReleaseManifest,
-  ResearchAssetManifest,
-  ResearchSkillManifest,
-  ResearchWorkflowManifest
-} from "../src/core/types.js";
+import {
+  buyPlatformMembership,
+  completeDelegationJob,
+  createDelegationJob,
+  publishWorkspace,
+  recordAccessReceipt,
+  settleMembershipPeriod
+} from "../src/core/adapters.js";
+import { replayIndexer } from "../src/core/indexer.js";
+import { readIndex } from "../src/core/local-store.js";
+import { sha256Bytes } from "../src/core/crypto.js";
+import type { AssetType, ResearchAssetManifest, ResearchSkillManifest, ResearchWorkflowManifest } from "../src/core/types.js";
 
 const PROJECT_ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const SHOWCASE_ROOT = path.join(PROJECT_ROOT, "fixtures", "public-showcase");
@@ -24,6 +22,7 @@ const WORKSPACES_ROOT = path.join(SHOWCASE_ROOT, "workspaces");
 const LOCALNET_ROOT = path.join(SHOWCASE_ROOT, "localnet");
 const FIXED_NOW = "2026-06-23T00:00:00.000Z";
 const OWNER = "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8";
+const BUYER = "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771";
 
 type ShowcaseSkill = {
   name: string;
@@ -51,139 +50,8 @@ type ShowcaseAsset = {
   access: "public" | "encrypted" | "private_delegation";
   requiredTier?: number;
   derivedFrom?: Array<{ asset_id: string; relation: string; included: string[] }>;
-  cites?: string[];
   sections: Array<{ title: string; paragraphs: string[] }>;
 };
-
-function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 80) || "research-asset";
-}
-
-function yaml(value: unknown): string {
-  return YAML.stringify(value, { lineWidth: 92 });
-}
-
-function texEscape(input: string): string {
-  return input
-    .replaceAll("\\", "\\textbackslash{}")
-    .replaceAll("&", "\\&")
-    .replaceAll("%", "\\%")
-    .replaceAll("$", "\\$")
-    .replaceAll("#", "\\#")
-    .replaceAll("_", "\\_")
-    .replaceAll("{", "\\{")
-    .replaceAll("}", "\\}");
-}
-
-async function writeText(filePath: string, body: string): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, body, "utf8");
-}
-
-function paperTex(asset: ShowcaseAsset): string {
-  const sections = asset.sections.map((section) => {
-    const paragraphs = section.paragraphs.map((paragraph) => texEscape(paragraph)).join("\n\n");
-    return `\\section{${texEscape(section.title)}}\n${paragraphs}`;
-  }).join("\n\n");
-  return `\\documentclass{article}
-\\usepackage{amsmath}
-\\usepackage{hyperref}
-\\title{${texEscape(asset.title)}}
-\\author{${texEscape(asset.author)}}
-\\date{June 2026}
-\\begin{document}
-\\maketitle
-\\begin{abstract}
-${texEscape(asset.abstract)}
-\\end{abstract}
-
-${sections}
-
-\\bibliographystyle{plain}
-\\bibliography{references}
-\\end{document}
-`;
-}
-
-function readme(asset: ShowcaseAsset): string {
-  return `# ${asset.title}
-
-${asset.abstract}
-
-## What ships in this asset
-
-- Paper source and rendered PDF for human reading.
-- Agent skill: \`${asset.skill.name}\`.
-- Workflow: \`${asset.workflowName}\`.
-- Verifiable manifest with Walrus, Sui, Git, license, and access metadata.
-
-## Why it matters
-
-Research Network treats a paper as one node inside a larger executable asset graph. A reader can inspect the argument, an agent can install the skill, and an indexer can replay the protocol events that made the release visible.
-
-## Reuse path
-
-1. Read the abstract page.
-2. Inspect the manifest and graph.
-3. Install the skill into a new workspace.
-4. Fork the asset and publish a derived release with preserved provenance.
-`;
-}
-
-function skillMarkdown(skill: ShowcaseSkill): string {
-  const guide = skill.guide.map((line) => `- ${line}`).join("\n");
-  return `# ${skill.name}
-
-${skill.description}
-
-## Operator Notes
-
-${guide}
-`;
-}
-
-function workflow(asset: ShowcaseAsset): ResearchWorkflowManifest {
-  return {
-    schema: "research-workflow/v0.1",
-    name: asset.workflowName,
-    version: asset.version,
-    description: asset.workflowDescription,
-    inputs: ["repository", "paper source", "agent run log", "evaluation evidence"],
-    outputs: ["asset manifest", "static abstract page", "skill package", "workflow graph"],
-    stages: [
-      {
-        id: "profile",
-        name: "Profile the contribution",
-        instructions: "Identify the scientific claim, executable components, access model, and provenance anchors."
-      },
-      {
-        id: "package",
-        name: "Package the asset",
-        instructions: "Assemble paper, skill, workflow, checksums, license terms, and dependency metadata."
-      },
-      {
-        id: "verify",
-        name: "Verify and index",
-        instructions: "Validate the manifest, render the paper, replay protocol events, and inspect graph edges."
-      },
-      {
-        id: "reuse",
-        name: "Prepare reuse",
-        instructions: "Expose install, fork, citation, and settlement paths for downstream humans and agents."
-      }
-    ],
-    quality_gates: [
-      { id: "manifest-complete", check: "asset.yaml validates and declares paper, skill, and workflow paths" },
-      { id: "rendered-paper", check: "abstract page includes HTML rendering or PDF preview" },
-      { id: "agent-assets-visible", check: "skill cards and graph edges are visible in the static site" }
-    ],
-    tools: ["research validate", "research web:build", "Research Network indexer"]
-  };
-}
 
 const ASSETS: ShowcaseAsset[] = [
   {
@@ -272,7 +140,6 @@ const ASSETS: ShowcaseAsset[] = [
     derivedFrom: [
       { asset_id: "ra:showcase:research-network-protocol", relation: "extends", included: ["paper", "workflow", "code"] }
     ],
-    cites: ["ra:showcase:research-network-protocol"],
     sections: [
       {
         title: "Thesis",
@@ -324,9 +191,9 @@ const ASSETS: ShowcaseAsset[] = [
     workflowDescription: "A benchmark workflow for turning browser-grounded agent research into a reusable public asset.",
     access: "public",
     derivedFrom: [
-      { asset_id: "ra:showcase:research-network-protocol", relation: "benchmarks", included: ["workflow", "skill"] }
+      { asset_id: "ra:showcase:research-network-protocol", relation: "benchmarks", included: ["workflow", "skill"] },
+      { asset_id: "ra:showcase:citation-liquidity", relation: "evaluates", included: ["paper", "benchmark"] }
     ],
-    cites: ["ra:showcase:research-network-protocol", "ra:showcase:citation-liquidity"],
     sections: [
       {
         title: "Benchmark Contract",
@@ -352,6 +219,172 @@ const ASSETS: ShowcaseAsset[] = [
   }
 ];
 
+function yaml(value: unknown): string {
+  return YAML.stringify(value, { lineWidth: 92 });
+}
+
+function texEscape(input: string): string {
+  return input
+    .replaceAll("\\", "\\textbackslash{}")
+    .replaceAll("&", "\\&")
+    .replaceAll("%", "\\%")
+    .replaceAll("$", "\\$")
+    .replaceAll("#", "\\#")
+    .replaceAll("_", "\\_")
+    .replaceAll("{", "\\{")
+    .replaceAll("}", "\\}");
+}
+
+async function writeText(filePath: string, body: string): Promise<void> {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, body, "utf8");
+}
+
+function run(command: string, args: string[], cwd: string): string {
+  const result = spawnSync(command, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed in ${cwd}:\n${result.stdout}\n${result.stderr}`);
+  }
+  return result.stdout.trim();
+}
+
+function installDeterministicClock(): () => void {
+  const RealDate = Date;
+  const realRandom = Math.random;
+  const base = RealDate.parse(FIXED_NOW);
+  let tick = 0;
+  let randomSeed = 42;
+  const nextMs = () => base + tick++ * 1000;
+  class FixedDate extends RealDate {
+    constructor(value?: string | number | Date) {
+      if (arguments.length === 0) {
+        super(nextMs());
+      } else {
+        super(value as string | number | Date);
+      }
+    }
+    static now(): number {
+      return nextMs();
+    }
+    static parse(value: string): number {
+      return RealDate.parse(value);
+    }
+    static UTC(...args: Parameters<typeof Date.UTC>): number {
+      return RealDate.UTC(...args);
+    }
+  }
+  globalThis.Date = FixedDate as DateConstructor;
+  Math.random = () => {
+    randomSeed = (randomSeed * 1664525 + 1013904223) >>> 0;
+    return randomSeed / 0x100000000;
+  };
+  return () => {
+    globalThis.Date = RealDate;
+    Math.random = realRandom;
+  };
+}
+
+function paperTex(asset: ShowcaseAsset): string {
+  const sections = asset.sections.map((section) => {
+    const paragraphs = section.paragraphs.map((paragraph) => texEscape(paragraph)).join("\n\n");
+    return `\\section{${texEscape(section.title)}}\n${paragraphs}`;
+  }).join("\n\n");
+  return `\\documentclass{article}
+\\usepackage{amsmath}
+\\usepackage{hyperref}
+\\title{${texEscape(asset.title)}}
+\\author{${texEscape(asset.author)}}
+\\date{June 2026}
+\\begin{document}
+\\maketitle
+\\begin{abstract}
+${texEscape(asset.abstract)}
+\\end{abstract}
+
+${sections}
+
+\\bibliographystyle{plain}
+\\bibliography{references}
+\\end{document}
+`;
+}
+
+function readme(asset: ShowcaseAsset): string {
+  return `# ${asset.title}
+
+${asset.abstract}
+
+## What ships in this asset
+
+- Paper source and rendered PDF for human reading.
+- Agent skill: \`${asset.skill.name}\`.
+- Workflow: \`${asset.workflowName}\`.
+- Verifiable manifest with Walrus, Sui, Git, license, and access metadata.
+
+## Protocol publication path
+
+This demo is intentionally built as a standalone Git repository, then published through the Research Network protocol kit. The generated localnet index is not hand-authored: it comes from \`publishWorkspace()\`, local Walrus packaging, local Sui-style events, and \`replayIndexer()\`.
+
+## Reuse path
+
+1. Read the abstract page.
+2. Inspect the manifest and graph.
+3. Install the skill into a new workspace.
+4. Fork the asset and publish a derived release with preserved provenance.
+`;
+}
+
+function skillMarkdown(skill: ShowcaseSkill): string {
+  const guide = skill.guide.map((line) => `- ${line}`).join("\n");
+  return `# ${skill.name}
+
+${skill.description}
+
+## Operator Notes
+
+${guide}
+`;
+}
+
+function workflow(asset: ShowcaseAsset): ResearchWorkflowManifest {
+  return {
+    schema: "research-workflow/v0.1",
+    name: asset.workflowName,
+    version: asset.version,
+    description: asset.workflowDescription,
+    inputs: ["repository", "paper source", "agent run log", "evaluation evidence"],
+    outputs: ["asset manifest", "static abstract page", "skill package", "workflow graph"],
+    stages: [
+      {
+        id: "profile",
+        name: "Profile the contribution",
+        instructions: "Identify the scientific claim, executable components, access model, and provenance anchors."
+      },
+      {
+        id: "package",
+        name: "Package the asset",
+        instructions: "Assemble paper, skill, workflow, checksums, license terms, and dependency metadata."
+      },
+      {
+        id: "publish",
+        name: "Publish through protocol kit",
+        instructions: "Run publishWorkspace so local Walrus packaging, Sui-style events, and index replay produce the public graph."
+      },
+      {
+        id: "reuse",
+        name: "Prepare reuse",
+        instructions: "Expose install, fork, citation, and settlement paths for downstream humans and agents."
+      }
+    ],
+    quality_gates: [
+      { id: "manifest-complete", check: "asset.yaml validates and declares paper, skill, and workflow paths" },
+      { id: "protocol-published", check: "localnet events contain ResearchAssetPublished and SkillPublished" },
+      { id: "agent-assets-visible", check: "skill cards and graph edges are visible in the static site" }
+    ],
+    tools: ["research validate", "research publish", "research replay", "research web:build"]
+  };
+}
+
 async function compilePdf(workspace: string): Promise<void> {
   const paperDir = path.join(workspace, "paper");
   const result = spawnSync("pdflatex", ["-interaction=nonstopmode", "main.tex"], {
@@ -365,7 +398,7 @@ async function compilePdf(workspace: string): Promise<void> {
   await Promise.all(["main.aux", "main.log", "main.out"].map((file) => fs.rm(path.join(paperDir, file), { force: true })));
 }
 
-async function writeWorkspace(asset: ShowcaseAsset): Promise<string> {
+async function writeDemoRepo(asset: ShowcaseAsset): Promise<string> {
   const workspace = path.join(WORKSPACES_ROOT, asset.slug);
   await fs.rm(workspace, { recursive: true, force: true });
 
@@ -418,7 +451,7 @@ async function writeWorkspace(asset: ShowcaseAsset): Promise<string> {
       skills: [],
       datasets: [],
       workflows: [],
-      assets: asset.cites ?? []
+      assets: (asset.derivedFrom ?? []).map((item) => item.asset_id)
     },
     dependencies: {
       skills: [],
@@ -467,7 +500,7 @@ async function writeWorkspace(asset: ShowcaseAsset): Promise<string> {
     depends_on: [],
     entry: "SKILL.md",
     access: { visibility: "public" },
-    tests: ["research validate", "research web:build"]
+    tests: ["research validate", "research publish", "research web:build"]
   };
 
   await writeText(path.join(workspace, "asset.yaml"), yaml(manifest));
@@ -482,244 +515,102 @@ async function writeWorkspace(asset: ShowcaseAsset): Promise<string> {
   await writeText(path.join(workspace, "data", "README.md"), "# Data Surface\n\nThis showcase uses synthetic protocol events and public metadata only.\n");
   await writeText(path.join(workspace, "experiments", "README.md"), "# Experiments\n\nThe public site is the acceptance target: homepage listing, abstract page, skill card, graph page, and dashboard must render without placeholder content.\n");
   await compilePdf(workspace);
+
+  run("git", ["init"], workspace);
+  run("git", ["checkout", "-B", "main"], workspace);
+  run("git", ["config", "user.name", "Research Network Demo"], workspace);
+  run("git", ["config", "user.email", "demo@research.network"], workspace);
+  run("git", ["add", "."], workspace);
+  run("git", ["commit", "-m", `seed ${asset.slug}`], workspace);
   return workspace;
 }
 
-async function releaseFiles(root: string): Promise<ReleaseFile[]> {
-  const files = await listFiles(root);
-  const out: ReleaseFile[] = [];
-  for (const file of files.sort()) {
-    const fullPath = path.join(root, file);
-    const stat = await fs.stat(fullPath);
-    out.push({ path: file, size: stat.size, sha256: await sha256File(fullPath) });
-  }
-  return out;
-}
-
-function contentHash(files: ReleaseFile[]): string {
-  return sha256Bytes(files.map((file) => `${file.path}\0${file.size}\0${file.sha256}`).join("\n"));
-}
-
-async function releaseManifest(asset: ShowcaseAsset, workspace: string): Promise<ReleaseManifest> {
-  const files = await releaseFiles(workspace);
-  const assetYamlHash = files.find((file) => file.path === "asset.yaml")?.sha256 ?? await sha256File(path.join(workspace, "asset.yaml"));
-  const skillId = `skill:${slugify(asset.skill.name)}@${asset.skill.version}`;
-  const workflowId = `workflow:${slugify(asset.workflowName)}@${asset.version}`;
-  const skill = YAML.parse(await fs.readFile(path.join(workspace, "skill", asset.skill.name, "skill.yaml"), "utf8")) as ResearchSkillManifest;
-  const workflowManifest = YAML.parse(await fs.readFile(path.join(workspace, "workflow", "workflow.yaml"), "utf8")) as ResearchWorkflowManifest;
-  const assetManifest = YAML.parse(await fs.readFile(path.join(workspace, "asset.yaml"), "utf8")) as ResearchAssetManifest;
-  const base: Omit<ReleaseManifest, "manifest_hash"> = {
-    schema: "research-asset-manifest/v0.1",
-    repo: `file://${workspace}`,
-    commit: "public-showcase-2026-06-23",
-    asset_yaml_hash: assetYamlHash,
-    content_hash: contentHash(files),
-    created_at: FIXED_NOW,
-    files,
-    assets: assetManifest,
-    skills: [{ id: skillId, path: `skill/${asset.skill.name}/skill.yaml`, manifest: skill }],
-    workflows: [{ id: workflowId, path: "workflow/workflow.yaml", manifest: workflowManifest }],
-    relationships: [
-      {
-        src_id: asset.id,
-        dst_id: workflowId,
-        relation_type: "contains_workflow",
-        metadata: { relationship_id: `${asset.id}->contains_workflow->${workflowId}`, path: "workflow/workflow.yaml" }
-      },
-      ...(asset.derivedFrom ?? []).map((derived) => ({
-        src_id: asset.id,
-        dst_id: derived.asset_id,
-        relation_type: derived.relation,
-        metadata: { relationship_id: `${asset.id}->${derived.relation}->${derived.asset_id}`, included: derived.included }
-      }))
-    ]
-  };
-  return { ...base, manifest_hash: sha256Bytes(JSON.stringify(base)) };
-}
-
-function event(tx: string, seq: number, type: string, payload: Record<string, unknown>, timestampOffset = 0): ProtocolEvent {
-  const timestamp = Date.parse(FIXED_NOW) + timestampOffset;
-  return {
-    tx_digest: tx,
-    event_seq: seq,
-    event_type: type,
-    checkpoint: timestamp,
-    timestamp_ms: timestamp,
-    payload: { ...payload, created_at: new Date(timestamp).toISOString() }
-  };
-}
-
-function reportId(assetId: string): string {
-  return `report:${shortHash(`${assetId}:showcase-report`, 20)}`;
-}
-
-async function buildIndex(manifests: Map<string, ReleaseManifest>): Promise<IndexState> {
-  const events: ProtocolEvent[] = [];
-  let tick = 0;
+async function removeEmbeddedGitDirs(): Promise<void> {
   for (const asset of ASSETS) {
-    const manifest = manifests.get(asset.id);
-    if (!manifest) throw new Error(`Missing manifest for ${asset.id}`);
-    const tx = `tx_${shortHash(`${asset.id}:${manifest.manifest_hash}`, 32)}`;
-    const walrusBlob = `walrus:showcase:${shortHash(manifest.content_hash, 24)}`;
-    const object = objectId("0x", `${asset.id}:object`);
-    let seq = 0;
-    events.push(event(tx, seq++, "ResearchAssetPublished", {
-      asset_id: asset.id,
-      sui_object_id: object,
-      owner: OWNER,
-      creator: OWNER,
-      asset_type_mask: asset.types,
-      version: asset.version,
-      title: asset.title,
-      manifest_hash: manifest.manifest_hash,
-      content_hash: manifest.content_hash,
-      walrus_blob_id: walrusBlob,
-      walrus_object_id: objectId("0x", `${asset.id}:walrus`),
-      repo_url: manifest.repo,
-      repo_commit: manifest.commit
-    }, tick += 1000));
-    events.push(event(tx, seq++, "ResearchReportPublished", {
-      report_id: reportId(asset.id),
-      sui_object_id: objectId("0x", `${asset.id}:report`),
-      agent: OWNER,
-      asset_id: asset.id,
-      title: asset.title,
-      visibility: asset.access,
-      required_tier: asset.requiredTier ?? 0,
-      walrus_blob_id: walrusBlob,
-      seal_id: asset.access === "public" ? "" : "0x5ea1000000000000000000000000000000000000",
-      plaintext_commitment: manifest.content_hash,
-      free_preview_hash: shortHash(asset.abstract, 32),
-      free_preview: asset.abstract
-    }, tick += 1000));
-    for (const skill of manifest.skills) {
-      events.push(event(tx, seq++, "SkillPublished", {
-        skill_id: skill.id,
-        sui_object_id: objectId("0x", `${asset.id}:${skill.id}`),
-        source_asset_id: asset.id,
-        name: skill.manifest.name,
-        version: skill.manifest.version,
-        description: skill.manifest.description,
-        relation: skill.manifest.relation,
-        manifest_hash: manifest.manifest_hash,
-        walrus_blob_id: walrusBlob,
-        owner_address: OWNER
-      }, tick += 1000));
-    }
-    for (const relationship of manifest.relationships.filter((item) => item.relation_type === "contains_workflow")) {
-      events.push(event(tx, seq++, "AssetRelationshipRegistered", {
-        ...relationship,
-        source_asset_id: asset.id
-      }, tick += 1000));
-    }
+    await fs.rm(path.join(WORKSPACES_ROOT, asset.slug, ".git"), { recursive: true, force: true });
+  }
+}
+
+async function seedProtocolEconomics(): Promise<void> {
+  const index = await readIndex(LOCALNET_ROOT);
+  const citationReport = Object.values(index.reports).find((report) => report.asset_id === "ra:showcase:citation-liquidity");
+  if (!citationReport) {
+    throw new Error("Missing citation-liquidity report after protocol publish");
   }
 
-  events.push(event("tx_showcase_graph", 0, "AssetForked", {
-    parent_asset_id: "ra:showcase:research-network-protocol",
-    child_asset_id: "ra:showcase:citation-liquidity",
-    included_mask: 69,
-    caller: OWNER,
-    relation: "extends"
-  }, tick += 1000));
-  events.push(event("tx_showcase_graph", 1, "AssetForked", {
-    parent_asset_id: "ra:showcase:research-network-protocol",
-    child_asset_id: "ra:showcase:browse-to-publish-benchmark",
-    included_mask: 6,
-    caller: OWNER,
-    relation: "benchmarks"
-  }, tick += 1000));
-  events.push(event("tx_showcase_graph", 2, "AssetCited", {
-    src_asset_id: "ra:showcase:browse-to-publish-benchmark",
-    dst_asset_id: "ra:showcase:citation-liquidity",
-    relation_type: "evaluates",
-    caller: OWNER
-  }, tick += 1000));
-  events.push(event("tx_showcase_access", 0, "PlatformMembershipPurchased", {
-    pass_id: "pass:showcase:member-001",
-    owner: "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771",
+  await buyPlatformMembership({
+    ownerAddress: BUYER,
     tier: 1,
-    started_ms: Date.parse(FIXED_NOW),
-    expires_ms: Date.parse(FIXED_NOW) + 30 * 24 * 60 * 60 * 1000
-  }, tick += 1000));
-  events.push(event("tx_showcase_access", 1, "AccessReceiptRecorded", {
-    receipt_id: "receipt:showcase:citation-read-001",
-    period_id: 202606,
-    user: "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771",
-    report_id: reportId("ra:showcase:citation-liquidity"),
+    durationDays: 30,
+    passId: "pass:showcase:member-001",
+    localnetRoot: LOCALNET_ROOT
+  });
+  await recordAccessReceipt({
+    periodId: 202606,
+    user: BUYER,
+    reportId: citationReport.id,
     agent: OWNER,
-    access_type: "platform_member",
-    created_ms: Date.parse(FIXED_NOW) + tick
-  }, tick += 1000));
-  events.push(event("tx_showcase_access", 2, "MembershipReportSettled", {
-    period_id: 202606,
-    user: "0x91f3a0f2d4a79e32beabf5c260d332f53cf1a771",
-    report_id: reportId("ra:showcase:citation-liquidity"),
-    agent: OWNER,
-    amount: 4200,
-    created_ms: Date.parse(FIXED_NOW) + tick
-  }, tick += 1000));
-  events.push(event("tx_showcase_delegation", 0, "DelegationCreated", {
-    job_id: "delegation:showcase:browse-review",
+    receiptId: "receipt:showcase:citation-read-001",
+    localnetRoot: LOCALNET_ROOT
+  });
+  await settleMembershipPeriod({
+    periodId: 202606,
+    user: BUYER,
+    grossAmount: 5000,
+    localnetRoot: LOCALNET_ROOT
+  });
+  const job = await createDelegationJob({
     buyer: "0xa11ce00000000000000000000000000000000000",
     agent: OWNER,
     budget: 9000,
-    deadline_ms: Date.parse(FIXED_NOW) + 7 * 24 * 60 * 60 * 1000,
-    created_ms: Date.parse(FIXED_NOW) + tick
-  }, tick += 1000));
-  events.push(event("tx_showcase_delegation", 1, "DelegationCompleted", {
-    job_id: "delegation:showcase:browse-review",
-    payout: 8600,
-    created_ms: Date.parse(FIXED_NOW) + tick
-  }, tick += 1000));
-  events.push(event("tx_showcase_payment", 0, "CrossChainPaymentReceived", {
-    order_hash: "order:showcase:base-to-sui-001",
-    source_chain: "base",
-    source_tx: "0xbasepayment001",
-    buyer: "0xa11ce00000000000000000000000000000000000",
-    amount: 12000
-  }, tick += 1000));
-
-  const byBlob = new Map<string, ReleaseManifest>();
-  for (const asset of ASSETS) {
-    const manifest = manifests.get(asset.id);
-    if (!manifest) throw new Error(`Missing manifest for ${asset.id}`);
-    byBlob.set(`walrus:showcase:${shortHash(manifest.content_hash, 24)}`, manifest);
-  }
-  const index = await applyEvents(emptyIndexState(), events, {
-    manifestLoader: async (candidate) => byBlob.get(String(candidate.payload.walrus_blob_id))
+    deadlineMs: Date.now() + 7 * 24 * 60 * 60 * 1000,
+    jobId: "delegation:showcase:browse-review",
+    localnetRoot: LOCALNET_ROOT
   });
-  index.updated_at = FIXED_NOW;
-  for (const document of Object.values(index.search_documents)) {
-    document.updated_at = FIXED_NOW;
+  await completeDelegationJob({
+    jobId: job.jobId,
+    payout: 8600,
+    localnetRoot: LOCALNET_ROOT
+  });
+}
+
+async function assertProtocolGeneratedIndex(): Promise<void> {
+  const index = await readIndex(LOCALNET_ROOT);
+  const assets = Object.values(index.assets);
+  const assetEvents = index.events.filter((event) => event.event_type === "ResearchAssetPublished");
+  const skillEvents = index.events.filter((event) => event.event_type === "SkillPublished");
+  if (assets.length !== ASSETS.length || assetEvents.length !== ASSETS.length || skillEvents.length !== ASSETS.length) {
+    throw new Error(`Expected ${ASSETS.length} protocol-published assets and skills; saw ${assets.length} assets, ${assetEvents.length} asset events, ${skillEvents.length} skill events`);
   }
-  for (const relationship of Object.values(index.relationships)) {
-    relationship.created_at = relationship.created_at || FIXED_NOW;
+  for (const asset of assets) {
+    if (!asset.repo_url.startsWith("file://")) {
+      throw new Error(`Showcase repo URL should come from a local demo repo: ${asset.repo_url}`);
+    }
   }
-  return index;
 }
 
 async function main(): Promise<void> {
   await fs.rm(SHOWCASE_ROOT, { recursive: true, force: true });
+  await fs.mkdir(WORKSPACES_ROOT, { recursive: true });
   await fs.mkdir(LOCALNET_ROOT, { recursive: true });
-  const manifests = new Map<string, ReleaseManifest>();
-  for (const asset of ASSETS) {
-    const workspace = await writeWorkspace(asset);
-    manifests.set(asset.id, await releaseManifest(asset, workspace));
+
+  const restoreClock = installDeterministicClock();
+  try {
+    for (const asset of ASSETS) {
+      const workspace = await writeDemoRepo(asset);
+      await publishWorkspace(workspace, LOCALNET_ROOT);
+    }
+    await seedProtocolEconomics();
+    await replayIndexer({ localnetRoot: LOCALNET_ROOT });
+  } finally {
+    restoreClock();
   }
-  const index = await buildIndex(manifests);
-  await writeJsonFile(path.join(LOCALNET_ROOT, "index.json"), index);
-  await fs.writeFile(path.join(LOCALNET_ROOT, "events.ndjson"), index.events.map((item) => JSON.stringify(item)).join("\n") + "\n", "utf8");
-  await writeJsonFile(path.join(LOCALNET_ROOT, "payments.json"), []);
-  await writeJsonFile(path.join(LOCALNET_ROOT, "auth.json"), { intents: {}, accounts: {} });
-  await writeJsonFile(path.join(LOCALNET_ROOT, "sui-event-cursors.json"), {
-    module_cursors: {},
-    last_checkpoints: {},
-    pages_fetched: 0,
-    events_seen: 0,
-    events_ingested: 0,
-    updated_at: FIXED_NOW
-  });
-  console.log(`Public showcase written to ${SHOWCASE_ROOT}`);
+
+  await removeEmbeddedGitDirs();
+  await assertProtocolGeneratedIndex();
+  const index = await readIndex(LOCALNET_ROOT);
+  console.log(`Public showcase protocol index written to ${SHOWCASE_ROOT}`);
+  console.log(`Published ${Object.keys(index.assets).length} demo repos, ${Object.keys(index.skills).length} skills, ${Object.keys(index.relationships).length} relationships, ${index.events.length} protocol events.`);
 }
 
 main().catch((error) => {

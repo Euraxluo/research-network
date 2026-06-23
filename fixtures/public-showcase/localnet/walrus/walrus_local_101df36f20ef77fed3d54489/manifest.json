@@ -1,0 +1,348 @@
+{
+  "schema": "research-asset-manifest/v0.1",
+  "repo": "file:///Users/echo/project/research-network/agent_research_asset_protocol_workflow/fixtures/public-showcase/workspaces/browse-to-publish-benchmark",
+  "commit": "6dfbd828802eaedcb672b0c987b617f40b02ec11",
+  "asset_yaml_hash": "sha256:f8bd0486db655402bc42807a48e0a3177c098cf3f0fbad6346d4588c17835570",
+  "content_hash": "sha256:c7859e5200bb5cb236364e1f1d0ba68714bd0b33fdd143c85b61e39a428babd7",
+  "created_at": "2026-06-23T00:00:18.000Z",
+  "files": [
+    {
+      "path": "LICENSE",
+      "size": 69,
+      "sha256": "sha256:2d04bec7ef26d4745f70e3dc061fbebd13c9fb2a4c1fb8ffa2335dd2e04129ef"
+    },
+    {
+      "path": "README.md",
+      "size": 1093,
+      "sha256": "sha256:32d251d77164886077032787ef42775f72fcfbe3763c18c1eeab922a4f63e3c1"
+    },
+    {
+      "path": "asset.yaml",
+      "size": 2574,
+      "sha256": "sha256:f8bd0486db655402bc42807a48e0a3177c098cf3f0fbad6346d4588c17835570"
+    },
+    {
+      "path": "code/README.md",
+      "size": 144,
+      "sha256": "sha256:723359831538fdb7140d4589da7896c122f6c08df890bfd3cc79a4831b865b46"
+    },
+    {
+      "path": "data/README.md",
+      "size": 87,
+      "sha256": "sha256:68af328c0fa3196d37c5767dc5d1a329602ac2258815e23ddfa0eecfbd07e7ce"
+    },
+    {
+      "path": "experiments/README.md",
+      "size": 169,
+      "sha256": "sha256:40bc2768e863857b8f68eed3d69cd8cf3b12db2a70d7978a0ea69b66bb66ecdb"
+    },
+    {
+      "path": "paper/main.pdf",
+      "size": 80111,
+      "sha256": "sha256:34c54a414c5f0f5807a2877e915a22752aad8c6931b3f0eadcc58f4dc7b7cff1"
+    },
+    {
+      "path": "paper/main.tex",
+      "size": 1731,
+      "sha256": "sha256:ec8ed0cad1818c8c9c8a6faf093de089875285f13d883785ee7548cd382e14dd"
+    },
+    {
+      "path": "paper/references.bib",
+      "size": 137,
+      "sha256": "sha256:f2cdd17a55f08d4940de27dbaab3922bf5d0e8055c852281ebca2256f52e30db"
+    },
+    {
+      "path": "skill/browser-evidence-recorder/SKILL.md",
+      "size": 418,
+      "sha256": "sha256:bf0d3ee95e8894872ba0f0b73c968be4b4e11ea5e3334420afebc820b846f1e7"
+    },
+    {
+      "path": "skill/browser-evidence-recorder/skill.yaml",
+      "size": 469,
+      "sha256": "sha256:a54ae19322551ec1346926da0642b8b083556a84de347791c78460fed1cfbcd5"
+    },
+    {
+      "path": "workflow/workflow.yaml",
+      "size": 1431,
+      "sha256": "sha256:eb645793a8c852fc24ac7ee29e22d68bf9c0e65f047e5f85a017de9e59885d7d"
+    }
+  ],
+  "assets": {
+    "schema": "research-asset/v0.1",
+    "id": "ra:showcase:browse-to-publish-benchmark",
+    "title": "Browse-to-Publish Benchmark for Autonomous Researchers",
+    "slug": "browse-to-publish-benchmark",
+    "version": "0.1.0",
+    "types": [
+      "paper",
+      "benchmark",
+      "workflow",
+      "skill",
+      "dataset"
+    ],
+    "abstract": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent.",
+    "tags": [
+      "browser-agent",
+      "benchmark",
+      "evidence",
+      "publish-workflow"
+    ],
+    "categories": [
+      "cs.AI",
+      "cs.SE",
+      "cs.DL"
+    ],
+    "authors": [
+      {
+        "name": "Autonomous Research Bench",
+        "type": "organization",
+        "wallet": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+        "github": "research-network",
+        "agent_id": "agent:autonomous-research-bench"
+      }
+    ],
+    "assets": {
+      "paper": {
+        "path": "paper/main.pdf",
+        "source": "paper/main.tex",
+        "bib": "paper/references.bib"
+      },
+      "skills": [
+        {
+          "name": "browser-evidence-recorder",
+          "path": "skill/browser-evidence-recorder/",
+          "relation": "owned"
+        }
+      ],
+      "workflow": {
+        "path": "workflow/workflow.yaml"
+      }
+    },
+    "generated_by": {
+      "agent": "agent:autonomous-research-bench",
+      "skills": [
+        "browser-evidence-recorder"
+      ],
+      "workflow": "workflow/workflow.yaml",
+      "models": [
+        "codex",
+        "review-agents"
+      ]
+    },
+    "derived_from": [
+      {
+        "asset_id": "ra:showcase:research-network-protocol",
+        "relation": "benchmarks",
+        "included": [
+          "workflow",
+          "skill"
+        ]
+      },
+      {
+        "asset_id": "ra:showcase:citation-liquidity",
+        "relation": "evaluates",
+        "included": [
+          "paper",
+          "benchmark"
+        ]
+      }
+    ],
+    "references": {
+      "papers": [],
+      "skills": [],
+      "datasets": [],
+      "workflows": [],
+      "assets": [
+        "ra:showcase:research-network-protocol",
+        "ra:showcase:citation-liquidity"
+      ]
+    },
+    "dependencies": {
+      "skills": [],
+      "datasets": [],
+      "packages": {
+        "@research-network/protocol-kit": "0.1.0"
+      }
+    },
+    "legal_terms": {
+      "paper": "CC-BY-4.0",
+      "code": "MIT",
+      "data": "CC-BY-4.0"
+    },
+    "access": {
+      "visibility": "public",
+      "required_tier": 0,
+      "free_preview": "This benchmark specifies a full agent path from browsing evidence to publishing a verifiable research asset. It captures sources, browser observations, extracted claims, generated artifacts, reviewer checks, and the final graph edges that make the result reusable by another agent."
+    },
+    "commerce": {
+      "purchasable": false,
+      "price_policy": {
+        "model": "open"
+      },
+      "revenue_split": [
+        {
+          "recipient": "0x4f1c7a9d83b25e7610d9a4b8c6e2f13a4d59b7c8",
+          "role": "creator",
+          "weight_bps": 8500
+        },
+        {
+          "recipient": "treasury",
+          "role": "platform_treasury",
+          "weight_bps": 1500
+        }
+      ]
+    },
+    "publish": {
+      "storage": "walrus",
+      "chain": "sui",
+      "visibility": "public",
+      "register_on_chain": true
+    }
+  },
+  "skills": [
+    {
+      "id": "skill:browser-evidence-recorder@0.1.0",
+      "path": "skill/browser-evidence-recorder/skill.yaml",
+      "manifest": {
+        "schema": "research-skill/v0.1",
+        "name": "browser-evidence-recorder",
+        "version": "0.1.0",
+        "description": "Captures browser evidence, source metadata, claim extraction notes, and publication checks for autonomous research runs.",
+        "capabilities": [
+          "browser-evidence",
+          "claim-ledger",
+          "artifact-qc",
+          "publish-readiness"
+        ],
+        "relation": "owned",
+        "derived_from": null,
+        "depends_on": [],
+        "entry": "SKILL.md",
+        "access": {
+          "visibility": "public"
+        },
+        "tests": [
+          "research validate",
+          "research publish",
+          "research web:build"
+        ]
+      }
+    }
+  ],
+  "workflows": [
+    {
+      "id": "workflow:browse-evidence-publish-asset@0.1.0",
+      "path": "workflow/workflow.yaml",
+      "manifest": {
+        "schema": "research-workflow/v0.1",
+        "name": "browse-evidence-publish-asset",
+        "version": "0.1.0",
+        "description": "A benchmark workflow for turning browser-grounded agent research into a reusable public asset.",
+        "inputs": [
+          "repository",
+          "paper source",
+          "agent run log",
+          "evaluation evidence"
+        ],
+        "outputs": [
+          "asset manifest",
+          "static abstract page",
+          "skill package",
+          "workflow graph"
+        ],
+        "stages": [
+          {
+            "id": "profile",
+            "name": "Profile the contribution",
+            "instructions": "Identify the scientific claim, executable components, access model, and provenance anchors."
+          },
+          {
+            "id": "package",
+            "name": "Package the asset",
+            "instructions": "Assemble paper, skill, workflow, checksums, license terms, and dependency metadata."
+          },
+          {
+            "id": "publish",
+            "name": "Publish through protocol kit",
+            "instructions": "Run publishWorkspace so local Walrus packaging, Sui-style events, and index replay produce the public graph."
+          },
+          {
+            "id": "reuse",
+            "name": "Prepare reuse",
+            "instructions": "Expose install, fork, citation, and settlement paths for downstream humans and agents."
+          }
+        ],
+        "quality_gates": [
+          {
+            "id": "manifest-complete",
+            "check": "asset.yaml validates and declares paper, skill, and workflow paths"
+          },
+          {
+            "id": "protocol-published",
+            "check": "localnet events contain ResearchAssetPublished and SkillPublished"
+          },
+          {
+            "id": "agent-assets-visible",
+            "check": "skill cards and graph edges are visible in the static site"
+          }
+        ],
+        "tools": [
+          "research validate",
+          "research publish",
+          "research replay",
+          "research web:build"
+        ]
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "src_id": "ra:showcase:browse-to-publish-benchmark",
+      "dst_id": "skill:browser-evidence-recorder@0.1.0",
+      "relation_type": "contains_skill",
+      "metadata": {
+        "relationship_id": "ra:showcase:browse-to-publish-benchmark->contains_skill->skill:browser-evidence-recorder@0.1.0",
+        "path": "skill/browser-evidence-recorder/",
+        "relation": "owned"
+      }
+    },
+    {
+      "src_id": "ra:showcase:browse-to-publish-benchmark",
+      "dst_id": "workflow:browse-evidence-publish-asset@0.1.0",
+      "relation_type": "contains_workflow",
+      "metadata": {
+        "relationship_id": "ra:showcase:browse-to-publish-benchmark->contains_workflow->workflow:browse-evidence-publish-asset@0.1.0",
+        "path": "workflow/workflow.yaml"
+      }
+    },
+    {
+      "src_id": "ra:showcase:browse-to-publish-benchmark",
+      "dst_id": "ra:showcase:research-network-protocol",
+      "relation_type": "benchmarks",
+      "metadata": {
+        "relationship_id": "ra:showcase:browse-to-publish-benchmark->benchmarks->ra:showcase:research-network-protocol",
+        "asset_id": "ra:showcase:research-network-protocol",
+        "relation": "benchmarks",
+        "included": [
+          "workflow",
+          "skill"
+        ]
+      }
+    },
+    {
+      "src_id": "ra:showcase:browse-to-publish-benchmark",
+      "dst_id": "ra:showcase:citation-liquidity",
+      "relation_type": "evaluates",
+      "metadata": {
+        "relationship_id": "ra:showcase:browse-to-publish-benchmark->evaluates->ra:showcase:citation-liquidity",
+        "asset_id": "ra:showcase:citation-liquidity",
+        "relation": "evaluates",
+        "included": [
+          "paper",
+          "benchmark"
+        ]
+      }
+    }
+  ],
+  "manifest_hash": "sha256:1cfec83b176ae61bed1ad09fa26af6ff65808a41c5014c2517cb7806c66d4a50"
+}
