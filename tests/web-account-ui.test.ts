@@ -54,11 +54,48 @@ function seedSignedInSession(): void {
   );
 }
 
+function seedGithubBinding(): void {
+  dom.window.localStorage.setItem(
+    "rn_github",
+    JSON.stringify({
+      sui_address: "0x" + "12".repeat(32),
+      login: "echo",
+      installation_id: 101,
+      account: "echo",
+      account_type: "User",
+      repos: ["echo/loop-engine"],
+      available_repos: ["echo/loop-engine"],
+      selected_repo: "echo/loop-engine"
+    })
+  );
+}
+
+function mockIndexResponse(body: Record<string, unknown>): void {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes("/api/index")) {
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response(JSON.stringify({ valid: false }), { status: 200, headers: { "content-type": "application/json" } });
+  }));
+}
+
+async function flushEffects(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
 describe("AccountPage production UI", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     root = null;
     installDom();
+    mockIndexResponse({
+      assets: [],
+      membership: { recent_events: [] },
+      delegations: { recent_events: [] }
+    });
   });
 
   afterEach(async () => {
@@ -69,6 +106,7 @@ describe("AccountPage production UI", () => {
     }
     dom.window.close();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("shows product account sections for a signed-in user", async () => {
@@ -76,9 +114,12 @@ describe("AccountPage production UI", () => {
     await renderAccountPage();
 
     const text = dom.window.document.body.textContent || "";
+    expect(text).toContain("Current profile");
+    expect(text).toContain("Identity and scopes");
     expect(text).toContain("Sui identity");
     expect(text).toContain("Connected GitHub repositories");
-    expect(text).toContain("My publications");
+    expect(text).toContain("My assets");
+    expect(text).toContain("Recent proofs");
     expect(text).toContain("reader@example.com");
   });
 
@@ -97,5 +138,59 @@ describe("AccountPage production UI", () => {
     expect(dom.window.document.querySelector('[data-testid="export-acceptance-agent"]')).toBeNull();
     expect(dom.window.document.querySelector('[data-testid="debug-reveal-acceptance-buyer"]')).toBeNull();
     expect(dom.window.document.querySelector('[data-testid="debug-start-acceptance-buyer-login"]')).toBeNull();
+  });
+
+  it("loads this profile's assets and activity from the live index API", async () => {
+    const address = "0x" + "12".repeat(32);
+    seedSignedInSession();
+    seedGithubBinding();
+    mockIndexResponse({
+      assets: [
+        {
+          id: "ra:loop-engine",
+          title: "Loop Engine Research Report",
+          authors: "Echo (@echo)",
+          repo_url: "https://github.com/echo/loop-engine",
+          sui_object_id: "0x" + "34".repeat(32),
+          tx_digest: "tx-loop",
+          tx_sender: address,
+          created_at: "2026-06-23T10:00:00.000Z"
+        }
+      ],
+      membership: {
+        recent_events: [
+          {
+            event_type: "PlatformMembershipPurchased",
+            subject_address: address,
+            tx_digest: "tx-member",
+            amount_mist: "1000000",
+            created_at: "2026-06-23T10:01:00.000Z"
+          }
+        ]
+      },
+      delegations: {
+        recent_events: [
+          {
+            event_type: "DelegationCreated",
+            buyer: address,
+            agent: address,
+            tx_digest: "tx-delegation",
+            budget_mist: "1000000",
+            created_at: "2026-06-23T10:02:00.000Z"
+          }
+        ]
+      }
+    });
+
+    await renderAccountPage();
+    await flushEffects();
+
+    const text = dom.window.document.body.textContent || "";
+    expect(text).toContain("@echo");
+    expect(text).toContain("echo/loop-engine");
+    expect(text).toContain("Loop Engine Research Report");
+    expect(text).toContain("PlatformMembershipPurchased");
+    expect(text).toContain("DelegationCreated");
+    expect(fetch).toHaveBeenCalledWith("/api/index?limit=20", { cache: "no-store" });
   });
 });

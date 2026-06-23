@@ -1106,6 +1106,14 @@ h2 { font-size: 19px; margin: 26px 0 10px; }
 .live-dashboard-asset strong { display: block; margin-bottom: 2px; font-size: 14px; color: var(--ink); }
 .live-dashboard-asset p { margin: 5px 0 0; max-width: 520px; color: #333; }
 .live-dashboard-proof { display: flex; flex-direction: column; gap: 4px; }
+.live-empty-card { flex: 1 1 100%; border: 1px solid var(--line); border-radius: 4px; background: #fff; padding: 14px 16px; min-width: 260px; }
+.live-empty-card strong { display: block; margin-bottom: 4px; color: var(--ink); }
+.live-empty-card p { margin: 0 0 10px; max-width: 720px; color: #333; }
+.live-empty-card-loading { background: #fafafa; }
+.live-event-rail { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.live-event-chip { border: 1px solid var(--line); border-radius: 3px; background: #fafafa; color: #555; font: 11px/1.5 var(--mono); padding: 2px 7px; }
+.live-empty-table { padding: 12px 4px; font-family: var(--sans); }
+.live-empty-table p { margin: 6px 0 0; }
 .data-table.live-membership-table th:nth-child(1) { width: 25%; }
 .data-table.live-membership-table th:nth-child(2) { width: 25%; }
 .data-table.live-membership-table th:nth-child(3) { width: 25%; }
@@ -1176,6 +1184,35 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .repo-account input { margin-top: 3px; }
 .repo-account.unavailable { opacity: .68; }
 .repo-actions { margin: 12px 0 14px; }
+.account-shell { display: grid; gap: 18px; }
+.account-profile { display: flex; align-items: center; gap: 16px; border-top: 2px solid var(--arxiv-red); border-bottom: 1px solid var(--line); padding: 16px 0; }
+.account-avatar { flex: none; display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; background: #f7f7f7; border: 1px solid var(--line); color: var(--arxiv-red); font: 700 17px/1 var(--serif); }
+.account-profile-main { flex: 1; min-width: 0; }
+.account-profile-main h1 { margin: 0 0 3px; line-height: 1.15; overflow-wrap: anywhere; }
+.account-kicker { margin: 0 0 2px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+.account-subtitle { margin: 0; color: var(--muted); font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; }
+.account-profile-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0; }
+.account-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; align-items: start; }
+.account-panel { min-width: 0; border-top: 1px solid var(--line); padding-top: 14px; }
+.account-panel-wide { grid-column: 1 / -1; }
+.account-panel h2 { margin: 0; }
+.account-panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.account-list { display: grid; gap: 8px; }
+.account-row { display: flex; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 4px; background: #fff; padding: 10px 12px; min-width: 0; }
+.account-row > div { min-width: 0; }
+.account-row-title { margin: 0 0 2px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+.account-row strong { display: block; overflow-wrap: anywhere; }
+.account-row p { margin: 2px 0 0; }
+.account-row code { align-self: flex-start; max-width: 42%; overflow-wrap: anywhere; }
+.account-empty { border: 1px solid var(--line); border-radius: 4px; background: #fafafa; padding: 12px 14px; }
+.account-empty p { margin: 4px 0 0; }
+.account-asset-list, .account-event-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.account-asset-list li, .account-event-list li { border-bottom: 1px solid #eee; padding-bottom: 10px; }
+.account-asset-list li:last-child, .account-event-list li:last-child { border-bottom: 0; padding-bottom: 0; }
+.account-asset-list p, .account-event-list p { margin: 3px 0 0; }
+.account-proof-links { display: flex; flex-wrap: wrap; gap: 10px; font-family: var(--mono); font-size: 12px; }
+.account-event-list li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.account-event-list li > div { min-width: 0; }
 
 /* protocol workbench */
 .workbench-root { max-width: 920px; }
@@ -1312,6 +1349,11 @@ a.card h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--link); }
   .workbench-form { grid-template-columns: 1fr; }
   .report-head { display: block; }
   .pill { margin-top: 5px; }
+  .account-profile { align-items: flex-start; flex-wrap: wrap; }
+  .account-profile-actions { width: 100%; justify-content: flex-start; }
+  .account-row { display: block; }
+  .account-row code { display: inline-block; max-width: 100%; margin-top: 6px; }
+  .account-event-list li { display: block; }
 }
 `;
 
@@ -1722,6 +1764,13 @@ const SITE_JS = `
     return String(value) + " MIST";
   }
 
+  function formatSuiAmount(value) {
+    if (!value) return "not recorded";
+    var n = Number(value);
+    if (!Number.isFinite(n)) return String(value) + " MIST";
+    return (n / 1000000000).toFixed(n < 1000000000 ? 6 : 4).replace(/0+$/, "").replace(/\\.$/, "") + " SUI";
+  }
+
   function renderMembershipLiveRow(event, index, suiExplorer) {
     var eventName = String(event.event_type || "MembershipEvent");
     var subject = String(event.subject_address || event.signer || "");
@@ -1911,7 +1960,7 @@ const SITE_JS = `
 
   function renderDelegationLiveRow(event, index, suiExplorer) {
     var actor = event.buyer || event.agent || event.arbitrator || event.signer || "";
-    var value = event.budget_mist ? formatMist(event.budget_mist) : event.amount_mist ? formatMist(event.amount_mist) : "event only";
+    var value = event.budget_mist ? formatSuiAmount(event.budget_mist) : event.amount_mist ? formatSuiAmount(event.amount_mist) : "event only";
     var parties = [
       event.buyer ? "buyer " + shortText(event.buyer, 8, 6) : "",
       event.agent ? "agent " + shortText(event.agent, 8, 6) : "",
@@ -1922,8 +1971,17 @@ const SITE_JS = `
       '<td><div class="membership-event-name">' + esc(event.event_type || "DelegationEvent") + '</div><div class="muted">[' + (index + 1) + '] ' + esc(formatMembershipDate(event.created_at)) + '</div></td>' +
       '<td><div class="mono">' + (event.job_id ? proofLabelLink(suiExplorer, "object", event.job_id, shortText(event.job_id, 12, 10)) : "event only") + '</div><div class="muted">' + esc(parties || "delegation event") + '</div></td>' +
       '<td><div>' + esc(value) + '</div><div class="muted">' + (event.deadline_at ? "deadline " + esc(formatMembershipDate(event.deadline_at)) : "") + '</div></td>' +
-      '<td><div class="mono">tx: ' + proofLabelLink(suiExplorer, "tx", event.tx_digest, shortText(event.tx_digest, 12, 10)) + '</div><div class="mono">signer: ' + proofLabelLink(suiExplorer, "account", actor, shortText(actor, 8, 6)) + '</div><div class="muted">gas ' + esc(formatMist(event.sui_spent_mist)) + '</div></td>' +
+      '<td><div class="mono">tx: ' + proofLabelLink(suiExplorer, "tx", event.tx_digest, shortText(event.tx_digest, 12, 10)) + '</div><div class="mono">signer: ' + proofLabelLink(suiExplorer, "account", actor, shortText(actor, 8, 6)) + '</div><div class="muted">gas ' + esc(formatSuiAmount(event.sui_spent_mist)) + '</div></td>' +
     '</tr>';
+  }
+
+  function delegationEventRail(eventTypes) {
+    var types = Array.isArray(eventTypes) ? eventTypes : [];
+    if (!types.length) return "";
+    return '<div class="live-event-rail">' + types.map(function (type) {
+      var name = String(type || "").split("::").pop() || String(type || "");
+      return '<span class="live-event-chip" title="' + esc(type) + '">' + esc(name) + '</span>';
+    }).join("") + '</div>';
   }
 
   function setupDelegationIndex() {
@@ -1943,22 +2001,39 @@ const SITE_JS = `
       var delegations = data && data.delegations ? data.delegations : {};
       var counts = delegations.counts || {};
       var events = Array.isArray(delegations.recent_events) ? delegations.recent_events : [];
+      var eventTypes = Array.isArray(delegations.event_types) ? delegations.event_types : [];
+      var totalEvents = Number(counts.total_events || events.length || 0);
+      var totalBudgetMist = events.reduce(function (sum, event) {
+        var n = Number(event.budget_mist || event.amount_mist || 0);
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0);
+      var latestEvent = events[0] && events[0].created_at ? formatMembershipDate(events[0].created_at).replace(" UTC", "") : "none";
       if (stats) {
-        stats.innerHTML =
-          '<div class="stat"><b>' + Number(counts.created || 0) + '</b><span>Created</span></div>' +
-          '<div class="stat"><b>' + Number(counts.funded || 0) + '</b><span>Funded</span></div>' +
-          '<div class="stat"><b>' + Number(counts.completed || 0) + '</b><span>Completed</span></div>' +
-          '<div class="stat"><b>' + Number(counts.total_events || 0) + '</b><span>Live events</span></div>';
+        stats.innerHTML = totalEvents
+          ? '<div class="stat"><b>' + Number(counts.created || 0) + '</b><span>Created</span></div>' +
+            '<div class="stat"><b>' + esc(formatSuiAmount(totalBudgetMist)) + '</b><span>Budget seen</span></div>' +
+            '<div class="stat"><b>' + esc(latestEvent.slice(5, 16)) + '</b><span>Latest</span></div>' +
+            '<div class="stat"><b>' + totalEvents + '</b><span>Live events</span></div>'
+          : '<div class="live-empty-card">' +
+              '<strong>No live delegation jobs yet</strong>' +
+              '<p>The backend queried Sui testnet for this package and found no delegation events. This is a real empty chain state, not a local fixture.</p>' +
+              delegationEventRail(eventTypes) +
+            '</div>';
       }
-      if (status) status.innerHTML = 'Loaded delegation event rails from ' + plainLink(indexUrl, "/api/index") + '.';
+      if (status) {
+        status.innerHTML = totalEvents
+          ? 'Loaded ' + totalEvents + ' live delegation event(s) from ' + plainLink(indexUrl, "/api/index") + '.'
+          : 'Checked ' + eventTypes.length + ' delegation event type(s) through ' + plainLink(indexUrl, "/api/index") + '.';
+      }
       if (rows) {
         rows.innerHTML = events.length
           ? events.map(function (event, index) { return renderDelegationLiveRow(event, index, suiExplorer); }).join("")
-          : '<tr><td colspan="4"><p class="muted">The backend checked live delegation event types on Sui. This package has no matching delegation events yet.</p></td></tr>';
+          : '<tr><td colspan="4"><div class="live-empty-table"><strong>Ready for the first private research delegation.</strong><p class="muted">Create a job from the Workbench and the new Sui object, buyer, agent, budget, and tx digest will appear here after the live index refreshes.</p><p><a class="button" href="/workbench.html">Open Workbench</a></p></div></td></tr>';
       }
     }).catch(function (err) {
+      if (stats) stats.innerHTML = '<div class="live-empty-card"><strong>Delegation index unavailable</strong><p>Delegation data is served only by the backend live index.</p></div>';
       if (status) status.innerHTML = 'Could not load live delegation data: ' + esc(err && err.message ? err.message : "request failed");
-      if (rows) rows.innerHTML = '<tr><td colspan="4"><p class="muted">Delegation data is intentionally served only by the backend live index.</p></td></tr>';
+      if (rows) rows.innerHTML = '<tr><td colspan="4"><p class="muted">No fallback fixture delegation rows were rendered.</p></td></tr>';
     });
   }
 
@@ -2516,17 +2591,17 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
   await fs.writeFile(path.join(outputDir, "membership.html"), shell("Membership", membershipBody, { subject: "Membership" }), "utf8");
   const delegationsBody = publicLiveOnly ? `
 ${renderChainSubmissionSource(onChainProofConfig, explorer)}
-<section class="live-dashboard" data-live-delegations aria-live="polite">
+<section class="live-dashboard" data-live-delegations aria-live="polite" aria-busy="true">
   <div class="live-dashboard-head">
     <h2>Live Delegation Rails</h2>
     <span class="live-dashboard-api"><a href="/api/index?limit=20" rel="noopener">/api/index?limit=20</a></span>
   </div>
   <p class="chain-listing-note">Delegation rows are loaded from the backend live index. The Function checks Sui testnet delegation events for creation, funding, submission, completion, refund, dispute, and resolution evidence. Local showcase delegation rows are not rendered as public data.</p>
   <div class="stats" data-live-delegation-stats>
-    <div class="stat"><b>...</b><span>Created</span></div>
-    <div class="stat"><b>...</b><span>Funded</span></div>
-    <div class="stat"><b>...</b><span>Completed</span></div>
-    <div class="stat"><b>...</b><span>Live events</span></div>
+    <div class="live-empty-card live-empty-card-loading">
+      <strong>Checking live delegation rails...</strong>
+      <p>The page is waiting for <code>/api/index</code> to return Sui testnet events.</p>
+    </div>
   </div>
   <p class="chain-source-note" data-live-delegation-status>Loading live delegation events from <code>/api/index</code>...</p>
   <table class="data-table events-table live-dashboard-table live-membership-table">
