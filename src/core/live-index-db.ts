@@ -95,6 +95,12 @@ function assetSearchText(asset: LiveIndexAsset): string {
     asset.tx_digest,
     asset.walrus_blob_id,
     asset.manifest_hash,
+    asset.event_owner_address,
+    asset.creator_address,
+    asset.object_owner_address,
+    asset.tx_sender,
+    asset.gas_owner,
+    asset.sui_spent_mist,
     asset.repo_url ?? "",
     asset.repo_commit
   ].join("\n").toLowerCase();

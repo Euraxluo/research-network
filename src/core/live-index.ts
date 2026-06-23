@@ -21,7 +21,18 @@ interface SuiObjectResponse {
 
 interface SuiTxResponse {
   digest?: string;
+  transaction?: {
+    data?: {
+      sender?: string;
+      gasData?: { owner?: string };
+    };
+  };
   effects?: { status?: { status?: string } };
+  balanceChanges?: Array<{
+    owner?: string | { AddressOwner?: string; ObjectOwner?: string };
+    coinType?: string;
+    amount?: string;
+  }>;
 }
 
 interface ReleaseManifest {
@@ -53,12 +64,20 @@ export interface LiveIndexAsset {
   repo_commit: string;
   walrus_blob_id: string;
   sui_object_id: string;
+  event_owner_address: string;
+  creator_address: string;
+  object_owner_address: string;
+  tx_sender: string;
+  gas_owner: string;
+  sui_spent_mist: string;
   tx_digest: string;
   href?: string;
   proof: {
     tx_success: boolean;
+    sender_match: boolean;
     object_type_match: boolean;
     owner_match: boolean;
+    gas_paid: boolean;
     blob_match: boolean;
     manifest_match: boolean;
     release_manifest_match: boolean;
@@ -226,9 +245,44 @@ export function matchesLiveIndexQuery(asset: LiveIndexAsset, query: string): boo
     asset.tx_digest,
     asset.walrus_blob_id,
     asset.manifest_hash,
+    asset.event_owner_address,
+    asset.creator_address,
+    asset.object_owner_address,
+    asset.tx_sender,
+    asset.gas_owner,
+    asset.sui_spent_mist,
     asset.repo_url ?? "",
     asset.repo_commit
   ].join("\n").toLowerCase().includes(q);
+}
+
+function ownerAddress(owner: unknown): string {
+  if (typeof owner === "string") {
+    return owner;
+  }
+  if (owner && typeof owner === "object") {
+    const record = owner as { AddressOwner?: unknown; ObjectOwner?: unknown };
+    if (typeof record.AddressOwner === "string") return record.AddressOwner;
+    if (typeof record.ObjectOwner === "string") return record.ObjectOwner;
+  }
+  return "";
+}
+
+function suiSpentMist(txData: SuiTxResponse | undefined, owner: string): string {
+  const target = owner.toLowerCase();
+  if (!target || !Array.isArray(txData?.balanceChanges)) {
+    return "";
+  }
+  let spent = 0n;
+  for (const change of txData.balanceChanges) {
+    if (change.coinType !== "0x2::sui::SUI") continue;
+    if (ownerAddress(change.owner).toLowerCase() !== target) continue;
+    const amount = BigInt(change.amount ?? "0");
+    if (amount < 0n) {
+      spent += -amount;
+    }
+  }
+  return spent > 0n ? spent.toString() : "";
 }
 
 function buildAsset(input: {
@@ -248,15 +302,24 @@ function buildAsset(input: {
   const objectBlobId = bytesToString(fields.walrus_blob_id);
   const objectId = String(parsed.asset_id ?? input.objectData?.objectId ?? "");
   const txDigest = String(input.event.id?.txDigest ?? "");
-  const eventOwner = String(parsed.owner ?? parsed.creator ?? "").toLowerCase();
-  const objectOwner = String(input.objectData?.owner?.AddressOwner ?? "").toLowerCase();
+  const eventOwner = String(parsed.owner ?? parsed.creator ?? "");
+  const creator = String(parsed.creator ?? "");
+  const objectOwner = String(input.objectData?.owner?.AddressOwner ?? "");
+  const txSender = String(input.txData?.transaction?.data?.sender ?? "");
+  const gasOwner = String(input.txData?.transaction?.data?.gasData?.owner ?? "");
+  const spentMist = suiSpentMist(input.txData, gasOwner || txSender);
   const repoCommit = bytesToString(parsed.repo_commit) || String(release.commit ?? "");
   const assetId = String(releaseAsset.id ?? objectId);
   const expectedType = `${input.packageId}::research_asset::ResearchAsset`;
+  const eventOwnerLower = eventOwner.toLowerCase();
+  const objectOwnerLower = objectOwner.toLowerCase();
+  const txSenderLower = txSender.toLowerCase();
   const proof = {
     tx_success: input.txData?.effects?.status?.status === "success",
+    sender_match: Boolean(txSenderLower && eventOwnerLower && txSenderLower === eventOwnerLower),
     object_type_match: input.objectData?.type === expectedType,
-    owner_match: Boolean(eventOwner && objectOwner && eventOwner === objectOwner),
+    owner_match: Boolean(eventOwnerLower && objectOwnerLower && eventOwnerLower === objectOwnerLower),
+    gas_paid: Boolean(spentMist),
     blob_match: Boolean(blobId && objectBlobId && blobId === objectBlobId),
     manifest_match: Boolean(manifestHash && objectManifestHash && manifestHash === objectManifestHash),
     release_manifest_match: Boolean(release.manifest_hash && manifestHash && release.manifest_hash === manifestHash)
@@ -275,6 +338,12 @@ function buildAsset(input: {
     repo_commit: repoCommit,
     walrus_blob_id: blobId,
     sui_object_id: objectId,
+    event_owner_address: eventOwner,
+    creator_address: creator,
+    object_owner_address: objectOwner,
+    tx_sender: txSender,
+    gas_owner: gasOwner,
+    sui_spent_mist: spentMist,
     tx_digest: txDigest,
     href: releaseAsset.id ? `/abs/${routeSegment(String(releaseAsset.id))}.html` : undefined,
     proof
@@ -289,7 +358,7 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
   const txDigests = events.map((event) => String(event.id?.txDigest ?? ""));
   const [objectResponses, txResponses, releases] = await Promise.all([
     objectIds.length ? rpcCall<SuiObjectResponse[]>(rpcUrl, "sui_multiGetObjects", [objectIds, { showType: true, showOwner: true, showContent: true }]) : Promise.resolve([]),
-    txDigests.length ? rpcCall<SuiTxResponse[]>(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showEffects: true, showEvents: true }]) : Promise.resolve([]),
+    txDigests.length ? rpcCall<SuiTxResponse[]>(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showInput: true, showEffects: true, showEvents: true, showBalanceChanges: true }]) : Promise.resolve([]),
     Promise.all(events.map(async (event) => {
       const blobId = bytesToString(event.parsedJson?.walrus_blob_id);
       return blobId ? readReleaseManifest(blobId, aggregatorUrl).catch(() => undefined) : undefined;

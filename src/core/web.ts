@@ -1645,8 +1645,10 @@ const SITE_JS = `
     var proof = asset && asset.proof ? asset.proof : {};
     var checks = [
       ["tx", proof.tx_success],
+      ["sender", proof.sender_match],
       ["type", proof.object_type_match],
       ["owner", proof.owner_match],
+      ["gas", proof.gas_paid],
       ["blob", proof.blob_match],
       ["manifest", proof.manifest_match],
       ["release manifest", proof.release_manifest_match]
@@ -1671,6 +1673,9 @@ const SITE_JS = `
     var created = asset.created_at ? String(asset.created_at).replace("T", " ").slice(0, 19) + " UTC" : "not recorded";
     var repoText = asset.repo_url ? asset.repo_url.replace(/^https?:\\/\\/(www\\.)?github\\.com\\//, "") : "";
     var repoHtml = asset.repo_url ? plainLink(asset.repo_url, repoText || asset.repo_url) : '<span class="muted">not recorded in release manifest</span>';
+    var signer = asset.tx_sender || asset.event_owner_address || asset.creator_address || "";
+    var gasOwner = asset.gas_owner || signer;
+    var gasText = asset.sui_spent_mist ? asset.sui_spent_mist + " MIST" : "not indexed";
     return '<tr>' +
       '<td class="live-dashboard-asset">' +
         '<strong>' + titleHtml + '</strong>' +
@@ -1683,6 +1688,8 @@ const SITE_JS = `
         '<span><strong>ResearchAssetPublished</strong></span>' +
         '<span class="mono">object: ' + proofLabelLink(suiExplorer, "object", asset.sui_object_id, shortText(asset.sui_object_id, 12, 10)) + '</span>' +
         '<span class="mono">tx: ' + proofLabelLink(suiExplorer, "tx", asset.tx_digest, shortText(asset.tx_digest, 12, 10)) + '</span>' +
+        '<span class="mono">signer: ' + proofLabelLink(suiExplorer, "account", signer, shortText(signer, 12, 10)) + '</span>' +
+        '<span class="mono">gas: ' + proofLabelLink(suiExplorer, "account", gasOwner, shortText(gasOwner, 8, 6)) + ' · ' + esc(gasText) + '</span>' +
         '<span class="chain-status chain-status-' + statusClass + '">' + esc(state.label) + '</span>' +
         '<span class="muted">' + esc(state.detail) + '</span>' +
       '</td>' +
