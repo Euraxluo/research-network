@@ -13,11 +13,7 @@
       "destination": "/index.html"
     },
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
-    },
-    {
-      "source": "/(.*)",
+      "source": "/((?!api/).*)",
       "destination": "/api/walrus?path=/$1"
     }
   ]

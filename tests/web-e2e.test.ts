@@ -735,6 +735,14 @@ describe("static web E2E", () => {
     };
     const rootRewrite = config.rewrites.find((rewrite) => rewrite.source === "/");
     expect(rootRewrite?.destination).toBe("/index.html");
+    expect(config.rewrites).not.toContainEqual({
+      source: "/api/(.*)",
+      destination: "/api/$1"
+    });
+    expect(config.rewrites).toContainEqual({
+      source: "/((?!api/).*)",
+      destination: "/api/walrus?path=/$1"
+    });
   });
 
   it("keeps the production showcase backed by protocol kit publish events", async () => {
