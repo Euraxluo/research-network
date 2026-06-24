@@ -126,7 +126,6 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
     <a href="/membership.html">Membership</a>
     <a href="/delegations.html">Delegations</a>
     <a href="/account.html">Account</a>
-    <a href="/login.html">Sign in</a>
   </div></div>
   ${options.subject ? `<div class="subject-strip"><div class="wrap"><h1>${escapeHtml(options.subject)}</h1></div></div>` : ""}
   <main class="wrap">${body}</main>
@@ -1054,7 +1053,7 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
   }
   function render(directory) {
     if (!session || !session.address) {
-      root.innerHTML = '<p class="muted">Not signed in.</p><p><a class="button" href="/login.html">Sign in with Google (zkLogin)</a></p>';
+      root.innerHTML = '<p class="muted">Not signed in.</p><p><a class="button" href="/account.html">Sign in with Google (zkLogin)</a></p>';
       return;
     }
     var html = '<h2>Sui identity</h2>'
@@ -1065,17 +1064,17 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
       + '</dl>';
     html += '<h2>Connected GitHub repositories</h2>';
     if (binding && binding.sui_address === session.address && binding.installation_id) {
-      var manageUrl = '/login.html';
+      var manageUrl = '/account.html?connect=github';
       var attested = hasServerAttestation(binding);
       var selectedCount = selectedInstallationIds(binding).length;
       var repoCount = repoItems(binding).length;
       html += '<p class="muted">' + esc(binding.login || "GitHub") + ' · ' + selectedCount + ' selected account/org scope(s), ' + repoCount + ' repo option(s)<span id="rn-account-attestation-status">' + (attested ? ' · checking attestation…' : ' · local binding') + '</span></p>'
         + '<div class="repo-control">' + accountSelectorHtml(binding) + '<div id="rn-account-repo-picker">' + repoSelectorHtml(binding, "rn-account-repo-select") + '</div></div>'
-        + '<p class="repo-actions"><a class="button" href="/login.html">Refresh GitHub repos</a>'
+        + '<p class="repo-actions"><a class="button" href="/account.html?connect=github">Refresh GitHub repos</a>'
         + '<a class="button" href="' + esc(manageUrl) + '">Add GitHub account/org access</a>'
         + '</p>';
     } else {
-      html += '<p class="muted">No repositories connected yet.</p><p><a class="button" href="/login.html">Connect GitHub</a></p>';
+      html += '<p class="muted">No repositories connected yet.</p><p><a class="button" href="/account.html?connect=github">Connect GitHub</a></p>';
     }
     html += '<h2>My publications</h2>';
     var mine = [];
@@ -1096,7 +1095,7 @@ export function renderAccountPage(assetDirectory: AccountDirectoryAsset[] = []):
     document.getElementById("signout").addEventListener("click", function () {
       ["rn_session", "rn_github", "rn_zk_attestation", "rn_gh_state"].forEach(function (k) { localStorage.removeItem(k); });
       ["rn_zk_session", "rn_zk_eph", "rn_oauth_state", "rn_gh_state"].forEach(function (k) { sessionStorage.removeItem(k); });
-      location.href = "/login.html";
+      location.href = "/account.html";
     });
     wireRepoControls(binding, "rn-account-repo-select", "rn-account-repo-picker");
   }
@@ -1312,6 +1311,13 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .account-proof-links { display: flex; flex-wrap: wrap; gap: 10px; font-family: var(--mono); font-size: 12px; }
 .account-event-list li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .account-event-list li > div { min-width: 0; }
+.account-auth-panel { border-top: 1px solid var(--line); padding-top: 16px; }
+.account-auth-panel h2 { margin: 0 0 8px; }
+.account-auth-panel-compact { margin-top: 12px; }
+.auth-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 14px 0 0; }
+.auth-card { border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; background: #fff; }
+.auth-card h2 { margin: 0 0 6px; font-size: 15.5px; }
+.auth-card p { margin: 6px 0 0; }
 
 /* protocol workbench */
 .workbench-root { max-width: 920px; }

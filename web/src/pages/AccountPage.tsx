@@ -63,6 +63,34 @@ interface LiveIndexResponse {
 }
 
 type LiveStatus = "idle" | "loading" | "ready" | "error";
+const AUTH_SCRIPT_SRCS = ["/zklogin-browser.js", "/auth/config.js", "/auth/login.js"];
+
+function useExternalAuthScripts(enabled: boolean) {
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    async function loadScripts() {
+      for (const src of AUTH_SCRIPT_SRCS) {
+        if (cancelled) return;
+        const existing = document.querySelector(`script[data-ext="${src}"]`);
+        if (existing) continue;
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = src;
+          script.dataset.ext = src;
+          script.async = false;
+          script.addEventListener("load", () => resolve(), { once: true });
+          script.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), { once: true });
+          document.body.appendChild(script);
+        });
+      }
+    }
+    void loadScripts();
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
+}
 
 function storageItem(key: string): string | null {
   try {
@@ -274,6 +302,9 @@ export function AccountPage() {
   const [liveIndex, setLiveIndex] = useState<LiveIndexResponse | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>("idle");
   const [liveError, setLiveError] = useState<string>("");
+  const showConnectPanel = typeof location !== "undefined" && new URLSearchParams(location.search).has("connect");
+  const showAuthPanel = !session?.address || !gh?.installation_id || showConnectPanel;
+  useExternalAuthScripts(showAuthPanel);
 
   useEffect(() => {
     if (!hasServerAttestation(gh)) {
@@ -344,10 +375,8 @@ export function AccountPage() {
             <h1>Account</h1>
             <p className="muted">Not signed in.</p>
           </div>
-          <a className="button" href="/login.html">
-            Sign in with Google (zkLogin)
-          </a>
         </section>
+        <AccountAuthPanel />
       </div>
     );
   }
@@ -355,7 +384,7 @@ export function AccountPage() {
   function signOut() {
     ["rn_session", "rn_github", "rn_zk_attestation", "rn_gh_state"].forEach((k) => localStorage.removeItem(k));
     ["rn_zk_session", "rn_zk_eph", "rn_oauth_state", "rn_gh_state"].forEach((k) => sessionStorage.removeItem(k));
-    location.href = "/login.html";
+    location.href = "/account.html";
   }
 
   const connected = Boolean(gh && gh.sui_address === session.address && gh.installation_id);
@@ -464,21 +493,59 @@ export function AccountPage() {
           </div>
         </div>
         {connected && gh ? (
-          <AccountGithubControls
-            gh={gh}
-            attested={attested}
-            checking={checking}
-            onChange={setGh}
-          />
+          <>
+            <AccountGithubControls
+              gh={gh}
+              attested={attested}
+              checking={checking}
+              onChange={setGh}
+            />
+            {showConnectPanel ? <AccountAuthPanel compact /> : null}
+          </>
         ) : (
-          <p>
-            <a className="button" href="/login.html">
-              Connect GitHub
-            </a>
-          </p>
+          <AccountAuthPanel compact />
         )}
       </section>
     </div>
+  );
+}
+
+function AccountAuthPanel({ compact = false }: { compact?: boolean }) {
+  return (
+    <section className={compact ? "account-auth-panel account-auth-panel-compact" : "account-auth-panel"}>
+      {compact ? null : (
+        <>
+          <p className="account-kicker">Sign in</p>
+          <h2>Identity and repository access</h2>
+          <p className="muted">
+            zkLogin derives your Sui address from Google, then GitHub binds selected research repositories to that address.
+          </p>
+        </>
+      )}
+      <div className="auth-grid">
+        <div className="auth-card">
+          <h2>1 · Sui identity · zkLogin</h2>
+          <p className="muted">
+            Sign in with Google to derive a Sui address in-browser. No wallet seed is stored by Research Network.
+          </p>
+          <button id="google" className="button" type="button">
+            Sign in with Google
+          </button>
+          <p id="google-status" className="muted"></p>
+        </div>
+        <div className="auth-card">
+          <h2>2 · Connect GitHub</h2>
+          <p className="muted">
+            Authorize the GitHub App only for repositories you choose. This links repo scope to your Sui identity.
+          </p>
+          <a id="github" className="button" href="#">
+            Connect GitHub repos
+          </a>
+          <p id="github-status" className="muted"></p>
+        </div>
+      </div>
+      <div id="session"></div>
+    </section>
   );
 }
 
@@ -694,10 +761,10 @@ function AccountGithubControls({
         </div>
       </div>
       <p className="repo-actions">
-        <a className="button" href="/login.html">
+        <a className="button" href="/account.html?connect=github">
           Refresh GitHub repos
         </a>
-        <a className="button" href="/login.html">
+        <a className="button" href="/account.html?connect=github">
           Add GitHub account/org access
         </a>
       </p>

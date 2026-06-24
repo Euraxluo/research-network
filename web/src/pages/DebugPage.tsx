@@ -79,7 +79,7 @@ export function DebugPage() {
 
   function startAcceptanceLogin(role: "buyer" | "agent") {
     sessionStorage.setItem("rn_acceptance_debug_role", role);
-    location.href = "/login.html";
+    location.href = "/account.html";
   }
 
   return (

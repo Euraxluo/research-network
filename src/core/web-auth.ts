@@ -104,15 +104,13 @@ function cspMetaTag(config: AuthSiteConfig): string {
   return `<meta http-equiv="Content-Security-Policy" content="${policy}">`;
 }
 
-/** Generate the static login surface into the site: a browser-bundled zkLogin lib, an injected
- *  public config, and the login + callback pages. All client-side — works on a static host;
+/** Generate the browser-bundled zkLogin lib, injected public config, and auth
+ *  callback pages. The user-facing sign-in surface lives inside account.html;
  *  the salt service and GitHub code exchange are the only server dependencies. */
 export async function buildAuthAssets(
   outputDir: string,
-  config: AuthSiteConfig,
-  options: { emitLoginHtml?: boolean } = {}
+  config: AuthSiteConfig
 ): Promise<void> {
-  const emitLoginHtml = options.emitLoginHtml ?? true;
   await fs.mkdir(path.join(outputDir, "auth"), { recursive: true });
 
   await esbuild.build({
@@ -142,19 +140,13 @@ export async function buildAuthAssets(
   await fs.writeFile(path.join(outputDir, "auth", "login.js"), LOGIN_JS, "utf8");
   await fs.writeFile(path.join(outputDir, "auth", "callback.js"), CALLBACK_JS, "utf8");
   await fs.writeFile(path.join(outputDir, "auth", "github-callback.js"), GITHUB_CALLBACK_JS, "utf8");
-  // In the Vercel shell path, login.html / account.html / workbench.html are
-  // produced by the Vite build (web/src/entries/*), so we skip the legacy
-  // string-templated login.html there to avoid clobbering it.
-  if (emitLoginHtml) {
-    await fs.writeFile(path.join(outputDir, "login.html"), loginHtml(csp), "utf8");
-  }
   await fs.writeFile(path.join(outputDir, "auth", "callback.html"), callbackHtml(csp), "utf8");
   await fs.writeFile(path.join(outputDir, "auth", "github-callback.html"), githubCallbackHtml(csp), "utf8");
 }
 
 /** Build the Vercel production shell. Public read paths are emitted as a stable
  *  arXiv-style static directory, while the Vite build (which runs after this)
- *  owns login/account/workbench/debug. Missing content still falls through to
+ *  owns account/workbench/debug. Missing content still falls through to
  *  the Walrus proxy via vercel.json, so Vercel works as a fast public mirror
  *  and the decentralized site remains the canonical fallback. */
 export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteConfig | null): Promise<string> {
@@ -180,7 +172,7 @@ export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteC
   await fs.rm(path.join(outputDir, "auth"), { recursive: true, force: true });
   await fs.rm(path.join(outputDir, "zklogin-browser.js"), { force: true });
   await fs.writeFile(path.join(outputDir, "health.txt"), "ok\n", "utf8");
-  await buildAuthAssets(outputDir, authConfig, { emitLoginHtml: false });
+  await buildAuthAssets(outputDir, authConfig);
   return outputDir;
 }
 
@@ -206,36 +198,6 @@ const AUTH_STYLE = `<style>
 .repo-actions{margin-top:10px}
 .repo-actions a{margin-right:14px}
 </style>`;
-
-const loginHtml = (csp: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
-${csp}
-<title>Sign in · Research Network</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="/styles.css">${AUTH_STYLE}</head>
-<body><main class="container" style="max-width:860px;margin:0 auto;padding:28px 18px">
-<p><a href="/">← Research Network</a></p>
-<h1>Sign in</h1>
-<p class="muted">zkLogin derives your Sui address from a Google sign-in (no wallet/seed). Connect GitHub afterwards to pick which research repos to link to your address.</p>
-<div class="auth-grid">
-  <div class="auth-card">
-    <h2>1 · Sui identity · zkLogin</h2>
-    <p class="muted">Sign in with Google → get a Sui address derived in-browser via @mysten/sui.</p>
-    <button id="google" class="button btn">Sign in with Google</button>
-    <p id="google-status" class="muted"></p>
-  </div>
-  <div class="auth-card">
-    <h2>2 · Connect GitHub</h2>
-    <p class="muted">Authorize the GitHub App on only the repos you choose. Least-privilege, read-only. Repos are bound to your Sui address.</p>
-    <a id="github" class="button btn" href="#">Connect GitHub repos</a>
-    <p id="github-status" class="muted"></p>
-  </div>
-</div>
-<div id="session"></div>
-</main>
-<script src="/zklogin-browser.js"></script>
-<script src="/auth/config.js"></script>
-<script src="/auth/login.js"></script>
-</body></html>`;
 
 const callbackHtml = (csp: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8">
 ${csp}
@@ -634,7 +596,7 @@ const LOGIN_JS = `(function(){
 const CALLBACK_JS = `(function(){
   function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){ return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]; }); }
   function out(html){ document.getElementById("out").innerHTML = html; }
-  function fail(msg){ out('<h2>Sign-in failed</h2><p class="error">' + esc(msg) + '</p><p><a class="button" href="/login.html">Try again</a></p>'); }
+  function fail(msg){ out('<h2>Sign-in failed</h2><p class="error">' + esc(msg) + '</p><p><a class="button" href="/account.html">Try again</a></p>'); }
   function decode(t){ var seg = t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"); var pad = "=".repeat((4 - seg.length % 4) % 4); return JSON.parse(decodeURIComponent(escape(atob(seg + pad)))); }
   var CFG = window.RN_AUTH_CONFIG || {};
   var p = new URLSearchParams(location.hash.slice(1));
@@ -701,7 +663,7 @@ const CALLBACK_JS = `(function(){
       sessionStorage.setItem("rn_acceptance_last_role", acceptanceRole);
       acceptanceHtml = '<section aria-labelledby="acceptance-session-heading"><h2 id="acceptance-session-heading">Acceptance session ready</h2><p class="muted">This ' + esc(acceptanceRole) + ' session is available only in the dedicated debug tools for this browser tab.</p><p><a class="button" href="/debug.html">Open debug tools</a></p></section>';
     }
-    out('<h2>Signed in &#10003;</h2><p>Your Sui zkLogin address:</p><p><code class="addr">' + esc(address) + '</code></p><p class="muted">' + esc(claims.email || claims.sub) + ' · ' + esc(claims.iss) + '</p><p class="muted">Same Google account &rArr; same address on every device (server-side deterministic salt).</p>' + acceptanceHtml + '<p class="repo-actions"><a class="button" href="/account.html">Account &rarr;</a><a class="button" href="/login.html">Connect GitHub</a><a class="button" href="/">&larr; Back to site</a></p>');
+    out('<h2>Signed in &#10003;</h2><p>Your Sui zkLogin address:</p><p><code class="addr">' + esc(address) + '</code></p><p class="muted">' + esc(claims.email || claims.sub) + ' · ' + esc(claims.iss) + '</p><p class="muted">Same Google account &rArr; same address on every device (server-side deterministic salt).</p>' + acceptanceHtml + '<p class="repo-actions"><a class="button" href="/account.html">Account &rarr;</a><a class="button" href="/account.html?connect=github">Connect GitHub</a><a class="button" href="/">&larr; Back to site</a></p>');
   }).catch(function(e){
     fail((e && e.message) ? e.message : String(e));
   });
@@ -710,7 +672,7 @@ const CALLBACK_JS = `(function(){
 const GITHUB_CALLBACK_JS = `(function(){
   function esc(v){ return String(v == null ? "" : v).replace(/[&<>"']/g,function(c){ return ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[c]; }); }
   function out(h){ document.getElementById("out").innerHTML = h; }
-  function fail(msg){ out('<h2>GitHub connection failed</h2><p class="error">' + esc(msg) + '</p><p><a class="button" href="/login.html">Back to sign in</a></p>'); }
+  function fail(msg){ out('<h2>GitHub connection failed</h2><p class="error">' + esc(msg) + '</p><p><a class="button" href="/account.html">Back to account</a></p>'); }
   function randomHex(n){ var b = crypto.getRandomValues(new Uint8Array(n)); var h = ""; for (var i = 0; i < b.length; i++) h += ("0" + b[i].toString(16)).slice(-2); return h; }
   function repoOwner(name){ var parts = String(name || "").split("/"); return parts.length > 1 ? parts[0] : ""; }
   function syntheticScopeId(account){ return "owner:" + String(account || "GitHub"); }

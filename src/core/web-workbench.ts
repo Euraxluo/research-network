@@ -841,13 +841,13 @@ export const WORKBENCH_JS = `
         ? '<p class="notice muted" data-testid="m3-demo">Local demo mode: browser acceptance uses synthetic Walrus, Seal, and Sui ids. Mainnet actions still require a live zkLogin signer.</p>'
         : '<p class="notice muted" data-testid="m3-demo">Sign in in this tab before using signer-backed protocol actions.</p>') +
       (!signedIn
-        ? '<section class="workbench-panel"><h2>Identity</h2><p class="muted">No browser session is active.</p><a class="button" href="/login.html">Sign in</a>' + (demoMode ? '<button class="button" id="seed-demo" type="button" data-testid="seed-demo">Seed local test identity</button>' : '') + '</section>'
+        ? '<section class="workbench-panel"><h2>Identity</h2><p class="muted">No browser session is active.</p><a class="button" href="/account.html">Sign in</a>' + (demoMode ? '<button class="button" id="seed-demo" type="button" data-testid="seed-demo">Seed local test identity</button>' : '') + '</section>'
         : '<section class="workbench-panel"><h2>Identity</h2><dl class="verification"><div><dt>zkLogin address</dt><dd>' + esc(session.address) + '</dd></div><div><dt>GitHub</dt><dd>' + esc((gh && gh.login) || "not connected") + '</dd></div></dl></section>') +
       '<section class="workbench-panel"><h2>Repository Scope</h2>' +
         accountScopeHtml(gh) +
         '<div id="workbench-repo-wrap">' + repoSelectHtml(gh) + '</div>' +
         '<p class="muted">Selected repo: <code data-testid="selected-repo">' + esc(repo && repo.full_name || "none") + '</code></p>' +
-        '<p class="repo-actions"><a class="button" href="/login.html">Refresh GitHub repos</a><a class="button" href="/account.html">Add GitHub account/org access</a></p>' +
+        '<p class="repo-actions"><a class="button" href="/account.html?connect=github">Refresh GitHub repos</a><a class="button" href="/account.html?connect=github">Add GitHub account/org access</a></p>' +
       '</section>' +
       '<section class="workbench-panel"><h2>Publish Research</h2>' +
         '<form id="publish-form" class="workbench-form">' +

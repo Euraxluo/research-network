@@ -156,6 +156,15 @@ describe("AccountPage production UI", () => {
     expect(dom.window.localStorage.getItem("rn_github")).toBeNull();
   });
 
+  it("keeps sign-in inside Account instead of linking to a separate login page", async () => {
+    await renderAccountPage();
+
+    const text = dom.window.document.body.textContent || "";
+    expect(text).toContain("Sign in with Google");
+    expect(text).toContain("Connect GitHub repos");
+    expect(dom.window.document.querySelector('a[href="/login.html"]')).toBeNull();
+  });
+
   it("ships inside the same public site shell as the rest of researchχiv", async () => {
     const html = await fs.readFile("web/account.html", "utf8");
     expect(html).toContain('class="logo" href="/"');

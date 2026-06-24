@@ -54,7 +54,7 @@ function IdentityPanel() {
       <section className="workbench-panel">
         <h2>Identity</h2>
         <p className="muted">No browser session is active.</p>
-        <a className="button" href="/login.html">Sign in</a>
+        <a className="button" href="/account.html">Sign in</a>
         {demoMode ? (
           <button className="button" type="button" data-testid="seed-demo" onClick={seedDemo}>
             Seed local test identity
@@ -197,7 +197,7 @@ function RepoScopePanel() {
         Selected repo: <code data-testid="selected-repo">{current?.full_name || "none"}</code>
       </p>
       <p className="repo-actions">
-        <a className="button" href="/login.html">Refresh GitHub repos</a>
+        <a className="button" href="/account.html?connect=github">Refresh GitHub repos</a>
         <a className="button" href="/account.html">Add GitHub account/org access</a>
       </p>
     </section>

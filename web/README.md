@@ -10,9 +10,10 @@ React 18 + Vite 8 + TypeScript frontend, an npm workspace of the root package.
 
 ## Architecture
 
-Multi-page Vite build (not SPA): `login.html`, `account.html`, `workbench.html` are three
-entry points. Vite output lands in `.vercel-shell/` which Vercel serves as static
-root; `auth/*` + `zklogin-browser.js` are emitted separately by `buildVercelAuthShell`.
+Multi-page Vite build (not SPA): `account.html`, `workbench.html`, and `debug.html`
+are entry points. Account owns the sign-in and GitHub connection surface. Vite output
+lands in `.vercel-shell/` which Vercel serves as static root; `auth/*` +
+`zklogin-browser.js` are emitted separately by `buildVercelAuthShell`.
 
 `vercel.json` buildCommand = `npm run vercel:shell && npm run web:vite:build`.
 

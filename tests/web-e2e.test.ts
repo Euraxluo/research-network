@@ -274,14 +274,11 @@ describe("static web E2E", () => {
 
     const server = await serveStaticSite(siteDir, 0);
     try {
-      const login = await fetch(sitePath(server.url, "/login.html"));
-      expect(login.status).toBe(200);
-      const loginHtml = await login.text();
-      expect(loginHtml).toContain("Sign in with Google");
-      expect(loginHtml).toContain("Connect GitHub repos");
-      expect(loginHtml).toContain("/auth/login.js");
-      expect(loginHtml).toContain("Content-Security-Policy");
-      expect(loginHtml).toContain("script-src 'self'");
+      expect(await exists(path.join(siteDir, "login.html"))).toBe(false);
+      const account = await fetch(sitePath(server.url, "/account.html"));
+      expect(account.status).toBe(200);
+      const accountHtml = await account.text();
+      expect(accountHtml).toContain("Account");
 
       const loginJs = await fetch(sitePath(server.url, "/auth/login.js"));
       expect(loginJs.status).toBe(200);
@@ -698,7 +695,7 @@ describe("static web E2E", () => {
     });
 
     // The shell owns public read paths plus auth/* + zklogin-browser.js + health.txt.
-    // login.html / account.html / workbench.html / assets/ are produced by the
+    // account.html / workbench.html / debug.html / assets/ are produced by the
     // Vite build (web/), which runs AFTER the shell step in vercel.json
     // buildCommand. So the shell step alone must NOT emit the interactive pages
     // (Vite owns them), but it must emit a real public directory at index.html.

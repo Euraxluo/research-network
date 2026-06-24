@@ -303,7 +303,7 @@ export async function deployToTestnet(options: TestnetDeployOptions): Promise<Te
   const pkg = await packageWorkspace(options.workspace, DEFAULT_RELEASE_DIR);
   const webDist = await buildStaticWeb();
   // The deployed site must keep the login surface — without this, every deploy:testnet would
-  // silently strip /login.html and /auth/* from the Walrus Site.
+  // silently strip /account.html and /auth/* from the Walrus Site.
   const authConfig = await loadAuthSiteConfig();
   if (authConfig) {
     await buildAuthAssets(webDist, authConfig);
