@@ -11,6 +11,12 @@ import {
   readOrRefreshLiveIndex,
   readPersistedLiveIndex
 } from "../core/live-index-db.js";
+import {
+  isSuiObjectId,
+  readResolvedSkillArtifact,
+  resolveSkillFromLiveIndex,
+  type SkillArtifactKind
+} from "../core/skill-resolver.js";
 
 function intQuery(value: unknown, fallback: number): number {
   const parsed = Number(value);
@@ -109,6 +115,130 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
     }, { additionalProperties: true }),
     detail: {
       summary: "Read only the persisted Vercel Postgres index"
+    }
+  })
+  .get("/index/skill/:id", async ({ params, query, set }) => {
+    const skillObjectId = cleanQuery(params.id);
+    if (!skillObjectId || !isSuiObjectId(skillObjectId)) {
+      set.status = 400;
+      return {
+        error: "skill_object_id_required",
+        message: "Pass the on-chain Sui SkillAsset object id, for example 0xa683..."
+      };
+    }
+    try {
+      const index = await readOrRefreshLiveIndex({
+        limit: intQuery(query.limit, Number(process.env.RN_SHOWCASE_EVENT_LIMIT ?? 20)),
+        refresh: boolQuery(query.refresh)
+      });
+      const resolution = resolveSkillFromLiveIndex(index, skillObjectId);
+      if (!resolution) {
+        set.status = 404;
+        return {
+          error: "skill_object_not_found",
+          skill_object_id: skillObjectId,
+          message: "No published SkillAsset with this object id was found in the live index."
+        };
+      }
+      return {
+        ...resolution,
+        source: "sui-skill-object+walrus-release-artifact",
+        content: {
+          skill_entry_url: `/api/index/skill/${encodeURIComponent(resolution.skill_object_id)}/content`,
+          skill_yaml_url: `/api/index/skill/${encodeURIComponent(resolution.skill_object_id)}/content?file=manifest`
+        }
+      };
+    } catch (error) {
+      set.status = 502;
+      return {
+        error: "skill_resolution_unavailable",
+        storage: liveIndexStorageState(),
+        message: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }, {
+    tags: ["index"],
+    params: t.Object({
+      id: t.String({ description: "On-chain Sui SkillAsset object id." })
+    }),
+    query: t.Object({
+      limit: t.Optional(t.String({ description: "Max ResearchAsset events to scan while resolving the skill object, capped at 20." })),
+      refresh: t.Optional(t.String({ description: "Set to 0/false to read only from the persisted index." }))
+    }, { additionalProperties: true }),
+    detail: {
+      summary: "Resolve a SkillAsset object id to its original Walrus skill content",
+      description: "The SkillAsset object id is the canonical global skill identity. The manifest id is returned only as release metadata; raw skill.yaml and SKILL.md are resolved through the source ResearchAsset's Walrus release blob."
+    }
+  })
+  .get("/index/skill/:id/content", async ({ params, query, set }) => {
+    const skillObjectId = cleanQuery(params.id);
+    if (!skillObjectId || !isSuiObjectId(skillObjectId)) {
+      set.status = 400;
+      return {
+        error: "skill_object_id_required",
+        message: "Pass the on-chain Sui SkillAsset object id."
+      };
+    }
+    const file = cleanQuery(query.file);
+    const kind: SkillArtifactKind = file === "manifest" || file === "skill.yaml" ? "manifest" : "entry";
+    try {
+      const index = await readOrRefreshLiveIndex({
+        limit: intQuery(query.limit, Number(process.env.RN_SHOWCASE_EVENT_LIMIT ?? 20)),
+        refresh: boolQuery(query.refresh)
+      });
+      const resolution = resolveSkillFromLiveIndex(index, skillObjectId);
+      if (!resolution) {
+        set.status = 404;
+        return {
+          error: "skill_object_not_found",
+          skill_object_id: skillObjectId
+        };
+      }
+      const artifact = await readResolvedSkillArtifact(
+        resolution,
+        kind,
+        cleanQuery(query.aggregator) ?? process.env.RN_WALRUS_AGGREGATOR_URL ?? process.env.WALRUS_AGGREGATOR_URL ?? index.aggregator_url
+      );
+      if (!artifact) {
+        set.status = 404;
+        return {
+          error: "skill_artifact_not_found",
+          skill_object_id: resolution.skill_object_id,
+          path: kind === "manifest" ? resolution.paths.skill_yaml : resolution.paths.skill_entry
+        };
+      }
+      const body = artifact.bytes.buffer.slice(
+        artifact.bytes.byteOffset,
+        artifact.bytes.byteOffset + artifact.bytes.byteLength
+      ) as ArrayBuffer;
+      return new Response(body, {
+        headers: {
+          "content-type": artifact.contentType,
+          "cache-control": "public, max-age=300, stale-while-revalidate=3600",
+          "content-disposition": `inline; filename="${artifact.filename.replace(/"/g, "")}"`
+        }
+      });
+    } catch (error) {
+      set.status = 502;
+      return {
+        error: "skill_content_unavailable",
+        storage: liveIndexStorageState(),
+        message: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }, {
+    tags: ["index"],
+    params: t.Object({
+      id: t.String({ description: "On-chain Sui SkillAsset object id." })
+    }),
+    query: t.Object({
+      file: t.Optional(t.String({ description: "entry for SKILL.md, or manifest / skill.yaml for skill.yaml." })),
+      limit: t.Optional(t.String()),
+      refresh: t.Optional(t.String()),
+      aggregator: t.Optional(t.String({ description: "Optional Walrus aggregator URL override." }))
+    }, { additionalProperties: true }),
+    detail: {
+      summary: "Stream original skill content by SkillAsset object id"
     }
   })
   .get("/index/health", async () => ({

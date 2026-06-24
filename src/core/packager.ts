@@ -45,7 +45,23 @@ function relationId(src: string, dst: string, relation: string): string {
   return `${src}->${relation}->${dst}`;
 }
 
-async function collectNestedManifests(root: string, assetId: string, asset: NonNullable<ReleaseManifest["assets"]>) {
+function scopedPackageNamespace(repo: string, commit: string, assetId: string): string {
+  if (repo.startsWith("file://") || commit === "working-tree") {
+    return `asset:${assetId}`;
+  }
+  return `git:${repo.replace(/\.git$/, "")}@${commit}`;
+}
+
+function scopedChildId(kind: "skill" | "workflow", namespace: string, manifestId: string): string {
+  return `rn:${kind}:${namespace}:${manifestId}`;
+}
+
+async function collectNestedManifests(
+  root: string,
+  assetId: string,
+  asset: NonNullable<ReleaseManifest["assets"]>,
+  namespace: string
+) {
   const skills: ReleaseManifest["skills"] = [];
   const workflows: ReleaseManifest["workflows"] = [];
   const relationships: ReleaseManifest["relationships"] = [];
@@ -56,13 +72,14 @@ async function collectNestedManifests(root: string, assetId: string, asset: NonN
       continue;
     }
     const manifest = await readYamlFile<ResearchSkillManifest>(path.join(root, skillPath));
-    const id = `skill:${slugify(manifest.name)}@${manifest.version}`;
-    skills.push({ id, path: skillPath, manifest });
+    const manifestId = `skill:${slugify(manifest.name)}@${manifest.version}`;
+    const id = scopedChildId("skill", namespace, manifestId);
+    skills.push({ id, manifest_id: manifestId, source_asset_id: assetId, path: skillPath, manifest });
     relationships.push({
       src_id: assetId,
       dst_id: id,
       relation_type: "contains_skill",
-      metadata: { path: skillRef.path, relation: manifest.relation }
+      metadata: { manifest_id: manifestId, path: skillRef.path, relation: manifest.relation }
     });
     for (const dependency of manifest.depends_on ?? []) {
       const dependencyId = String(dependency.id ?? dependency.name ?? dependency.skill ?? "");
@@ -80,13 +97,14 @@ async function collectNestedManifests(root: string, assetId: string, asset: NonN
   const workflowPath = asset.assets?.workflow?.path;
   if (workflowPath && (await pathExists(path.join(root, workflowPath)))) {
     const manifest = await readYamlFile<ResearchWorkflowManifest>(path.join(root, workflowPath));
-    const id = `workflow:${slugify(manifest.name)}@${manifest.version}`;
-    workflows.push({ id, path: workflowPath, manifest });
+    const manifestId = `workflow:${slugify(manifest.name)}@${manifest.version}`;
+    const id = scopedChildId("workflow", namespace, manifestId);
+    workflows.push({ id, manifest_id: manifestId, source_asset_id: assetId, path: workflowPath, manifest });
     relationships.push({
       src_id: assetId,
       dst_id: id,
       relation_type: "contains_workflow",
-      metadata: { path: workflowPath }
+      metadata: { manifest_id: manifestId, path: workflowPath }
     });
   }
 
@@ -140,9 +158,10 @@ export async function packageWorkspace(rootInput = ".", releaseRoot = DEFAULT_RE
   const contentHash = computeContentHash(files);
   const assetYamlHash = files.find((file) => file.path === "asset.yaml")?.sha256 ?? (await sha256File(path.join(root, "asset.yaml")));
   const assetId = asset.id ?? `ra:local:${shortHash(`${asset.title}:${asset.version}:${contentHash}`, 20)}`;
-  const nested = await collectNestedManifests(root, assetId, asset);
   const repo = gitValue(root, ["config", "--get", "remote.origin.url"], `file://${root}`);
   const commit = gitValue(root, ["rev-parse", "HEAD"], "working-tree");
+  const namespace = scopedPackageNamespace(repo, commit, assetId);
+  const nested = await collectNestedManifests(root, assetId, asset, namespace);
   const createdAt = new Date().toISOString();
   const manifestWithoutHash: Omit<ReleaseManifest, "manifest_hash"> = {
     schema: "research-asset-manifest/v0.1",

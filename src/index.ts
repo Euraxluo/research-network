@@ -11,6 +11,7 @@ export * from "./core/sui-events.js";
 export * from "./core/local-store.js";
 export * from "./core/packager.js";
 export * from "./core/sdk.js";
+export * from "./core/skill-resolver.js";
 export * from "./core/testnet.js";
 export * from "./core/types.js";
 export * from "./core/validator.js";

@@ -2688,7 +2688,8 @@ const SITE_JS = `
         '<p>' + esc(skill.description || "No skill description recorded.") + '</p>' +
         (caps.length ? '<div class="abs-tags">' + caps.map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + '</div>' : '') +
         '<dl class="verification">' +
-          '<div><dt>Skill ID</dt><dd><code>' + esc(skill.id || "") + '</code></dd></div>' +
+          '<div><dt>Skill object</dt><dd><code>' + esc(skill.id || "") + '</code></dd></div>' +
+          '<div><dt>Manifest ID</dt><dd><code>' + esc(skill.manifest_id || "") + '</code></dd></div>' +
           '<div><dt>Relation</dt><dd>' + esc(skill.relation || "owned") + '</dd></div>' +
           '<div><dt>Access</dt><dd>' + esc(skill.access_visibility || "public") + '</dd></div>' +
           '<div><dt>Manifest path</dt><dd><code>' + esc(skill.path || "") + '</code></dd></div>' +
@@ -2783,6 +2784,8 @@ const SITE_JS = `
     var asset = entry.asset || {};
     return [
       skill.id,
+      skill.manifest_id,
+      skill.source_asset_id,
       skill.name,
       skill.description,
       Array.isArray(skill.capabilities) ? skill.capabilities.join(" ") : "",
@@ -2813,6 +2816,8 @@ const SITE_JS = `
       (caps.length ? '<div class="abs-tags">' + caps.slice(0, 8).map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + '</div>' : '') +
       '<div class="copy-row"><code>' + esc(installCommand) + '</code><button class="copy-btn" type="button" data-copy="' + esc(installCommand) + '">copy</button></div>' +
       '<dl class="verification">' +
+        '<div><dt>Skill object</dt><dd><code>' + esc(skill.id || "") + '</code></dd></div>' +
+        '<div><dt>Manifest ID</dt><dd><code>' + esc(skill.manifest_id || "") + '</code></dd></div>' +
         '<div><dt>Source assert</dt><dd>' + (assetHref ? plainLink(assetHref, shortText(asset.title || asset.id || "Research Asset", 42, 14)) : esc(asset.title || asset.id || "Research Asset")) + '</dd></div>' +
         '<div><dt>Proof</dt><dd><span class="chain-status chain-status-' + (state.verified ? "verified" : "warning") + '">' + esc(state.label) + '</span></dd></div>' +
         '<div><dt>Repository</dt><dd>' + (asset.repo_url ? plainLink(asset.repo_url, repoText || shortText(asset.repo_url, 24, 12)) : '<span class="muted">not recorded</span>') + '</dd></div>' +

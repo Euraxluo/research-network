@@ -17,6 +17,8 @@ describe("live index Elysia API", () => {
     const spec = await response.json() as { paths: Record<string, unknown> };
     expect(spec.paths["/api/index"]).toBeTruthy();
     expect(spec.paths["/api/index/artifact"]).toBeTruthy();
+    expect(spec.paths["/api/index/skill/{id}"]).toBeTruthy();
+    expect(spec.paths["/api/index/skill/{id}/content"]).toBeTruthy();
     expect(spec.paths["/api/index/ingest"]).toBeTruthy();
     expect(spec.paths["/api/index/health"]).toBeTruthy();
   });

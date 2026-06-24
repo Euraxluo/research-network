@@ -41,6 +41,8 @@ interface SuiTxResponse {
 
 interface ReleaseSkill {
   id?: string;
+  manifest_id?: string;
+  source_asset_id?: string;
   path?: string;
   manifest?: {
     name?: string;
@@ -58,6 +60,8 @@ interface ReleaseSkill {
 
 interface ReleaseWorkflow {
   id?: string;
+  manifest_id?: string;
+  source_asset_id?: string;
   path?: string;
   manifest?: {
     name?: string;
@@ -145,6 +149,10 @@ export interface LiveIndexAsset {
   };
   skills: Array<{
     id: string;
+    global_ref: string;
+    manifest_id: string;
+    source_asset_id: string;
+    on_chain_status: "published" | "missing";
     name: string;
     version: string;
     description: string;
@@ -158,6 +166,9 @@ export interface LiveIndexAsset {
   }>;
   workflows: Array<{
     id: string;
+    global_ref: string;
+    manifest_id: string;
+    source_asset_id: string;
     name: string;
     version: string;
     description: string;
@@ -184,6 +195,12 @@ export interface LiveIndexAsset {
     manifest_match: boolean;
     release_manifest_match: boolean;
   };
+}
+
+interface PublishedSkillRef {
+  skillObjectId: string;
+  sourceAssetId: string;
+  manifestId: string;
 }
 
 export interface LiveIndexMembershipEvent {
@@ -560,18 +577,47 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 }
 
-function normalizeReleaseSkills(release: ReleaseManifest): LiveIndexAsset["skills"] {
+function releaseSkillManifestId(skill: ReleaseSkill): string {
+  const manifest = skill.manifest ?? {};
+  const name = String(manifest.name ?? skill.id ?? "Unnamed skill");
+  const version = String(manifest.version ?? "");
+  return String(skill.manifest_id ?? skill.id ?? (version ? `skill:${name}@${version}` : `skill:${name}`));
+}
+
+function releaseWorkflowManifestId(workflow: ReleaseWorkflow): string {
+  const manifest = workflow.manifest ?? {};
+  const name = String(manifest.name ?? workflow.id ?? "Unnamed workflow");
+  const version = String(manifest.version ?? "");
+  return String(workflow.manifest_id ?? workflow.id ?? (version ? `workflow:${name}@${version}` : `workflow:${name}`));
+}
+
+function scopedLiveChildRef(kind: "skill" | "workflow", sourceAssetId: string, manifestId: string): string {
+  return `rn:${kind}:sui-testnet:${sourceAssetId}:${manifestId}`;
+}
+
+function normalizeReleaseSkills(
+  release: ReleaseManifest,
+  sourceAssetId: string,
+  publishedSkills: Map<string, PublishedSkillRef>
+): LiveIndexAsset["skills"] {
   return (Array.isArray(release.skills) ? release.skills : []).map((skill) => {
     const manifest = skill.manifest ?? {};
     const name = String(manifest.name ?? skill.id ?? "Unnamed skill");
     const version = String(manifest.version ?? "");
+    const manifestId = releaseSkillManifestId(skill);
+    const globalRef = scopedLiveChildRef("skill", sourceAssetId, manifestId);
+    const published = publishedSkills.get(`${sourceAssetId}\n${manifestId}`);
     const entry = String(manifest.entry ?? "SKILL.md").replace(/^\/+/, "");
     const rawPath = String(skill.path ?? "").replace(/^\/+/, "");
     const basePath = /\.ya?ml$/i.test(rawPath)
       ? rawPath.split("/").slice(0, -1).join("/")
       : rawPath.replace(/\/?$/, "");
     return {
-      id: String(skill.id ?? (version ? `skill:${name}@${version}` : `skill:${name}`)),
+      id: published?.skillObjectId ?? globalRef,
+      global_ref: globalRef,
+      manifest_id: manifestId,
+      source_asset_id: sourceAssetId,
+      on_chain_status: published ? "published" : "missing",
       name,
       version,
       description: String(manifest.description ?? ""),
@@ -586,13 +632,18 @@ function normalizeReleaseSkills(release: ReleaseManifest): LiveIndexAsset["skill
   });
 }
 
-function normalizeReleaseWorkflows(release: ReleaseManifest): LiveIndexAsset["workflows"] {
+function normalizeReleaseWorkflows(release: ReleaseManifest, sourceAssetId: string): LiveIndexAsset["workflows"] {
   return (Array.isArray(release.workflows) ? release.workflows : []).map((workflow) => {
     const manifest = workflow.manifest ?? {};
     const name = String(manifest.name ?? workflow.id ?? "Unnamed workflow");
     const version = String(manifest.version ?? "");
+    const manifestId = releaseWorkflowManifestId(workflow);
+    const globalRef = scopedLiveChildRef("workflow", sourceAssetId, manifestId);
     return {
-      id: String(workflow.id ?? (version ? `workflow:${name}@${version}` : `workflow:${name}`)),
+      id: globalRef,
+      global_ref: globalRef,
+      manifest_id: manifestId,
+      source_asset_id: sourceAssetId,
       name,
       version,
       description: String(manifest.description ?? ""),
@@ -613,11 +664,40 @@ function normalizeReleaseWorkflows(release: ReleaseManifest): LiveIndexAsset["wo
   });
 }
 
-function normalizeReleaseRelationships(release: ReleaseManifest): LiveIndexAsset["relationships"] {
+function releaseChildIdMap(
+  release: ReleaseManifest,
+  sourceAssetId: string,
+  publishedSkills: Map<string, PublishedSkillRef>
+): Map<string, string> {
+  const map = new Map<string, string>();
+  const manifestAssetId = release.assets?.id ? String(release.assets.id) : "";
+  if (manifestAssetId) map.set(manifestAssetId, sourceAssetId);
+  for (const skill of Array.isArray(release.skills) ? release.skills : []) {
+    const manifestId = releaseSkillManifestId(skill);
+    const published = publishedSkills.get(`${sourceAssetId}\n${manifestId}`);
+    const id = published?.skillObjectId ?? scopedLiveChildRef("skill", sourceAssetId, manifestId);
+    if (skill.id) map.set(String(skill.id), id);
+    map.set(manifestId, id);
+  }
+  for (const workflow of Array.isArray(release.workflows) ? release.workflows : []) {
+    const manifestId = releaseWorkflowManifestId(workflow);
+    const id = scopedLiveChildRef("workflow", sourceAssetId, manifestId);
+    if (workflow.id) map.set(String(workflow.id), id);
+    map.set(manifestId, id);
+  }
+  return map;
+}
+
+function normalizeReleaseRelationships(
+  release: ReleaseManifest,
+  sourceAssetId: string,
+  publishedSkills: Map<string, PublishedSkillRef>
+): LiveIndexAsset["relationships"] {
+  const idMap = releaseChildIdMap(release, sourceAssetId, publishedSkills);
   return (Array.isArray(release.relationships) ? release.relationships : [])
     .map((relationship) => ({
-      src_id: String(relationship.src_id ?? ""),
-      dst_id: String(relationship.dst_id ?? ""),
+      src_id: idMap.get(String(relationship.src_id ?? "")) ?? String(relationship.src_id ?? ""),
+      dst_id: idMap.get(String(relationship.dst_id ?? "")) ?? String(relationship.dst_id ?? ""),
       relation_type: String(relationship.relation_type ?? ""),
       metadata: relationship.metadata && typeof relationship.metadata === "object" ? relationship.metadata : {}
     }))
@@ -631,6 +711,7 @@ function buildAsset(input: {
   release?: ReleaseManifest;
   releaseError?: string;
   packageId: string;
+  publishedSkills: Map<string, PublishedSkillRef>;
 }): LiveIndexAsset {
   const parsed = input.event.parsedJson ?? {};
   const fields = input.objectData?.content?.fields ?? {};
@@ -650,7 +731,7 @@ function buildAsset(input: {
   const gasOwner = String(input.txData?.transaction?.data?.gasData?.owner ?? "");
   const spentMist = suiSpentMist(input.txData, gasOwner || txSender);
   const repoCommit = bytesToString(parsed.repo_commit) || String(release.commit ?? "");
-  const assetId = String(releaseAsset.id ?? objectId);
+  const assetId = objectId;
   const expectedType = `${input.packageId}::research_asset::ResearchAsset`;
   const eventOwnerLower = eventOwner.toLowerCase();
   const objectOwnerLower = objectOwner.toLowerCase();
@@ -686,7 +767,7 @@ function buildAsset(input: {
     gas_owner: gasOwner,
     sui_spent_mist: spentMist,
     tx_digest: txDigest,
-    href: releaseAsset.id ? `/asset.html?id=${routeSegment(String(releaseAsset.id))}` : undefined,
+    href: `/asset.html?id=${routeSegment(assetId)}`,
     release_manifest_status: input.release ? "resolved" : "unavailable",
     release_error: input.releaseError,
     paper: {
@@ -701,9 +782,9 @@ function buildAsset(input: {
         ?? releaseArtifactPath(release, paper.ppt),
       readme_path: releaseArtifactPath(release, "README.md")
     },
-    skills: normalizeReleaseSkills(release),
-    workflows: normalizeReleaseWorkflows(release),
-    relationships: normalizeReleaseRelationships(release),
+    skills: normalizeReleaseSkills(release, assetId, input.publishedSkills),
+    workflows: normalizeReleaseWorkflows(release, assetId),
+    relationships: normalizeReleaseRelationships(release, assetId, input.publishedSkills),
     proof
   };
 }
@@ -963,16 +1044,21 @@ async function buildLiveDelegationSummary(input: {
 
 export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promise<LiveIndexResult> {
   const { rpcUrl, packageId, aggregatorUrl, limit, eventType } = liveIndexConfig(options);
-  const [page, membership, delegations] = await Promise.all([
+  const skillEventType = `${packageId}::skill::SkillPublished`;
+  const [page, skillPage, membership, delegations] = await Promise.all([
     rpcCall<{ data?: SuiEvent[] }>(rpcUrl, "suix_queryEvents", [{ MoveEventType: eventType }, null, limit, true]),
+    rpcCall<{ data?: SuiEvent[] }>(rpcUrl, "suix_queryEvents", [{ MoveEventType: skillEventType }, null, limit * 10, true]).catch(() => ({ data: [] })),
     buildLiveMembershipSummary({ rpcUrl, packageId, limit }).catch(() => emptyLiveMembershipSummary(packageId)),
     buildLiveDelegationSummary({ rpcUrl, packageId, limit }).catch(() => emptyLiveDelegationSummary(packageId))
   ]);
   const events = (page.data ?? []).filter((event) => event.id?.txDigest && event.parsedJson?.asset_id);
+  const skillEvents = (skillPage.data ?? []).filter((event) => event.parsedJson?.skill_id && event.parsedJson?.source_asset_id);
   const objectIds = events.map((event) => String(event.parsedJson?.asset_id ?? ""));
+  const skillObjectIds = skillEvents.map((event) => String(event.parsedJson?.skill_id ?? ""));
   const txDigests = events.map((event) => String(event.id?.txDigest ?? ""));
-  const [objectResponses, txResponses, releases] = await Promise.all([
+  const [objectResponses, skillObjectResponses, txResponses, releases] = await Promise.all([
     objectIds.length ? rpcCall<SuiObjectResponse[]>(rpcUrl, "sui_multiGetObjects", [objectIds, { showType: true, showOwner: true, showContent: true }]) : Promise.resolve([]),
+    skillObjectIds.length ? rpcCall<SuiObjectResponse[]>(rpcUrl, "sui_multiGetObjects", [skillObjectIds, { showType: true, showOwner: true, showContent: true }]) : Promise.resolve([]),
     txDigests.length ? rpcCall<SuiTxResponse[]>(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showInput: true, showEffects: true, showEvents: true, showBalanceChanges: true }]) : Promise.resolve([]),
     Promise.all(events.map(async (event) => {
       const blobId = bytesToString(event.parsedJson?.walrus_blob_id);
@@ -985,6 +1071,17 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
     }))
   ]);
   const objectById = new Map(objectResponses.map((entry) => [entry.data?.objectId, entry.data]));
+  const skillObjectById = new Map(skillObjectResponses.map((entry) => [entry.data?.objectId, entry.data]));
+  const publishedSkills = new Map<string, PublishedSkillRef>();
+  for (const event of skillEvents) {
+    const skillObjectId = String(event.parsedJson?.skill_id ?? "");
+    const sourceAssetId = String(event.parsedJson?.source_asset_id ?? "");
+    const skillObject = skillObjectById.get(skillObjectId);
+    const manifestId = bytesToString(skillObject?.content?.fields?.name_hash);
+    if (skillObjectId && sourceAssetId && manifestId) {
+      publishedSkills.set(`${sourceAssetId}\n${manifestId}`, { skillObjectId, sourceAssetId, manifestId });
+    }
+  }
   const txByDigest = new Map(txResponses.map((entry) => [entry.digest, entry]));
   const assets = events
     .map((event, index) => buildAsset({
@@ -993,7 +1090,8 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
       txData: txByDigest.get(String(event.id?.txDigest ?? "")),
       release: releases[index]?.release,
       releaseError: releases[index]?.error,
-      packageId
+      packageId,
+      publishedSkills
     }))
     .filter((asset) => matchesLiveIndexQuery(asset, options.query ?? ""));
 

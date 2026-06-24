@@ -23,6 +23,13 @@ import { decodeJwtClaims, deriveUserSalt, deriveZkLoginAddress } from "./core/zk
 import { replayIndexer, searchIndex, getGraph, summarizeAssetEconomics } from "./core/indexer.js";
 import { readIndex } from "./core/local-store.js";
 import { pollSuiEvents } from "./core/sui-events.js";
+import { buildLiveIndex } from "./core/live-index.js";
+import {
+  isSuiObjectId,
+  readResolvedSkillArtifact,
+  resolveSkillFromLiveIndex,
+  type SkillArtifactKind
+} from "./core/skill-resolver.js";
 import { buildStaticWeb } from "./core/web.js";
 import { buildAuthAssets, buildVercelAuthShell, loadAuthSiteConfig } from "./core/web-auth.js";
 import { serveStaticSite } from "./core/web-serve.js";
@@ -122,6 +129,7 @@ Commands:
   research economics <asset-id>
   research fork <asset-id> <target-dir> [--include paper,skill,workflow,code]
   research install <skill-id> [workspace] [--mode referenced|vendored]
+  research skill:resolve <skill-object-id> [--limit 20] [--include-content] [--file entry|manifest]
   research auth:start --provider github|gitlab|gitea|privy|dynamic|web3auth|particle|lit|custom-oidc --client-id id --redirect-uri URL
   research auth:complete --intent auth:... --issuer ISS --subject SUB [--jwt <id_token>] [--git-provider github --git-user-id id --git-username name] [--wallet sui:0x...]
   research login [--port 8765] [--no-open]
@@ -321,6 +329,37 @@ async function run() {
       workspace,
       mode: flagString(flags, "mode", "referenced") === "vendored" ? "vendored" : "referenced"
     }));
+    return;
+  }
+
+  if (command === "skill:resolve") {
+    const [skillObjectId] = positional;
+    if (!skillObjectId || !isSuiObjectId(skillObjectId)) {
+      throw new Error("Usage: research skill:resolve <skill-object-id>");
+    }
+    const index = await buildLiveIndex({
+      limit: Number(flagString(flags, "limit", "20")) || 20
+    });
+    const resolution = resolveSkillFromLiveIndex(index, skillObjectId);
+    if (!resolution) {
+      throw new Error(`Published SkillAsset not found in live index: ${skillObjectId}`);
+    }
+    if (!flagBool(flags, "includeContent")) {
+      printJson(resolution);
+      return;
+    }
+    const file = flagString(flags, "file", "entry");
+    const kind: SkillArtifactKind = file === "manifest" || file === "skill.yaml" ? "manifest" : "entry";
+    const artifact = await readResolvedSkillArtifact(resolution, kind, index.aggregator_url);
+    printJson({
+      ...resolution,
+      content: artifact ? {
+        kind,
+        path: artifact.path,
+        content_type: artifact.contentType,
+        text: new TextDecoder().decode(artifact.bytes)
+      } : null
+    });
     return;
   }
 

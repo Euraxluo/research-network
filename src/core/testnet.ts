@@ -53,6 +53,14 @@ export interface TestnetDeployReceipt {
     register_tx?: unknown;
     register_status?: "skipped" | "success" | "failed";
     register_error?: string;
+    skill_publish_txs?: Array<{
+      manifest_id: string;
+      name: string;
+      tx?: unknown;
+      skill_object_id?: string;
+      status: "success" | "failed";
+      error?: string;
+    }>;
   };
   web: {
     dist_dir: string;
@@ -180,8 +188,36 @@ function extractPackageId(output: unknown): string | undefined {
   return match?.[1];
 }
 
+function extractCreatedObjectId(output: unknown, objectTypeSuffix: string): string | undefined {
+  const candidate = output as {
+    objectChanges?: Array<Record<string, unknown>>;
+    effects?: { created?: Array<{ reference?: { objectId?: string } }> };
+  };
+  const created = candidate.objectChanges?.find((change) => change.type === "created" && String(change.objectType ?? "").endsWith(objectTypeSuffix));
+  if (typeof created?.objectId === "string") return created.objectId;
+  return candidate.effects?.created?.[0]?.reference?.objectId;
+}
+
 function bytesArg(input: string): string {
   return `[${[...Buffer.from(input, "utf8")].join(",")}]`;
+}
+
+function optionIdArg(input: unknown): string {
+  const value = typeof input === "string" ? input : undefined;
+  return value && /^0x[0-9a-fA-F]+$/.test(value) ? `[${value}]` : "[]";
+}
+
+function idVectorArg(input: unknown): string {
+  if (!Array.isArray(input)) return "[]";
+  const ids = input
+    .map((entry) => {
+      if (typeof entry === "string") return entry;
+      if (!entry || typeof entry !== "object") return "";
+      const record = entry as Record<string, unknown>;
+      return typeof record.id === "string" ? record.id : typeof record.skill_id === "string" ? record.skill_id : "";
+    })
+    .filter((value) => /^0x[0-9a-fA-F]+$/.test(value));
+  return `[${ids.join(",")}]`;
 }
 
 function assetTypeMask(types: string[]): number {
@@ -399,6 +435,51 @@ export async function deployToTestnet(options: TestnetDeployOptions): Promise<Te
         "--json"
       ]);
       receipt.sui.register_status = "success";
+      const sourceAssetId = extractCreatedObjectId(receipt.sui.register_tx, "::research_asset::ResearchAsset");
+      receipt.sui.skill_publish_txs = [];
+      if (sourceAssetId) {
+        for (const skill of pkg.manifest.skills) {
+          const manifestId = skill.manifest_id ?? skill.id;
+          try {
+            const tx = runJson("sui", [
+              "client",
+              "call",
+              "--package",
+              packageId,
+              "--module",
+              "skill",
+              "--function",
+              "publish_skill",
+              "--args",
+              bytesArg(manifestId),
+              skill.manifest.version,
+              bytesArg(pkg.manifest.manifest_hash),
+              bytesArg(receipt.walrus.blob_id ?? JSON.stringify(walrusOutput)),
+              sourceAssetId,
+              optionIdArg(skill.manifest.derived_from),
+              idVectorArg(skill.manifest.depends_on),
+              "0x6",
+              "--gas-budget",
+              gasBudget,
+              "--json"
+            ]);
+            receipt.sui.skill_publish_txs.push({
+              manifest_id: manifestId,
+              name: skill.manifest.name,
+              tx,
+              skill_object_id: extractCreatedObjectId(tx, "::skill::SkillAsset"),
+              status: "success"
+            });
+          } catch (error) {
+            receipt.sui.skill_publish_txs.push({
+              manifest_id: manifestId,
+              name: skill.manifest.name,
+              status: "failed",
+              error: error instanceof Error ? error.message : String(error)
+            });
+          }
+        }
+      }
     } catch (error) {
       receipt.sui.register_status = "failed";
       receipt.sui.register_error = error instanceof Error ? error.message : String(error);

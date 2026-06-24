@@ -194,9 +194,13 @@ describe("live Sui/Walrus index", () => {
     });
 
     expect(index.assets[0].title).toContain("Loop Engine");
+    expect(index.assets[0].id).toBe(assetId);
     expect(index.assets[0].skills).toEqual([
       expect.objectContaining({
-        id: "skill:loop-engine-cartographer@0.1.0",
+        id: "rn:skill:sui-testnet:0x3737373737373737373737373737373737373737373737373737373737373737:skill:loop-engine-cartographer@0.1.0",
+        manifest_id: "skill:loop-engine-cartographer@0.1.0",
+        source_asset_id: assetId,
+        on_chain_status: "missing",
         name: "loop-engine-cartographer",
         capabilities: expect.arrayContaining(["state-transition-graph"]),
         entry_path: "skill/loop-engine-cartographer/SKILL.md",
@@ -206,19 +210,21 @@ describe("live Sui/Walrus index", () => {
     ]);
     expect(index.assets[0].workflows).toEqual([
       expect.objectContaining({
-        id: "workflow:publish-loop-engine-asset@0.1.0",
+        id: "rn:workflow:sui-testnet:0x3737373737373737373737373737373737373737373737373737373737373737:workflow:publish-loop-engine-asset@0.1.0",
+        manifest_id: "workflow:publish-loop-engine-asset@0.1.0",
+        source_asset_id: assetId,
         name: "publish-loop-engine-asset"
       })
     ]);
     expect(index.assets[0].relationships).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        src_id: "ra:showcase:loop-engine",
-        dst_id: "skill:loop-engine-cartographer@0.1.0",
+        src_id: assetId,
+        dst_id: "rn:skill:sui-testnet:0x3737373737373737373737373737373737373737373737373737373737373737:skill:loop-engine-cartographer@0.1.0",
         relation_type: "contains_skill"
       }),
       expect.objectContaining({
-        src_id: "ra:showcase:loop-engine",
-        dst_id: "workflow:publish-loop-engine-asset@0.1.0",
+        src_id: assetId,
+        dst_id: "rn:workflow:sui-testnet:0x3737373737373737373737373737373737373737373737373737373737373737:workflow:publish-loop-engine-asset@0.1.0",
         relation_type: "contains_workflow"
       })
     ]));

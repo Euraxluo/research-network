@@ -15,6 +15,33 @@ This deployment used the local `research deploy:testnet` flow against Walrus tes
 > `0x7de40428ce8fb805262b108a0041201618f57a857009532a355a2d3d5cbc36ee`。下一道 gate
 > 仍然是两个真实 zkLogin 账号运行带资金上限的 production acceptance。
 
+## 2026-06-24 Orbstack Loop Engine Asset + Skill
+
+`orbstack-loop-engine-research-asset` 已作为真实 ResearchAsset 发布，并且其 bundled
+skill 已注册为一等链上 `skill::SkillAsset`。全局 skill id 使用 `SkillAsset` object id；
+`skill:<name>@<version>` 只作为 release-local manifest id，用于从对应 Walrus release
+定位原始 `skill.yaml` 和 `SKILL.md` 内容。
+
+- GitHub repo: `https://github.com/Euraxluo/orbstack-loop-engine-research-asset`
+- Repo commit: `98ab5507d757813d006116f0f01fb40896e37546`
+- Package ID: `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`
+- Walrus release blob: `E5AV_dMv5f4XenTVEIF7-RccP4OPuK0Tl27GgF9-UUM`
+- ResearchAsset tx: `BaBF7je2fjHzk7ZnUDmUvVGNSzd9UyHkkSGDxq53SsbR`
+- ResearchAsset object: `0x4141e4bd5c85d1c25adbde619ead911df044326497efb2383d9b73ecf37a4b18`
+- SkillPublished tx: `F3kR1hPVGncfDSptd5v4sRb6dQXcufhdHKvxjrXmWH8F`
+- SkillAsset object: `0xa683ea0b4a6b90610144d3e2e05fbf870076e32d31332dbbdc36f787c03b2784`
+- Skill manifest id stored in `SkillAsset.name_hash`: `skill:orbstack-loop-engine@0.1.0`
+- Raw skill content path inside the Walrus release: `skill/orbstack-loop-engine/SKILL.md`
+
+Resolver contract:
+
+- Canonical skill lookup key: `SkillAsset` object id only.
+- `skill:orbstack-loop-engine@0.1.0` is not globally unique and must not be used as an install id.
+- API: `GET /api/index/skill/0xa683ea0b4a6b90610144d3e2e05fbf870076e32d31332dbbdc36f787c03b2784`
+- Raw entry: `GET /api/index/skill/0xa683ea0b4a6b90610144d3e2e05fbf870076e32d31332dbbdc36f787c03b2784/content`
+- Raw manifest: `GET /api/index/skill/0xa683ea0b4a6b90610144d3e2e05fbf870076e32d31332dbbdc36f787c03b2784/content?file=manifest`
+- CLI: `research skill:resolve 0xa683ea0b4a6b90610144d3e2e05fbf870076e32d31332dbbdc36f787c03b2784 --include-content`
+
 ## 2026-06-23 Public Showcase Testnet Assets
 
 为避免把本地 demo 当成链上证据，public showcase 的三个演示仓库已经逐个通过

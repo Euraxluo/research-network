@@ -153,11 +153,15 @@ export interface ReleaseManifest {
   assets: ResearchAssetManifest;
   skills: Array<{
     id: string;
+    manifest_id?: string;
+    source_asset_id?: string;
     path: string;
     manifest: ResearchSkillManifest;
   }>;
   workflows: Array<{
     id: string;
+    manifest_id?: string;
+    source_asset_id?: string;
     path: string;
     manifest: ResearchWorkflowManifest;
   }>;
