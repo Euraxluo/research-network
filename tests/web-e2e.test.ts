@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { JSDOM } from "jsdom";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import notFoundHandler from "../api/not-found.js";
 import {
   appendEvents,
   buildAuthAssets,
@@ -760,14 +761,14 @@ describe("static web E2E", () => {
     expect(await exists(path.join(shellDir, "search.html"))).toBe(true);
     expect(await exists(path.join(shellDir, "abs", "old.html"))).toBe(false);
 
-    // The auth config injects the runtime endpoints the login page reads.
+    // The auth config injects the runtime endpoints the Account auth surface reads.
     const configJs = await fs.readFile(path.join(shellDir, "auth", "config.js"), "utf8");
     expect(configJs).toContain("RN_AUTH_CONFIG");
     expect(configJs).toContain("test-client.apps.googleusercontent.com");
     expect(configJs).toContain("Iv23test");
   });
 
-  it("routes the production root to the public directory, not the dapp shell", async () => {
+  it("routes the production root to the public directory and unknown pages to branded 404", async () => {
     const config = JSON.parse(await fs.readFile(path.join(process.cwd(), "vercel.json"), "utf8")) as {
       rewrites: Array<{ source: string; destination: string }>;
     };
@@ -777,10 +778,38 @@ describe("static web E2E", () => {
       source: "/api/(.*)",
       destination: "/api/$1"
     });
-    expect(config.rewrites).toContainEqual({
+    expect(config.rewrites).not.toContainEqual({
       source: "/((?!api/).*)",
       destination: "/api/walrus?path=/$1"
     });
+    expect(config.rewrites.at(-1)).toEqual({
+      source: "/((?!api/).*)",
+      destination: "/api/not-found"
+    });
+  });
+
+  it("serves a branded 404 for unknown product routes", async () => {
+    const headers = new Map<string, string>();
+    let html = "";
+    const res = {
+      statusCode: 200,
+      setHeader(name: string, value: string) {
+        headers.set(name.toLowerCase(), value);
+      },
+      end(value: string) {
+        html = value;
+      }
+    };
+
+    notFoundHandler({ url: "/abcdefg?x=1" }, res);
+
+    expect(res.statusCode).toBe(404);
+    expect(headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(html).toContain("This page is not part of the current Research Network build.");
+    expect(html).toContain("/abcdefg");
+    expect(html).toContain('href="/account.html"');
+    expect(html).not.toContain("Sign in with Google");
+    expect(html).not.toContain("Connect GitHub");
   });
 
   it("keeps the production showcase backed by protocol kit publish events", async () => {

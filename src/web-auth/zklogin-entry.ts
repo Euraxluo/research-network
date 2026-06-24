@@ -1,5 +1,5 @@
 // Browser entry bundled by esbuild into the static Walrus site.
-// Exposes the minimal real zkLogin primitives on window so the login pages can derive a
+// Exposes the minimal real zkLogin primitives on window so Account can derive a
 // canonical Sui address client-side (no backend needed on a static host).
 import { jwtToAddress, generateNonce, generateRandomness } from "@mysten/sui/zklogin";
 import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519";

@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 // M2: multi-page build. Output lands in ../.vercel-shell so Vercel serves the
 // Vite-built account/workbench/debug pages as static files (Vercel checks static
-// output before the catch-all Walrus rewrite). auth/* + zklogin-browser.js are
+// output before the catch-all branded 404 rewrite). auth/* + zklogin-browser.js are
 // produced separately by buildVercelAuthShell and must already be present in the
 // output dir, so we set emptyOutDir:false to avoid wiping them.
 export default defineConfig({
@@ -29,7 +29,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // Proxy the API + auth assets to the production host in dev so login/account
+    // Proxy the API + auth assets to the production host in dev so Account
     // can exercise the real Vercel functions and the bundled zklogin-browser.js.
     proxy: {
       "/api": { target: "https://research-network-web.vercel.app", changeOrigin: true },

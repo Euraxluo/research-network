@@ -130,7 +130,7 @@
 
 ## 工作流 G：Web App
 
-状态：🔶 静态站点生成已实现并发布 Walrus Sites testnet；Vercel 生产入口采用 shell 模式：`/login.html`、`/account.html`、`/auth/*`、`/zklogin-browser.js` 由 `.vercel-shell` 静态服务，内容页、`/site-data.json` 与 PDF 通过 `api/walrus.ts` 代理 Walrus Site。代理已支持资源映射缓存，`rn_verify` / `refresh` / `cache_bust` 绕过缓存，Range/超过 `WALRUS_PROXY_MAX_BYTES` 的大对象 302 到 aggregator。Web 已从 Licenses 切到 Membership / Delegations，并展示 reports、access receipts、agent earnings 和 delegation 状态。交互式 Publish/Payment 流程（浏览器 + 钱包）仍仅设计。
+状态：🔶 静态站点生成已实现并发布 Walrus Sites testnet；Vercel 生产入口采用 shell 模式：`/account.html`、`/workbench.html`、`/debug.html`、`/auth/*`、`/zklogin-browser.js` 由 `.vercel-shell` 静态服务，未知非 API 路径返回品牌化 404，不再作为旧 Walrus 内容兜底。`api/walrus.ts` 仍保留为显式 API 代理能力。Web 已从 Licenses 切到 Membership / Delegations，并展示 reports、access receipts、agent earnings 和 delegation 状态。交互式 Publish/Payment 流程（浏览器 + 钱包）仍仅设计。
 
 产物：
 

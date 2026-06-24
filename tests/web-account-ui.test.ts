@@ -156,7 +156,7 @@ describe("AccountPage production UI", () => {
     expect(dom.window.localStorage.getItem("rn_github")).toBeNull();
   });
 
-  it("keeps sign-in inside Account instead of linking to a separate login page", async () => {
+  it("keeps sign-in inside Account instead of linking to a standalone auth route", async () => {
     await renderAccountPage();
 
     const text = dom.window.document.body.textContent || "";

@@ -19,7 +19,7 @@ export interface AuthSiteConfig {
   /** GitHub App OAuth client id (public) — enables the Cursor-style authorize flow. */
   githubClientId?: string;
   githubCallbackPath: string;
-  /** Sui fullnode used by the login page to fetch the current epoch for maxEpoch. */
+  /** Sui fullnode used by Account auth to fetch the current epoch for maxEpoch. */
   suiRpcUrl: string;
   /** Server endpoint returning the deterministic per-user salt (api/zklogin-salt.ts). */
   saltServicePath: string;
@@ -37,8 +37,8 @@ async function readJsonIfExists<T>(filePath: string): Promise<T | null> {
   }
 }
 
-/** Load login config from the gitignored secrets dir or build-time env vars (Vercel).
- *  Returns null when nothing is configured (so a plain `buildStaticWeb` simply omits login pages). */
+/** Load auth config from the gitignored secrets dir or build-time env vars (Vercel).
+ *  Returns null when nothing is configured (so a plain `buildStaticWeb` omits auth assets). */
 export async function loadAuthSiteConfig(secretsDir = SECRETS_DIR): Promise<AuthSiteConfig | null> {
   const oauth = await readJsonIfExists<{ google?: { client_id?: string } }>(path.join(secretsDir, "oauth.json"));
   const github = await readJsonIfExists<{ slug?: string; install_url?: string; client_id?: string }>(path.join(secretsDir, "github.json"));
@@ -105,7 +105,7 @@ function cspMetaTag(config: AuthSiteConfig): string {
 }
 
 /** Generate the browser-bundled zkLogin lib, injected public config, and auth
- *  callback pages. The user-facing sign-in surface lives inside account.html;
+ *  callback pages. The user-facing auth surface lives inside account.html;
  *  the salt service and GitHub code exchange are the only server dependencies. */
 export async function buildAuthAssets(
   outputDir: string,
@@ -144,11 +144,10 @@ export async function buildAuthAssets(
   await fs.writeFile(path.join(outputDir, "auth", "github-callback.html"), githubCallbackHtml(csp), "utf8");
 }
 
-/** Build the Vercel production shell. Public read paths are emitted as a stable
- *  arXiv-style static directory, while the Vite build (which runs after this)
- *  owns account/workbench/debug. Missing content still falls through to
- *  the Walrus proxy via vercel.json, so Vercel works as a fast public mirror
- *  and the decentralized site remains the canonical fallback. */
+/** Build the Vercel production shell. Public read paths are emitted as the
+ *  current arXiv-style directory, while the Vite build (which runs after this)
+ *  owns account/workbench/debug. Unknown non-API paths return the branded 404
+ *  configured in vercel.json instead of a generic Walrus fallback. */
 export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteConfig | null): Promise<string> {
   const authConfig = config ?? await loadAuthSiteConfig();
   if (!authConfig) {

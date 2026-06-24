@@ -591,14 +591,14 @@ async function run() {
     if (authConfig) {
       await buildAuthAssets(outputDir, authConfig);
     }
-    printJson({ outputDir, account: "sign-in surface", auth: authConfig ? "generated" : "skipped (no secrets/oauth.json or github.json)" });
+    printJson({ outputDir, account: "account auth surface", auth: authConfig ? "generated" : "skipped (no secrets/oauth.json or github.json)" });
     return;
   }
 
   if (command === "vercel:shell") {
     const outputDir = path.resolve(flagString(flags, "out", ".vercel-shell") ?? ".vercel-shell");
     await buildVercelAuthShell(outputDir);
-    printJson({ outputDir, account: "vite-owned sign-in surface", auth: "generated", content: "static-with-walrus-fallback" });
+    printJson({ outputDir, account: "vite-owned account auth surface", auth: "generated", content: "static-current-build-with-404" });
     return;
   }
 

@@ -74,7 +74,7 @@ UI 断言：
 
 前端步骤：
 
-1. 打开 `/login.html`。
+1. 打开 `/account.html`。
 2. 点击 Sign in with Google。
 3. 完成 Google OAuth，返回站点。
 4. 页面显示 zkLogin address。
@@ -545,4 +545,3 @@ UI 断言：
 | Testnet release candidate | S1、S2、S3、S4、S5、S6、S7、S8，全部真实 Walrus/Seal/Sui。 |
 | Mainnet readiness | S10 全部通过，加 testnet preflight/execute receipt 与 mainnet preflight。 |
 | Mainnet 小额上线 | S2、S3、S4、S7 小额 capped execute，确认 spend cap 和 rollback/暂停开关。 |
-
