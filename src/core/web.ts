@@ -2839,16 +2839,26 @@ const SITE_JS = `
     var limit = Math.max(1, Math.min(20, Number(root.getAttribute("data-live-skills-limit")) || 20));
     var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=" + encodeURIComponent(String(limit));
     var entries = [];
+    var assetCount = 0;
+    var resolvedManifestCount = 0;
+    var missingManifestCount = 0;
     function render() {
       var q = input && input.value ? String(input.value).trim().toLowerCase() : "";
       var filtered = q ? entries.filter(function (entry) { return liveSkillSearchText(entry).indexOf(q) !== -1; }) : entries;
       if (status) {
-        status.innerHTML = 'Found ' + filtered.length + ' skill(s) from ' + entries.length + ' live skill record(s) via ' + plainLink(indexUrl, "/api/index") + '.';
+        status.innerHTML = 'Found ' + filtered.length + ' skill(s) from ' + entries.length + ' live skill record(s) via ' + plainLink(indexUrl, "/api/index") +
+          '. Live assets: ' + assetCount + '; resolved release manifests: ' + resolvedManifestCount + '; Walrus manifest misses: ' + missingManifestCount + '.';
       }
       if (results) {
-        results.innerHTML = filtered.length
-          ? '<div class="grid live-skill-grid live-skill-catalog-grid">' + filtered.map(function (entry) { return renderLiveSkillCatalogCard(entry, artifactApi, aggregatorUrl, suiExplorer); }).join("") + '</div>'
-          : '<p class="muted">No live skill matched this query.</p>';
+        if (filtered.length) {
+          results.innerHTML = '<div class="grid live-skill-grid live-skill-catalog-grid">' + filtered.map(function (entry) { return renderLiveSkillCatalogCard(entry, artifactApi, aggregatorUrl, suiExplorer); }).join("") + '</div>';
+        } else if (assetCount && missingManifestCount) {
+          results.innerHTML = '<p class="muted">The live index has Sui ResearchAssetPublished rows, but their Walrus release manifests could not be resolved from the testnet aggregator, so no installable skills can be shown yet.</p>';
+        } else if (assetCount) {
+          results.innerHTML = '<p class="muted">The live index has research assets, but none of their resolved release manifests declare skills.</p>';
+        } else {
+          results.innerHTML = '<p class="muted">No live research assets were returned by the backend index.</p>';
+        }
       }
       setupCopy();
     }
@@ -2857,7 +2867,11 @@ const SITE_JS = `
       if (!res.ok) throw new Error("index API HTTP " + res.status);
       return res.json();
     }).then(function (data) {
-      entries = liveSkillEntries(Array.isArray(data.assets) ? data.assets : []);
+      var assets = Array.isArray(data.assets) ? data.assets : [];
+      assetCount = assets.length;
+      resolvedManifestCount = assets.filter(function (asset) { return asset.release_manifest_status === "resolved" || (Array.isArray(asset.skills) && asset.skills.length); }).length;
+      missingManifestCount = assets.filter(function (asset) { return asset.release_manifest_status === "unavailable"; }).length;
+      entries = liveSkillEntries(assets);
       render();
       if (input) input.addEventListener("input", render);
     }).catch(function (err) {

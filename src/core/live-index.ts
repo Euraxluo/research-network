@@ -132,6 +132,8 @@ export interface LiveIndexAsset {
   sui_spent_mist: string;
   tx_digest: string;
   href?: string;
+  release_manifest_status: "resolved" | "unavailable";
+  release_error?: string;
   paper?: {
     html_path?: string;
     pdf_path?: string;
@@ -627,6 +629,7 @@ function buildAsset(input: {
   objectData?: NonNullable<SuiObjectResponse["data"]>;
   txData?: SuiTxResponse;
   release?: ReleaseManifest;
+  releaseError?: string;
   packageId: string;
 }): LiveIndexAsset {
   const parsed = input.event.parsedJson ?? {};
@@ -684,6 +687,8 @@ function buildAsset(input: {
     sui_spent_mist: spentMist,
     tx_digest: txDigest,
     href: releaseAsset.id ? `/asset.html?id=${routeSegment(String(releaseAsset.id))}` : undefined,
+    release_manifest_status: input.release ? "resolved" : "unavailable",
+    release_error: input.releaseError,
     paper: {
       html_path: releaseArtifactPath(release, paper.html),
       pdf_path: releaseArtifactPath(release, paper.path),
@@ -971,7 +976,12 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
     txDigests.length ? rpcCall<SuiTxResponse[]>(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showInput: true, showEffects: true, showEvents: true, showBalanceChanges: true }]) : Promise.resolve([]),
     Promise.all(events.map(async (event) => {
       const blobId = bytesToString(event.parsedJson?.walrus_blob_id);
-      return blobId ? readReleaseManifest(blobId, aggregatorUrl).catch(() => undefined) : undefined;
+      if (!blobId) return { release: undefined, error: "missing walrus_blob_id" };
+      try {
+        return { release: await readReleaseManifest(blobId, aggregatorUrl), error: undefined };
+      } catch (error) {
+        return { release: undefined, error: error instanceof Error ? error.message : String(error) };
+      }
     }))
   ]);
   const objectById = new Map(objectResponses.map((entry) => [entry.data?.objectId, entry.data]));
@@ -981,7 +991,8 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
       event,
       objectData: objectById.get(String(event.parsedJson?.asset_id ?? "")),
       txData: txByDigest.get(String(event.id?.txDigest ?? "")),
-      release: releases[index],
+      release: releases[index]?.release,
+      releaseError: releases[index]?.error,
       packageId
     }))
     .filter((asset) => matchesLiveIndexQuery(asset, options.query ?? ""));
