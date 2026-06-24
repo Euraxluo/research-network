@@ -26,6 +26,8 @@ describe("live index Elysia API", () => {
   it("ships one Vercel catch-all entrypoint for Elysia subroutes", async () => {
     await expect(fs.access("api/index.ts")).resolves.toBeUndefined();
     await expect(fs.access("api/index/[...path].ts")).resolves.toBeUndefined();
+    await expect(fs.access("api/index/skill/[id].ts")).resolves.toBeUndefined();
+    await expect(fs.access("api/index/skill/[id]/content.ts")).resolves.toBeUndefined();
     await expect(fs.access("api/index/artifact.ts")).rejects.toBeTruthy();
     await expect(fs.access("api/index/ingest.ts")).rejects.toBeTruthy();
   });
