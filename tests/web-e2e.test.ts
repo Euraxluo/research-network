@@ -751,6 +751,9 @@ describe("static web E2E", () => {
     expect(shellSiteJs).toContain("mammoth@1.12.0");
     expect(shellSiteJs).toContain("jszip@3.10.1");
     expect(shellSiteJs).toContain("download-list");
+    expect(shellSiteJs).toContain("Agent-Native Assets");
+    expect(shellSiteJs).toContain("live-skill-card");
+    expect(shellSiteJs).toContain("Asset Graph");
     expect(shellSiteJs).toContain("README.md from the live Walrus release");
     const absFiles = await fs.readdir(path.join(shellDir, "abs"));
     expect(absFiles).toEqual([]);

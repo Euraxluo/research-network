@@ -39,6 +39,45 @@ interface SuiTxResponse {
   }>;
 }
 
+interface ReleaseSkill {
+  id?: string;
+  path?: string;
+  manifest?: {
+    name?: string;
+    version?: string;
+    description?: string;
+    capabilities?: string[];
+    relation?: string;
+    entry?: string;
+    access?: { visibility?: string };
+    tests?: string[];
+    depends_on?: string[];
+    derived_from?: string | null;
+  };
+}
+
+interface ReleaseWorkflow {
+  id?: string;
+  path?: string;
+  manifest?: {
+    name?: string;
+    version?: string;
+    description?: string;
+    inputs?: string[];
+    outputs?: string[];
+    stages?: Array<{ id?: string; name?: string; instructions?: string }>;
+    quality_gates?: Array<{ id?: string; check?: string }>;
+    tools?: string[];
+  };
+}
+
+interface ReleaseRelationship {
+  src_id?: string;
+  dst_id?: string;
+  relation_type?: string;
+  metadata?: Record<string, unknown>;
+}
+
 interface ReleaseManifest {
   repo?: string;
   commit?: string;
@@ -66,6 +105,9 @@ interface ReleaseManifest {
       };
     };
   };
+  skills?: ReleaseSkill[];
+  workflows?: ReleaseWorkflow[];
+  relationships?: ReleaseRelationship[];
 }
 
 export interface LiveIndexAsset {
@@ -99,6 +141,35 @@ export interface LiveIndexAsset {
     ppt_path?: string;
     readme_path?: string;
   };
+  skills: Array<{
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+    capabilities: string[];
+    path: string;
+    relation: string;
+    entry_path: string;
+    access_visibility: string;
+  }>;
+  workflows: Array<{
+    id: string;
+    name: string;
+    version: string;
+    description: string;
+    path: string;
+    inputs: string[];
+    outputs: string[];
+    stages: Array<{ id: string; name: string; instructions: string }>;
+    quality_gates: Array<{ id: string; check: string }>;
+    tools: string[];
+  }>;
+  relationships: Array<{
+    src_id: string;
+    dst_id: string;
+    relation_type: string;
+    metadata: Record<string, unknown>;
+  }>;
   proof: {
     tx_success: boolean;
     sender_match: boolean;
@@ -429,6 +500,9 @@ export function matchesLiveIndexQuery(asset: LiveIndexAsset, query: string): boo
     asset.abstract,
     asset.types.join(" "),
     asset.tags.join(" "),
+    (asset.skills ?? []).map((skill) => [skill.id, skill.name, skill.description, skill.capabilities.join(" "), skill.relation].join(" ")).join("\n"),
+    (asset.workflows ?? []).map((workflow) => [workflow.id, workflow.name, workflow.description, workflow.inputs.join(" "), workflow.outputs.join(" ")].join(" ")).join("\n"),
+    (asset.relationships ?? []).map((relationship) => [relationship.src_id, relationship.dst_id, relationship.relation_type].join(" ")).join("\n"),
     asset.sui_object_id,
     asset.tx_digest,
     asset.walrus_blob_id,
@@ -476,6 +550,72 @@ function suiSpentMist(txData: SuiTxResponse | undefined, owner: string): string 
     }
   }
   return spent > 0n ? spent.toString() : "";
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
+}
+
+function normalizeReleaseSkills(release: ReleaseManifest): LiveIndexAsset["skills"] {
+  return (Array.isArray(release.skills) ? release.skills : []).map((skill) => {
+    const manifest = skill.manifest ?? {};
+    const name = String(manifest.name ?? skill.id ?? "Unnamed skill");
+    const version = String(manifest.version ?? "");
+    const entry = String(manifest.entry ?? "SKILL.md").replace(/^\/+/, "");
+    const rawPath = String(skill.path ?? "").replace(/^\/+/, "");
+    const basePath = /\.ya?ml$/i.test(rawPath)
+      ? rawPath.split("/").slice(0, -1).join("/")
+      : rawPath.replace(/\/?$/, "");
+    return {
+      id: String(skill.id ?? (version ? `skill:${name}@${version}` : `skill:${name}`)),
+      name,
+      version,
+      description: String(manifest.description ?? ""),
+      capabilities: stringArray(manifest.capabilities),
+      path: String(skill.path ?? ""),
+      relation: String(manifest.relation ?? "owned"),
+      entry_path: basePath ? `${basePath}/${entry}` : entry,
+      access_visibility: String(manifest.access?.visibility ?? "public")
+    };
+  });
+}
+
+function normalizeReleaseWorkflows(release: ReleaseManifest): LiveIndexAsset["workflows"] {
+  return (Array.isArray(release.workflows) ? release.workflows : []).map((workflow) => {
+    const manifest = workflow.manifest ?? {};
+    const name = String(manifest.name ?? workflow.id ?? "Unnamed workflow");
+    const version = String(manifest.version ?? "");
+    return {
+      id: String(workflow.id ?? (version ? `workflow:${name}@${version}` : `workflow:${name}`)),
+      name,
+      version,
+      description: String(manifest.description ?? ""),
+      path: String(workflow.path ?? ""),
+      inputs: stringArray(manifest.inputs),
+      outputs: stringArray(manifest.outputs),
+      stages: (Array.isArray(manifest.stages) ? manifest.stages : []).map((stage) => ({
+        id: String(stage?.id ?? ""),
+        name: String(stage?.name ?? stage?.id ?? "Workflow stage"),
+        instructions: String(stage?.instructions ?? "")
+      })),
+      quality_gates: (Array.isArray(manifest.quality_gates) ? manifest.quality_gates : []).map((gate) => ({
+        id: String(gate?.id ?? ""),
+        check: String(gate?.check ?? "")
+      })),
+      tools: stringArray(manifest.tools)
+    };
+  });
+}
+
+function normalizeReleaseRelationships(release: ReleaseManifest): LiveIndexAsset["relationships"] {
+  return (Array.isArray(release.relationships) ? release.relationships : [])
+    .map((relationship) => ({
+      src_id: String(relationship.src_id ?? ""),
+      dst_id: String(relationship.dst_id ?? ""),
+      relation_type: String(relationship.relation_type ?? ""),
+      metadata: relationship.metadata && typeof relationship.metadata === "object" ? relationship.metadata : {}
+    }))
+    .filter((relationship) => relationship.src_id && relationship.dst_id && relationship.relation_type);
 }
 
 function buildAsset(input: {
@@ -552,6 +692,9 @@ function buildAsset(input: {
         ?? releaseArtifactPath(release, paper.ppt),
       readme_path: releaseArtifactPath(release, "README.md")
     },
+    skills: normalizeReleaseSkills(release),
+    workflows: normalizeReleaseWorkflows(release),
+    relationships: normalizeReleaseRelationships(release),
     proof
   };
 }

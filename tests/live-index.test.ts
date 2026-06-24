@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildLiveIndex, releaseHasDeclaredFile } from "../src/core/live-index.js";
 
@@ -117,6 +118,108 @@ describe("live Sui/Walrus index", () => {
         manifest_match: true
       }
     });
+  });
+
+  it("indexes skills, workflows, and graph relationships from the Walrus release manifest", async () => {
+    const releaseBytes = await fs.readFile("fixtures/public-showcase/localnet/walrus/walrus_local_c58208ad2f099b3a68d70cea/release.tar.zst");
+    const release = JSON.parse(await fs.readFile("fixtures/public-showcase/localnet/walrus/walrus_local_c58208ad2f099b3a68d70cea/manifest.json", "utf8")) as {
+      manifest_hash: string;
+      commit: string;
+    };
+    const packageId = "0xabc";
+    const signer = `0x${"8a".repeat(32)}`;
+    const assetId = `0x${"37".repeat(32)}`;
+    const txDigest = "7MGBt7CZkUE1ep71iFse4kyydKzAKk4oXQEmBPqFLpXx";
+    globalThis.fetch = vi.fn(async (url, init) => {
+      if (String(url).includes("walrus")) {
+        return new Response(releaseBytes);
+      }
+      if (!init?.body) {
+        return ORIGINAL_FETCH(url, init);
+      }
+      const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string; params?: unknown[] };
+      if (body.method === "suix_queryEvents") {
+        const filter = body.params?.[0] as { MoveEventType?: string } | undefined;
+        if (!filter?.MoveEventType?.endsWith("::research_asset::ResearchAssetPublished")) {
+          return Response.json({ result: { data: [] } });
+        }
+        return Response.json({
+          result: {
+            data: [{
+              id: { txDigest, eventSeq: "0" },
+              parsedJson: {
+                asset_id: assetId,
+                owner: signer,
+                creator: signer,
+                version: "0.1.0",
+                manifest_hash: release.manifest_hash,
+                walrus_blob_id: "walrus-loop-engine",
+                repo_commit: release.commit,
+                created_ms: "1782189126775"
+              }
+            }]
+          }
+        });
+      }
+      if (body.method === "sui_multiGetObjects") {
+        return Response.json({
+          result: [{
+            data: {
+              objectId: assetId,
+              type: `${packageId}::research_asset::ResearchAsset`,
+              owner: { AddressOwner: signer },
+              content: { fields: { manifest_hash: release.manifest_hash, walrus_blob_id: "walrus-loop-engine" } }
+            }
+          }]
+        });
+      }
+      if (body.method === "sui_multiGetTransactionBlocks") {
+        return Response.json({
+          result: [{
+            digest: txDigest,
+            transaction: { data: { sender: signer, gasData: { owner: signer } } },
+            effects: { status: { status: "success" } },
+            balanceChanges: [{ owner: { AddressOwner: signer }, coinType: "0x2::sui::SUI", amount: "-4262680" }]
+          }]
+        });
+      }
+      throw new Error(`unexpected RPC method ${body.method}`);
+    }) as typeof fetch;
+
+    const index = await buildLiveIndex({
+      rpcUrl: "https://sui.test",
+      aggregatorUrl: "https://walrus.test",
+      packageId,
+      limit: 1
+    });
+
+    expect(index.assets[0].title).toContain("Loop Engine");
+    expect(index.assets[0].skills).toEqual([
+      expect.objectContaining({
+        id: "skill:loop-engine-cartographer@0.1.0",
+        name: "loop-engine-cartographer",
+        capabilities: expect.arrayContaining(["state-transition-graph"]),
+        entry_path: "skill/loop-engine-cartographer/SKILL.md"
+      })
+    ]);
+    expect(index.assets[0].workflows).toEqual([
+      expect.objectContaining({
+        id: "workflow:publish-loop-engine-asset@0.1.0",
+        name: "publish-loop-engine-asset"
+      })
+    ]);
+    expect(index.assets[0].relationships).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        src_id: "ra:showcase:loop-engine",
+        dst_id: "skill:loop-engine-cartographer@0.1.0",
+        relation_type: "contains_skill"
+      }),
+      expect.objectContaining({
+        src_id: "ra:showcase:loop-engine",
+        dst_id: "workflow:publish-loop-engine-asset@0.1.0",
+        relation_type: "contains_workflow"
+      })
+    ]));
   });
 
   it("indexes live membership events from Sui access and settlement modules", async () => {

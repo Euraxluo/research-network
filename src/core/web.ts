@@ -2675,6 +2675,95 @@ const SITE_JS = `
     });
   }
 
+  function renderLiveSkills(asset, artifactApi, aggregatorUrl) {
+    var skills = Array.isArray(asset.skills) ? asset.skills : [];
+    if (!skills.length) {
+      return '<p class="muted">No skills are declared in this live Walrus release manifest.</p>';
+    }
+    return '<div class="grid live-skill-grid">' + skills.map(function (skill) {
+      var entryUrl = artifactUrl(asset, skill.entry_path, artifactApi, aggregatorUrl);
+      var caps = Array.isArray(skill.capabilities) ? skill.capabilities : [];
+      return '<article class="card live-skill-card">' +
+        '<h3>' + esc(skill.name || skill.id || "Skill") + '</h3>' +
+        '<p>' + esc(skill.description || "No skill description recorded.") + '</p>' +
+        (caps.length ? '<div class="abs-tags">' + caps.map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + '</div>' : '') +
+        '<dl class="verification">' +
+          '<div><dt>Skill ID</dt><dd><code>' + esc(skill.id || "") + '</code></dd></div>' +
+          '<div><dt>Relation</dt><dd>' + esc(skill.relation || "owned") + '</dd></div>' +
+          '<div><dt>Access</dt><dd>' + esc(skill.access_visibility || "public") + '</dd></div>' +
+          '<div><dt>Manifest path</dt><dd><code>' + esc(skill.path || "") + '</code></dd></div>' +
+        '</dl>' +
+        (entryUrl ? '<p><a class="button" href="' + esc(entryUrl) + '" download>Download SKILL.md</a></p>' : '') +
+      '</article>';
+    }).join("") + '</div>';
+  }
+
+  function renderLiveWorkflows(asset) {
+    var workflows = Array.isArray(asset.workflows) ? asset.workflows : [];
+    if (!workflows.length) return "";
+    return '<h2>Workflows</h2><div class="grid live-workflow-grid">' + workflows.map(function (workflow) {
+      var stages = Array.isArray(workflow.stages) ? workflow.stages : [];
+      return '<article class="card live-workflow-card">' +
+        '<h3>' + esc(workflow.name || workflow.id || "Workflow") + '</h3>' +
+        '<p>' + esc(workflow.description || "No workflow description recorded.") + '</p>' +
+        '<p class="muted">' + esc((workflow.inputs || []).length + ' input(s), ' + (workflow.outputs || []).length + ' output(s), ' + stages.length + ' stage(s)') + '</p>' +
+        (stages.length ? '<ol class="small-list">' + stages.slice(0, 6).map(function (stage) { return '<li><strong>' + esc(stage.name || stage.id || "Stage") + '</strong> <span class="muted">' + esc(stage.instructions || "") + '</span></li>'; }).join("") + '</ol>' : '') +
+      '</article>';
+    }).join("") + '</div>';
+  }
+
+  function liveAssetGraph(asset) {
+    var nodes = [];
+    var edges = [];
+    var seen = {};
+    function addNode(id, label, type) {
+      if (!id || seen[id]) return;
+      seen[id] = true;
+      nodes.push({ id: id, label: label || id, type: type || "asset" });
+    }
+    addNode(asset.id || asset.sui_object_id || "asset", asset.title || asset.id || "Research Asset", "asset");
+    (Array.isArray(asset.skills) ? asset.skills : []).forEach(function (skill) {
+      addNode(skill.id, skill.name || skill.id, "skill");
+    });
+    (Array.isArray(asset.workflows) ? asset.workflows : []).forEach(function (workflow) {
+      addNode(workflow.id, workflow.name || workflow.id, "workflow");
+    });
+    (Array.isArray(asset.relationships) ? asset.relationships : []).forEach(function (edge) {
+      addNode(edge.src_id, edge.src_id, edge.src_id && edge.src_id.indexOf("skill:") === 0 ? "skill" : edge.src_id && edge.src_id.indexOf("workflow:") === 0 ? "workflow" : "asset");
+      addNode(edge.dst_id, edge.dst_id, edge.dst_id && edge.dst_id.indexOf("skill:") === 0 ? "skill" : edge.dst_id && edge.dst_id.indexOf("workflow:") === 0 ? "workflow" : "asset");
+      edges.push({ src_id: edge.src_id, dst_id: edge.dst_id, relation_type: edge.relation_type || "related_to" });
+    });
+    if (!edges.length) {
+      (Array.isArray(asset.skills) ? asset.skills : []).forEach(function (skill) {
+        edges.push({ src_id: asset.id || asset.sui_object_id || "asset", dst_id: skill.id, relation_type: "contains_skill" });
+      });
+      (Array.isArray(asset.workflows) ? asset.workflows : []).forEach(function (workflow) {
+        edges.push({ src_id: asset.id || asset.sui_object_id || "asset", dst_id: workflow.id, relation_type: "contains_workflow" });
+      });
+    }
+    return { nodes: nodes, edges: edges };
+  }
+
+  function renderLiveGraph(asset) {
+    var graph = liveAssetGraph(asset);
+    if (graph.nodes.length <= 1 && !graph.edges.length) {
+      return '<p class="muted">No skill, workflow, or relationship graph is declared in this live Walrus release manifest.</p>';
+    }
+    var legend = [];
+    graph.nodes.forEach(function (node) {
+      if (legend.indexOf(node.type) === -1) legend.push(node.type);
+    });
+    var legendColors = { paper: "#b31b1b", skill: "#1a7f37", workflow: "#b58105", dataset: "#bc4c75", asset: "#5b4ccc" };
+    return '<div class="graph-canvas-wrap live-graph-canvas-wrap">' +
+      '<canvas id="graph-canvas"></canvas>' +
+      '<div class="legend">' + legend.map(function (type) { return '<span><i style="background:' + esc(legendColors[type] || "#5b4ccc") + '"></i>' + esc(type) + '</span>'; }).join("") + '</div>' +
+      '</div>' +
+      '<div class="graph live-graph-list">' +
+        '<section><h3>Nodes</h3>' + graph.nodes.map(function (node) { return '<div class="card"><strong>' + esc(node.label) + '</strong><br><span class="muted">' + esc(node.id) + ' &middot; ' + esc(node.type) + '</span></div>'; }).join("") + '</section>' +
+        '<section><h3>Edges</h3>' + (graph.edges.length ? graph.edges.map(function (edge) { return '<div class="card"><strong>' + esc(edge.relation_type) + '</strong><br><span class="muted">' + esc(edge.src_id) + ' &rarr; ' + esc(edge.dst_id) + '</span></div>'; }).join("") : '<p class="muted">No graph edges declared.</p>') + '</section>' +
+      '</div>';
+  }
+
   function proofOrMuted(html) {
     return html || '<span class="muted">not recorded</span>';
   }
@@ -2717,6 +2806,11 @@ const SITE_JS = `
             '<div class="abs-authors">' + esc(asset.authors || "Unknown") + '</div>' +
             '<div class="abs-tags">' + tags.map(function (tag) { return '<span class="tag">' + esc(tag) + '</span>'; }).join("") + '</div>' +
             renderLivePaperViewer(bundle.formats) +
+            '<h2>Agent-Native Assets</h2>' +
+            renderLiveSkills(asset, artifactApi, aggregatorUrl) +
+            renderLiveWorkflows(asset) +
+            '<h2>Asset Graph</h2>' +
+            renderLiveGraph(asset) +
           '</div>' +
           '<aside class="extra-services">' +
             '<div class="sidebar-section asset-sidebar-summary">' +
@@ -2755,9 +2849,11 @@ const SITE_JS = `
             '</div>' +
           '</aside>' +
         '</div>';
+      window.__GRAPH__ = liveAssetGraph(asset);
       setupPaperViewer();
       renderLiveArtifactPanels(root, asset);
       setupLiveReadme(root, bundle.readme);
+      setupGraph();
       setupPdfRender();
     }).catch(function (err) {
       root.innerHTML = '<p class="muted">Could not load the live research asset: ' + esc(err && err.message ? err.message : "request failed") + '</p>';
