@@ -151,6 +151,8 @@ export interface LiveIndexAsset {
     relation: string;
     entry_path: string;
     access_visibility: string;
+    depends_on: string[];
+    derived_from: string | null;
   }>;
   workflows: Array<{
     id: string;
@@ -575,7 +577,9 @@ function normalizeReleaseSkills(release: ReleaseManifest): LiveIndexAsset["skill
       path: String(skill.path ?? ""),
       relation: String(manifest.relation ?? "owned"),
       entry_path: basePath ? `${basePath}/${entry}` : entry,
-      access_visibility: String(manifest.access?.visibility ?? "public")
+      access_visibility: String(manifest.access?.visibility ?? "public"),
+      depends_on: stringArray(manifest.depends_on),
+      derived_from: manifest.derived_from ? String(manifest.derived_from) : null
     };
   });
 }

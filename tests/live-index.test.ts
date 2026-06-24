@@ -199,7 +199,9 @@ describe("live Sui/Walrus index", () => {
         id: "skill:loop-engine-cartographer@0.1.0",
         name: "loop-engine-cartographer",
         capabilities: expect.arrayContaining(["state-transition-graph"]),
-        entry_path: "skill/loop-engine-cartographer/SKILL.md"
+        entry_path: "skill/loop-engine-cartographer/SKILL.md",
+        depends_on: [],
+        derived_from: null
       })
     ]);
     expect(index.assets[0].workflows).toEqual([

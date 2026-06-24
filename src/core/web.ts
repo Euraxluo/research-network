@@ -10,7 +10,7 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
-const STATIC_ASSET_VERSION = "20260623-live-paper-v4";
+const STATIC_ASSET_VERSION = "20260624-live-skills-v1";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
@@ -101,7 +101,7 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)} - Research Network</title>
-  <meta name="description" content="Agent-native decentralized research asset network: Paper, Skill, Workflow, Dataset and Code as one verifiable graph.">
+  <meta name="description" content="Agent-native decentralized research network for verifiable research asserts and installable skills.">
   <meta http-equiv="Content-Security-Policy" content="${STATIC_CSP}">
   <link rel="stylesheet" href="/styles.css?v=${STATIC_ASSET_VERSION}">
   <script src="/site.js?v=${STATIC_ASSET_VERSION}" defer></script>
@@ -120,11 +120,9 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
   </header>
   <div class="subnav"><div class="wrap subnav-inner">
     <a href="/">Browse</a>
+    <a href="/skills.html">Skills</a>
     <a href="/search.html">Search</a>
     <a href="/dashboard.html">Dashboard</a>
-    <a href="/workbench.html">Workbench</a>
-    <a href="/membership.html">Membership</a>
-    <a href="/delegations.html">Delegations</a>
     <a href="/account.html">Account</a>
   </div></div>
   ${options.subject ? `<div class="subject-strip"><div class="wrap"><h1>${escapeHtml(options.subject)}</h1></div></div>` : ""}
@@ -1517,10 +1515,11 @@ const SITE_JS = `
     Array.prototype.slice.call(document.querySelectorAll("[data-copy]")).forEach(function (btn) {
       btn.addEventListener("click", function () {
         var text = btn.getAttribute("data-copy") || "";
+        var label = btn.getAttribute("data-copy-label") || btn.textContent || "copy";
         var done = function () {
           btn.classList.add("done");
           btn.textContent = "copied";
-          setTimeout(function () { btn.classList.remove("done"); btn.textContent = "copy"; }, 1600);
+          setTimeout(function () { btn.classList.remove("done"); btn.textContent = label; }, 1600);
         };
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(text).then(done, done);
@@ -2675,6 +2674,14 @@ const SITE_JS = `
     });
   }
 
+  function skillPageHref(skill) {
+    return "/skill.html?id=" + routeSegment(String(skill && (skill.id || skill.name) || "skill"));
+  }
+
+  function skillInstallCommand(skill) {
+    return "research install " + String(skill && (skill.id || skill.name) || "skill");
+  }
+
   function renderLiveSkills(asset, artifactApi, aggregatorUrl) {
     var skills = Array.isArray(asset.skills) ? asset.skills : [];
     if (!skills.length) {
@@ -2682,86 +2689,167 @@ const SITE_JS = `
     }
     return '<div class="grid live-skill-grid">' + skills.map(function (skill) {
       var entryUrl = artifactUrl(asset, skill.entry_path, artifactApi, aggregatorUrl);
+      var href = skillPageHref(skill);
       var caps = Array.isArray(skill.capabilities) ? skill.capabilities : [];
+      var installCommand = skillInstallCommand(skill);
       return '<article class="card live-skill-card">' +
-        '<h3>' + esc(skill.name || skill.id || "Skill") + '</h3>' +
+        '<h3><a href="' + esc(href) + '">' + esc(skill.name || skill.id || "Skill") + '</a></h3>' +
         '<p>' + esc(skill.description || "No skill description recorded.") + '</p>' +
         (caps.length ? '<div class="abs-tags">' + caps.map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + '</div>' : '') +
+        '<div class="copy-row"><code>' + esc(installCommand) + '</code><button class="copy-btn" type="button" data-copy="' + esc(installCommand) + '" data-copy-label="copy install">copy install</button></div>' +
         '<dl class="verification">' +
           '<div><dt>Skill ID</dt><dd><code>' + esc(skill.id || "") + '</code></dd></div>' +
           '<div><dt>Relation</dt><dd>' + esc(skill.relation || "owned") + '</dd></div>' +
           '<div><dt>Access</dt><dd>' + esc(skill.access_visibility || "public") + '</dd></div>' +
           '<div><dt>Manifest path</dt><dd><code>' + esc(skill.path || "") + '</code></dd></div>' +
         '</dl>' +
-        (entryUrl ? '<p><a class="button" href="' + esc(entryUrl) + '" download>Download SKILL.md</a></p>' : '') +
+        '<p>' +
+          '<a class="button" href="' + esc(href) + '">View Skill</a>' +
+          (entryUrl ? '<a class="button" href="' + esc(entryUrl) + '">Read SKILL.md</a>' : '') +
+        '</p>' +
       '</article>';
     }).join("") + '</div>';
   }
 
-  function renderLiveWorkflows(asset) {
-    var workflows = Array.isArray(asset.workflows) ? asset.workflows : [];
-    if (!workflows.length) return "";
-    return '<h2>Workflows</h2><div class="grid live-workflow-grid">' + workflows.map(function (workflow) {
-      var stages = Array.isArray(workflow.stages) ? workflow.stages : [];
-      return '<article class="card live-workflow-card">' +
-        '<h3>' + esc(workflow.name || workflow.id || "Workflow") + '</h3>' +
-        '<p>' + esc(workflow.description || "No workflow description recorded.") + '</p>' +
-        '<p class="muted">' + esc((workflow.inputs || []).length + ' input(s), ' + (workflow.outputs || []).length + ' output(s), ' + stages.length + ' stage(s)') + '</p>' +
-        (stages.length ? '<ol class="small-list">' + stages.slice(0, 6).map(function (stage) { return '<li><strong>' + esc(stage.name || stage.id || "Stage") + '</strong> <span class="muted">' + esc(stage.instructions || "") + '</span></li>'; }).join("") + '</ol>' : '') +
-      '</article>';
-    }).join("") + '</div>';
-  }
-
-  function liveAssetGraph(asset) {
-    var nodes = [];
+  function skillRelationEdges(asset, focusSkill) {
+    var skills = Array.isArray(asset.skills) ? asset.skills : [];
+    var skillIds = {};
     var edges = [];
     var seen = {};
-    function addNode(id, label, type) {
-      if (!id || seen[id]) return;
-      seen[id] = true;
-      nodes.push({ id: id, label: label || id, type: type || "asset" });
-    }
-    addNode(asset.id || asset.sui_object_id || "asset", asset.title || asset.id || "Research Asset", "asset");
-    (Array.isArray(asset.skills) ? asset.skills : []).forEach(function (skill) {
-      addNode(skill.id, skill.name || skill.id, "skill");
+    skills.forEach(function (skill) {
+      if (skill && skill.id) skillIds[skill.id] = true;
     });
-    (Array.isArray(asset.workflows) ? asset.workflows : []).forEach(function (workflow) {
-      addNode(workflow.id, workflow.name || workflow.id, "workflow");
+    function add(src, dst, relation) {
+      if (!src || !dst || !skillIds[src] || !skillIds[dst]) return;
+      if (focusSkill && focusSkill.id && src !== focusSkill.id && dst !== focusSkill.id) return;
+      var key = src + "->" + dst + ":" + relation;
+      if (seen[key]) return;
+      seen[key] = true;
+      edges.push({ src_id: src, dst_id: dst, relation_type: relation || "related_to" });
+    }
+    skills.forEach(function (skill) {
+      (Array.isArray(skill.depends_on) ? skill.depends_on : []).forEach(function (dep) {
+        add(skill.id, dep, "depends_on");
+      });
+      if (skill.derived_from) add(skill.derived_from, skill.id, "derived_from");
     });
     (Array.isArray(asset.relationships) ? asset.relationships : []).forEach(function (edge) {
-      addNode(edge.src_id, edge.src_id, edge.src_id && edge.src_id.indexOf("skill:") === 0 ? "skill" : edge.src_id && edge.src_id.indexOf("workflow:") === 0 ? "workflow" : "asset");
-      addNode(edge.dst_id, edge.dst_id, edge.dst_id && edge.dst_id.indexOf("skill:") === 0 ? "skill" : edge.dst_id && edge.dst_id.indexOf("workflow:") === 0 ? "workflow" : "asset");
-      edges.push({ src_id: edge.src_id, dst_id: edge.dst_id, relation_type: edge.relation_type || "related_to" });
+      add(edge.src_id, edge.dst_id, edge.relation_type || "related_to");
     });
-    if (!edges.length) {
-      (Array.isArray(asset.skills) ? asset.skills : []).forEach(function (skill) {
-        edges.push({ src_id: asset.id || asset.sui_object_id || "asset", dst_id: skill.id, relation_type: "contains_skill" });
-      });
-      (Array.isArray(asset.workflows) ? asset.workflows : []).forEach(function (workflow) {
-        edges.push({ src_id: asset.id || asset.sui_object_id || "asset", dst_id: workflow.id, relation_type: "contains_workflow" });
-      });
-    }
-    return { nodes: nodes, edges: edges };
+    return edges;
   }
 
-  function renderLiveGraph(asset) {
-    var graph = liveAssetGraph(asset);
-    if (graph.nodes.length <= 1 && !graph.edges.length) {
-      return '<p class="muted">No skill, workflow, or relationship graph is declared in this live Walrus release manifest.</p>';
-    }
-    var legend = [];
-    graph.nodes.forEach(function (node) {
-      if (legend.indexOf(node.type) === -1) legend.push(node.type);
-    });
-    var legendColors = { paper: "#b31b1b", skill: "#1a7f37", workflow: "#b58105", dataset: "#bc4c75", asset: "#5b4ccc" };
-    return '<div class="graph-canvas-wrap live-graph-canvas-wrap">' +
-      '<canvas id="graph-canvas"></canvas>' +
-      '<div class="legend">' + legend.map(function (type) { return '<span><i style="background:' + esc(legendColors[type] || "#5b4ccc") + '"></i>' + esc(type) + '</span>'; }).join("") + '</div>' +
-      '</div>' +
-      '<div class="graph live-graph-list">' +
-        '<section><h3>Nodes</h3>' + graph.nodes.map(function (node) { return '<div class="card"><strong>' + esc(node.label) + '</strong><br><span class="muted">' + esc(node.id) + ' &middot; ' + esc(node.type) + '</span></div>'; }).join("") + '</section>' +
-        '<section><h3>Edges</h3>' + (graph.edges.length ? graph.edges.map(function (edge) { return '<div class="card"><strong>' + esc(edge.relation_type) + '</strong><br><span class="muted">' + esc(edge.src_id) + ' &rarr; ' + esc(edge.dst_id) + '</span></div>'; }).join("") : '<p class="muted">No graph edges declared.</p>') + '</section>' +
+  function renderSkillRelations(asset, focusSkill) {
+    var edges = skillRelationEdges(asset, focusSkill);
+    if (!edges.length) return "";
+    return '<h2>Skill Links</h2><div class="graph live-skill-relations">' +
+      edges.map(function (edge) {
+        return '<div class="card"><strong>' + esc(edge.relation_type) + '</strong><br><span class="muted">' +
+          '<a href="/skill.html?id=' + esc(routeSegment(edge.src_id)) + '">' + esc(edge.src_id) + '</a> &rarr; ' +
+          '<a href="/skill.html?id=' + esc(routeSegment(edge.dst_id)) + '">' + esc(edge.dst_id) + '</a>' +
+          '</span></div>';
+      }).join("") +
       '</div>';
+  }
+
+  function liveSkillEntries(assets) {
+    var entries = [];
+    (Array.isArray(assets) ? assets : []).forEach(function (asset) {
+      (Array.isArray(asset.skills) ? asset.skills : []).forEach(function (skill) {
+        entries.push({ asset: asset, skill: skill });
+      });
+    });
+    return entries;
+  }
+
+  function skillEntrySearchText(entry) {
+    var skill = entry.skill || {};
+    var asset = entry.asset || {};
+    return [
+      skill.id,
+      skill.name,
+      skill.description,
+      Array.isArray(skill.capabilities) ? skill.capabilities.join(" ") : "",
+      skill.relation,
+      skill.access_visibility,
+      asset.id,
+      asset.title,
+      asset.authors,
+      asset.repo_url,
+      asset.repo_commit
+    ].join("\\n").toLowerCase();
+  }
+
+  function renderLiveSkillCatalogCard(entry, artifactApi, aggregatorUrl, suiExplorer) {
+    var asset = entry.asset || {};
+    var skill = entry.skill || {};
+    var href = skillPageHref(skill);
+    var assetHref = asset.href || (asset.id ? "/asset.html?id=" + routeSegment(asset.id) : "");
+    var entryUrl = artifactUrl(asset, skill.entry_path, artifactApi, aggregatorUrl);
+    var installCommand = skillInstallCommand(skill);
+    var caps = Array.isArray(skill.capabilities) ? skill.capabilities : [];
+    var state = liveProofState(asset);
+    var repoText = asset.repo_url ? asset.repo_url.replace(/^https?:\\/\\/(www\\.)?github\\.com\\//, "") : "";
+    var signer = asset.tx_sender || asset.event_owner_address || asset.creator_address || "";
+    return '<article class="card live-skill-card live-skill-catalog-card">' +
+      '<div class="dateline">Skill · ' + esc(skill.access_visibility || "public") + ' · ' + esc(skill.relation || "owned") + '</div>' +
+      '<h3><a href="' + esc(href) + '">' + esc(skill.name || skill.id || "Skill") + '</a></h3>' +
+      '<p>' + esc(skill.description || "No skill description recorded.") + '</p>' +
+      (caps.length ? '<div class="abs-tags">' + caps.slice(0, 8).map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + '</div>' : '') +
+      '<div class="copy-row"><code>' + esc(installCommand) + '</code><button class="copy-btn" type="button" data-copy="' + esc(installCommand) + '" data-copy-label="copy install">copy install</button></div>' +
+      '<dl class="verification">' +
+        '<div><dt>Source assert</dt><dd>' + (assetHref ? plainLink(assetHref, shortText(asset.title || asset.id || "Research Assert", 42, 14)) : esc(asset.title || asset.id || "Research Assert")) + '</dd></div>' +
+        '<div><dt>Proof</dt><dd><span class="chain-status chain-status-' + (state.verified ? "verified" : "warning") + '">' + esc(state.label) + '</span></dd></div>' +
+        '<div><dt>Repository</dt><dd>' + (asset.repo_url ? plainLink(asset.repo_url, repoText || shortText(asset.repo_url, 24, 12)) : '<span class="muted">not recorded</span>') + '</dd></div>' +
+        '<div><dt>Signer</dt><dd>' + proofOrMuted(proofLink(suiExplorer, "account", signer)) + '</dd></div>' +
+      '</dl>' +
+      '<p>' +
+        '<a class="button" href="' + esc(href) + '">View Skill</a>' +
+        (assetHref ? '<a class="button" href="' + esc(assetHref) + '">Source Assert</a>' : '') +
+        (entryUrl ? '<a class="button" href="' + esc(entryUrl) + '">SKILL.md</a>' : '') +
+      '</p>' +
+    '</article>';
+  }
+
+  function setupLiveSkillCatalog() {
+    var root = document.querySelector("[data-live-skills]");
+    var source = document.querySelector("[data-chain-source][data-chain-index-api]");
+    if (!root || !source || !window.fetch) return;
+    var input = root.querySelector("[data-live-skills-input]");
+    var status = root.querySelector("[data-live-skills-status]");
+    var results = root.querySelector("[data-live-skills-results]");
+    var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
+    var artifactApi = artifactApiFromIndex(indexApi);
+    var aggregatorUrl = source.getAttribute("data-walrus-aggregator") || "";
+    var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
+    var limit = Math.max(1, Math.min(20, Number(root.getAttribute("data-live-skills-limit")) || 20));
+    var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=" + encodeURIComponent(String(limit));
+    var entries = [];
+    function render() {
+      var q = input && input.value ? String(input.value).trim().toLowerCase() : "";
+      var filtered = q ? entries.filter(function (entry) { return skillEntrySearchText(entry).indexOf(q) !== -1; }) : entries;
+      if (status) {
+        status.innerHTML = 'Found ' + filtered.length + ' skill(s) from ' + entries.length + ' live skill record(s) via ' + plainLink(indexUrl, "/api/index") + '.';
+      }
+      if (results) {
+        results.innerHTML = filtered.length
+          ? '<div class="grid live-skill-grid live-skill-catalog-grid">' + filtered.map(function (entry) { return renderLiveSkillCatalogCard(entry, artifactApi, aggregatorUrl, suiExplorer); }).join("") + '</div>'
+          : '<p class="muted">No live skill matched this query.</p>';
+      }
+      setupCopy();
+    }
+    if (status) status.innerHTML = 'Loading skill catalog from ' + plainLink(indexUrl, "/api/index") + '...';
+    fetch(indexUrl, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("index API HTTP " + res.status);
+      return res.json();
+    }).then(function (data) {
+      entries = liveSkillEntries(Array.isArray(data.assets) ? data.assets : []);
+      render();
+      if (input) input.addEventListener("input", render);
+    }).catch(function (err) {
+      if (status) status.innerHTML = 'Could not load skill catalog from ' + plainLink(indexUrl, "/api/index") + ': ' + esc(err && err.message ? err.message : "request failed");
+      if (results) results.innerHTML = '<p class="muted">Skills are intentionally loaded from the backend live index. Check <code>/api/index/health</code> if this stays empty.</p>';
+    });
   }
 
   function proofOrMuted(html) {
@@ -2806,11 +2894,9 @@ const SITE_JS = `
             '<div class="abs-authors">' + esc(asset.authors || "Unknown") + '</div>' +
             '<div class="abs-tags">' + tags.map(function (tag) { return '<span class="tag">' + esc(tag) + '</span>'; }).join("") + '</div>' +
             renderLivePaperViewer(bundle.formats) +
-            '<h2>Agent-Native Assets</h2>' +
+            '<h2>Skills</h2>' +
             renderLiveSkills(asset, artifactApi, aggregatorUrl) +
-            renderLiveWorkflows(asset) +
-            '<h2>Asset Graph</h2>' +
-            renderLiveGraph(asset) +
+            renderSkillRelations(asset) +
           '</div>' +
           '<aside class="extra-services">' +
             '<div class="sidebar-section asset-sidebar-summary">' +
@@ -2849,14 +2935,125 @@ const SITE_JS = `
             '</div>' +
           '</aside>' +
         '</div>';
-      window.__GRAPH__ = liveAssetGraph(asset);
       setupPaperViewer();
       renderLiveArtifactPanels(root, asset);
       setupLiveReadme(root, bundle.readme);
-      setupGraph();
       setupPdfRender();
+      setupCopy();
     }).catch(function (err) {
       root.innerHTML = '<p class="muted">Could not load the live research asset: ' + esc(err && err.message ? err.message : "request failed") + '</p>';
+    });
+  }
+
+  function setupLiveSkillDetail() {
+    var root = document.querySelector("[data-live-skill-detail]");
+    var source = document.querySelector("[data-chain-source][data-chain-index-api]");
+    if (!root || !source || !window.fetch) return;
+    var params = new URLSearchParams(location.search);
+    var wanted = params.get("id") || "";
+    var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
+    var artifactApi = artifactApiFromIndex(indexApi);
+    var aggregatorUrl = source.getAttribute("data-walrus-aggregator") || "";
+    var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
+    var walrusExplorer = source.getAttribute("data-walrus-explorer") || "https://walruscan.com/testnet";
+    var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=20";
+    root.innerHTML = '<p class="muted">Loading the live skill...</p>';
+    fetch(indexUrl, { cache: "no-store" }).then(function (res) {
+      if (!res.ok) throw new Error("index API HTTP " + res.status);
+      return res.json();
+    }).then(function (data) {
+      var assets = Array.isArray(data.assets) ? data.assets : [];
+      var asset = null;
+      var skill = null;
+      for (var i = 0; i < assets.length; i++) {
+        var skills = Array.isArray(assets[i].skills) ? assets[i].skills : [];
+        for (var j = 0; j < skills.length; j++) {
+          var candidate = skills[j];
+          var matches = routeSegment(candidate.id || "") === wanted ||
+            routeSegment(candidate.name || "") === wanted ||
+            candidate.id === wanted ||
+            candidate.name === wanted;
+          if ((wanted && matches) || (!wanted && !skill)) {
+            asset = assets[i];
+            skill = candidate;
+            break;
+          }
+        }
+        if (skill) break;
+      }
+      if (!asset || !skill) {
+        root.innerHTML = '<p class="muted">No live skill matched this URL.</p>';
+        return;
+      }
+      var state = liveProofState(asset);
+      var caps = Array.isArray(skill.capabilities) ? skill.capabilities : [];
+      var entryUrl = artifactUrl(asset, skill.entry_path, artifactApi, aggregatorUrl);
+      var manifestUrl = artifactUrl(asset, skill.path, artifactApi, aggregatorUrl);
+      var assetHref = asset.href || (asset.id ? "/asset.html?id=" + routeSegment(asset.id) : "");
+      var signer = asset.tx_sender || asset.event_owner_address || asset.creator_address || "";
+      var installCommand = skillInstallCommand(skill);
+      root.innerHTML =
+        '<div class="abs-grid live-skill-detail">' +
+          '<div class="abs-main">' +
+            '<div class="dateline">[Live skill resolved from a Sui testnet research assert]</div>' +
+            '<h1 class="abs-title">' + esc(skill.name || skill.id || "Skill") + '</h1>' +
+            '<div class="abs-authors">Source assert: ' + (assetHref ? plainLink(assetHref, asset.title || asset.id || "Research Assert") : esc(asset.title || asset.id || "Research Assert")) + '</div>' +
+            (caps.length ? '<div class="abs-tags">' + caps.map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + '</div>' : '') +
+            '<p class="chain-listing-note">' + esc(skill.description || "No skill description recorded.") + '</p>' +
+            '<h2>Install</h2>' +
+            '<div class="copy-row"><code>' + esc(installCommand) + '</code><button class="copy-btn" type="button" data-copy="' + esc(installCommand) + '" data-copy-label="copy install">copy install</button></div>' +
+            '<p>' +
+              (entryUrl ? '<a class="button" href="' + esc(entryUrl) + '">Read SKILL.md</a>' : '') +
+              (manifestUrl ? '<a class="button" href="' + esc(manifestUrl) + '" download>Raw skill.yaml</a>' : '') +
+              (assetHref ? '<a class="button" href="' + esc(assetHref) + '">Open Source Assert</a>' : '') +
+            '</p>' +
+            '<h2>Skill Record</h2>' +
+            '<dl class="verification">' +
+              '<div><dt>Skill ID</dt><dd><code>' + esc(skill.id || "") + '</code></dd></div>' +
+              '<div><dt>Version</dt><dd>' + esc(skill.version || "not recorded") + '</dd></div>' +
+              '<div><dt>Relation</dt><dd>' + esc(skill.relation || "owned") + '</dd></div>' +
+              '<div><dt>Access</dt><dd>' + esc(skill.access_visibility || "public") + '</dd></div>' +
+              '<div><dt>Manifest path</dt><dd><code>' + esc(skill.path || "") + '</code></dd></div>' +
+              '<div><dt>Entry</dt><dd><code>' + esc(skill.entry_path || "") + '</code></dd></div>' +
+            '</dl>' +
+            (caps.length ? '<h2>Capabilities</h2><ul class="small-list">' + caps.map(function (cap) { return '<li>' + esc(cap) + '</li>'; }).join("") + '</ul>' : '') +
+            renderSkillRelations(asset, skill) +
+          '</div>' +
+          '<aside class="extra-services">' +
+            '<div class="access-box">' +
+              '<h2>Install & Download</h2>' +
+              '<p class="muted">Install this skill into a protocol workspace, or inspect the raw release files anchored by the source assert.</p>' +
+              '<p>' +
+                (entryUrl ? '<a class="button" href="' + esc(entryUrl) + '">SKILL.md</a>' : '') +
+                (manifestUrl ? '<a class="button" href="' + esc(manifestUrl) + '" download>Raw skill.yaml</a>' : '') +
+              '</p>' +
+            '</div>' +
+            '<div class="sidebar-section">' +
+              '<h3>Source Assert</h3>' +
+              '<dl class="verification">' +
+                '<div><dt>Title</dt><dd>' + (assetHref ? plainLink(assetHref, asset.title || asset.id || "Research Assert") : esc(asset.title || asset.id || "Research Assert")) + '</dd></div>' +
+                '<div><dt>Assert ID</dt><dd><code>' + esc(asset.id || asset.sui_object_id || "") + '</code></dd></div>' +
+                '<div><dt>Repository</dt><dd>' + (asset.repo_url ? plainLink(asset.repo_url, shortText(asset.repo_url, 24, 16)) : '<span class="muted">not recorded</span>') + '</dd></div>' +
+                '<div><dt>Commit</dt><dd>' + commitLink(asset.repo_url, asset.repo_commit) + '</dd></div>' +
+                '<div><dt>Verification</dt><dd><span class="chain-status chain-status-' + (state.verified ? "verified" : "warning") + '">' + esc(state.label) + '</span> <span class="muted">' + esc(state.detail) + '</span></dd></div>' +
+              '</dl>' +
+            '</div>' +
+            '<div class="sidebar-section">' +
+              '<h3>Chain & Walrus Proof</h3>' +
+              '<dl class="verification">' +
+                '<div><dt>Sui object</dt><dd>' + proofOrMuted(proofLink(suiExplorer, "object", asset.sui_object_id)) + '</dd></div>' +
+                '<div><dt>Sui tx</dt><dd>' + proofOrMuted(proofLink(suiExplorer, "tx", asset.tx_digest)) + '</dd></div>' +
+                '<div><dt>Walrus blob</dt><dd>' + proofOrMuted(proofBlobLink(walrusExplorer, asset.walrus_blob_id)) + '</dd></div>' +
+                '<div><dt>Signer</dt><dd>' + proofOrMuted(proofLink(suiExplorer, "account", signer)) + '</dd></div>' +
+                '<div><dt>Gas spent</dt><dd><code>' + esc(asset.sui_spent_mist || "not indexed") + '</code></dd></div>' +
+                '<div><dt>Release manifest</dt><dd><code title="' + esc(asset.manifest_hash || "") + '">' + esc(shortText(asset.manifest_hash || "", 18, 12)) + '</code></dd></div>' +
+              '</dl>' +
+            '</div>' +
+          '</aside>' +
+        '</div>';
+      setupCopy();
+    }).catch(function (err) {
+      root.innerHTML = '<p class="muted">Could not load the live skill: ' + esc(err && err.message ? err.message : "request failed") + '</p>';
     });
   }
 
@@ -3391,7 +3588,9 @@ const SITE_JS = `
     setupMembershipIndex();
     setupDelegationIndex();
     setupLiveSearch();
+    setupLiveSkillCatalog();
     setupLiveAssetDetail();
+    setupLiveSkillDetail();
     setupGraph();
     setupPaperViewer();
   }
@@ -3440,6 +3639,23 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 <div class="search-box"><input id="filter" type="search" placeholder="Filter assets, skills, tags&hellip;" autocomplete="off"></div>
 ${Object.values(index.search_documents).map((document) => `<a class="result" href="${document.entity_type === "asset" ? escapeHtml(webPath("abs", `${routeSegment(document.entity_id)}.html`)) : document.entity_type === "skill" ? escapeHtml(webPath("skill", `${routeSegment(document.entity_id)}.html`)) : "#"}"><strong>${escapeHtml(document.title)}</strong><br><span class="muted">${escapeHtml(document.entity_type)} &middot; ${escapeHtml(document.tags.join(", "))}</span></a>`).join("")}`;
   await fs.writeFile(path.join(outputDir, "search.html"), shell("Search", searchBody, { subject: "Search" }), "utf8");
+
+  const skillsBody = publicLiveOnly ? `
+${renderChainSubmissionSource(onChainProofConfig, explorer)}
+<section data-live-skills data-live-skills-limit="20" aria-live="polite">
+  <p class="muted">Find installable agent skills from live research asserts. The catalog is resolved through <code>/api/index</code>, so each result keeps its source assert, Sui proof, Walrus release, repository, and commit attached.</p>
+  <div class="search-box"><input data-live-skills-input type="search" placeholder="Search skills, capabilities, source asserts, repos&hellip;" autocomplete="off"></div>
+  <p class="chain-source-note" data-live-skills-status>Loading skill catalog from <code>/api/index</code>...</p>
+  <div data-live-skills-results><p class="muted">Loading live skills...</p></div>
+</section>` : `
+<p class="muted">Installable skills indexed from the local workspace snapshot.</p>
+<div class="grid live-skill-grid">
+${skills.map((skill) => {
+  const installCommand = `research install ${skill.id}`;
+  return `<article class="card live-skill-card"><h3><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">${escapeHtml(skill.name)}</a></h3><p>${escapeHtml(skill.description)}</p><div>${skill.manifest.capabilities.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div><div class="copy-row"><code>${escapeHtml(installCommand)}</code><button class="copy-btn" type="button" data-copy="${escapeHtml(installCommand)}" data-copy-label="copy install">copy install</button></div></article>`;
+}).join("")}
+</div>`;
+  await fs.writeFile(path.join(outputDir, "skills.html"), shell("Skills", skillsBody, { subject: "Find Skills" }), "utf8");
 
   const reports = Object.values(index.reports);
   const delegations = publicLiveOnly ? [] : Object.values(index.delegations);
@@ -3526,6 +3742,13 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
   <p class="muted">Loading the live research asset...</p>
 </section>`;
   await fs.writeFile(path.join(outputDir, "asset.html"), shell("Live Asset", assetDetailBody, { subject: "Live Asset", math: true }), "utf8");
+
+  const skillDetailBody = `
+${renderChainSubmissionSource(onChainProofConfig, explorer)}
+<section data-live-skill-detail aria-live="polite">
+  <p class="muted">Loading the live skill...</p>
+</section>`;
+  await fs.writeFile(path.join(outputDir, "skill.html"), shell("Live Skill", skillDetailBody, { subject: "Live Skill" }), "utf8");
 
   for (const asset of assets) {
     const seg = routeSegment(asset.id);
@@ -3648,7 +3871,7 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
   }
 
   const homeBody = `
-<p class="intro">An agent-native, decentralized research asset network. Papers, skills, workflows, datasets and code are authored in Git, snapshotted on Walrus, registered on Sui, and indexed as one verifiable graph for humans and agents alike.</p>
+<p class="intro">An agent-native research network for verifiable asserts and installable skills. Research is authored in Git, snapshotted on Walrus, registered on Sui, and indexed so humans and agents can inspect the source, proof, and reusable skill.</p>
 <p class="stats-line">Live Sui ${escapeHtml(onChainProofConfig.network)} registry &middot; package ${explorerLink("object", onChainProofConfig.packageId, explorer)} &middot; event <code>ResearchAssetPublished</code></p>
 <div class="search-box"><input id="filter" type="search" placeholder="Search titles, authors, tags&hellip;" autocomplete="off" aria-label="Search submissions"></div>
 <h2>Recent submissions</h2>
