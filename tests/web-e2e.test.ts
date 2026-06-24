@@ -17,6 +17,7 @@ import { routeSegment } from "../src/core/web.js";
 import { serveStaticSite } from "../src/core/web-serve.js";
 
 let tempRoot: string;
+const VALID_BROWSER_ADDRESS = "0xb178126020d69bb24ecd6a39ac5db18a8badae973dae0e9b20a889a68b609d7f";
 
 async function makeTempDir(name: string) {
   const dir = path.join(tempRoot, name);
@@ -157,7 +158,7 @@ describe("static web E2E", () => {
       expect(indexHtml).not.toContain("E2E Test Paper");
       expect(indexHtml).toContain("Content-Security-Policy");
       expect(indexHtml).toContain("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com");
-      expect(indexHtml).toContain("connect-src 'self' data: https://sui-testnet-rpc.publicnode.com");
+      expect(indexHtml).toContain("connect-src 'self' data: https://api.github.com https://sui-testnet-rpc.publicnode.com");
       expect(indexHtml).toContain("https://aggregator.walrus-testnet.walrus.space");
 
       const dashboardHtml = await (await fetch(sitePath(server.url, "/dashboard.html"))).text();
@@ -474,11 +475,14 @@ describe("static web E2E", () => {
       window.__RN_M3_CONFIG__ = { network: "mainnet" };
       window.localStorage.setItem("rn_session", JSON.stringify({
         provider: "google",
-        address: "0x" + "aa".repeat(32),
-        email: "mainnet@example.com"
+        address: VALID_BROWSER_ADDRESS,
+        email: "mainnet@example.com",
+        sub: "mainnet-subject",
+        iss: "https://accounts.google.com",
+        ts: Date.now()
       }));
       window.localStorage.setItem("rn_github", JSON.stringify({
-        sui_address: "0x" + "aa".repeat(32),
+        sui_address: VALID_BROWSER_ADDRESS,
         login: "mainnet-agent",
         selected_repo: "mainnet-agent/research",
         repos: ["mainnet-agent/research"]
@@ -514,6 +518,34 @@ describe("static web E2E", () => {
     dom.window.close();
   });
 
+  it("clears invalid QA-seeded workbench identity before rendering it", async () => {
+    const localnet = await makeTempDir("workbench-invalid-session-localnet");
+    const siteDir = path.join(tempRoot, "workbench-invalid-session-site");
+    await buildStaticWeb(siteDir, localnet);
+
+    const dom = await loadWorkbenchDom(siteDir, (window) => {
+      window.localStorage.setItem("rn_session", JSON.stringify({
+        provider: "google",
+        address: "0x" + "17".repeat(32),
+        email: "euraxluo@gmail.com"
+      }));
+      window.localStorage.setItem("rn_github", JSON.stringify({
+        sui_address: "0x" + "17".repeat(32),
+        login: "Euraxluo",
+        selected_repo: "Euraxluo/research-network",
+        repos: ["Euraxluo/research-network"]
+      }));
+    });
+    const text = dom.window.document.getElementById("workbench-root")?.textContent ?? "";
+
+    expect(text).toContain("No browser session is active.");
+    expect(text).not.toContain("0x1717171717171717");
+    expect(dom.window.localStorage.getItem("rn_session")).toBeNull();
+    expect(dom.window.localStorage.getItem("rn_github")).toBeNull();
+
+    dom.window.close();
+  });
+
   it("derives workbench account scopes from real repo bindings without installations", async () => {
     const localnet = await makeTempDir("workbench-fallback-localnet");
     const siteDir = path.join(tempRoot, "workbench-fallback-site");
@@ -522,11 +554,14 @@ describe("static web E2E", () => {
     const dom = await loadWorkbenchDom(siteDir, (window) => {
       window.localStorage.setItem("rn_session", JSON.stringify({
         provider: "google",
-        address: "0xREAL",
-        email: "real@example.com"
+        address: VALID_BROWSER_ADDRESS,
+        email: "real@example.com",
+        sub: "real-subject",
+        iss: "https://accounts.google.com",
+        ts: Date.now()
       }));
       window.localStorage.setItem("rn_github", JSON.stringify({
-        sui_address: "0xREAL",
+        sui_address: VALID_BROWSER_ADDRESS,
         login: "Euraxluo",
         account: "Euraxluo",
         account_type: "User",
@@ -561,11 +596,14 @@ describe("static web E2E", () => {
     const dom = await loadWorkbenchDom(siteDir, (window) => {
       window.localStorage.setItem("rn_session", JSON.stringify({
         provider: "google",
-        address: "0xREAL",
-        email: "real@example.com"
+        address: VALID_BROWSER_ADDRESS,
+        email: "real@example.com",
+        sub: "real-subject",
+        iss: "https://accounts.google.com",
+        ts: Date.now()
       }));
       window.localStorage.setItem("rn_github", JSON.stringify({
-        sui_address: "0xREAL",
+        sui_address: VALID_BROWSER_ADDRESS,
         login: "Euraxluo",
         account: "Euraxluo",
         account_type: "User",
@@ -599,11 +637,14 @@ describe("static web E2E", () => {
     const dom = await loadWorkbenchDom(siteDir, (window) => {
       window.localStorage.setItem("rn_session", JSON.stringify({
         provider: "google",
-        address: "0xREAL",
-        email: "real@example.com"
+        address: VALID_BROWSER_ADDRESS,
+        email: "real@example.com",
+        sub: "real-subject",
+        iss: "https://accounts.google.com",
+        ts: Date.now()
       }));
       window.localStorage.setItem("rn_github", JSON.stringify({
-        sui_address: "0xREAL",
+        sui_address: VALID_BROWSER_ADDRESS,
         login: "Euraxluo",
         installation_id: 139753991,
         selected_installation_ids: ["139753991"],
@@ -796,7 +837,8 @@ describe("static web E2E", () => {
       expect(indexHtml).toContain("data-chain-submissions");
       expect(indexHtml).not.toContain("PDF Only Note");
       expect(indexHtml).not.toContain(`/paper/${assetSeg}/main.pdf`);
-      expect(indexHtml).not.toContain("tex");
+      expect(indexHtml).not.toContain("main.tex");
+      expect(indexHtml).not.toContain('id="tex"');
     } finally {
       await server.close();
     }

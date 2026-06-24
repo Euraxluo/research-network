@@ -26,6 +26,8 @@ vi.mock("../web/src/lib/config.ts", () => ({
   })
 }));
 
+const VALID_BROWSER_ADDRESS = "0xb178126020d69bb24ecd6a39ac5db18a8badae973dae0e9b20a889a68b609d7f";
+
 describe("mainnet workbench demo fallback guard", () => {
   beforeEach(() => {
     vi.resetModules();
@@ -46,9 +48,13 @@ describe("mainnet workbench demo fallback guard", () => {
     }
     localStorage.setItem("rn_session", JSON.stringify({
       provider: "google",
-      address: "0x" + "aa".repeat(32)
+      address: VALID_BROWSER_ADDRESS,
+      sub: "mainnet-subject",
+      iss: "https://accounts.google.com",
+      ts: Date.now()
     }));
     localStorage.setItem("rn_github", JSON.stringify({
+      sui_address: VALID_BROWSER_ADDRESS,
       login: "agent",
       selected_repo: "agent/research",
       repos: ["agent/research"]

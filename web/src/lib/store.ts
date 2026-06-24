@@ -11,8 +11,8 @@ import {
   emptyWorkbenchState,
   jobForReport,
   mergeById,
-  readGithub,
-  readSession,
+  readGithubForSession,
+  readTrustedSession,
   readWorkbench,
   readWorkbenchIndex,
   saveWorkbench,
@@ -152,8 +152,8 @@ function expiresAtFromNow(durationMs: number): string {
 export const useWorkbench = create<WorkbenchStore>((set, get) => ({
   ...emptyWorkbenchState(),
   index: readWorkbenchIndex(),
-  session: readSession(),
-  github: readGithub(),
+  session: readTrustedSession(),
+  github: readGithubForSession(readTrustedSession()),
   demoMode: isDemoMode(),
   statusText: "",
   statusError: false,
@@ -184,8 +184,8 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
     set({
       ...state,
       index: readWorkbenchIndex(),
-      session: readSession(),
-      github: readGithub(),
+      session: readTrustedSession(),
+      github: readGithubForSession(readTrustedSession()),
       demoMode: isDemoMode()
     });
   },
@@ -978,17 +978,18 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
   },
 
   seedDemo: () => {
+    const demoAgentAddress = "0xb178126020d69bb24ecd6a39ac5db18a8badae973dae0e9b20a889a68b609d7f";
     localStorage.setItem("rn_workbench_demo", "1");
     writeJson("rn_session", {
       provider: "google",
-      address: "0xAGENT",
+      address: demoAgentAddress,
       sub: "demo-agent",
       email: "agent@example.com",
       iss: "https://accounts.google.com",
       ts: Date.now()
     });
     writeJson("rn_github", {
-      sui_address: "0xAGENT",
+      sui_address: demoAgentAddress,
       login: "octo-agent",
       installation_id: 101,
       account: "octo-agent",
@@ -1007,7 +1008,7 @@ export const useWorkbench = create<WorkbenchStore>((set, get) => ({
         { full_name: "research-org/encrypted-lab", installation_id: 202, installation_account: "research-org", installation_account_type: "Organization" }
       ],
       binding_attestation: "demo-attestation",
-      binding_attestation_payload: { sub: "0xAGENT", installation_id: 101 }
+      binding_attestation_payload: { sub: demoAgentAddress, installation_id: 101 }
     });
     const state = readWorkbench();
     state.actor = "agent";

@@ -34,6 +34,45 @@ export function readGithub(): GithubBinding | null {
   return readJson<GithubBinding | null>("rn_github", null);
 }
 
+export function isValidSuiAddress(value: string | undefined): boolean {
+  return /^0x[0-9a-f]{64}$/i.test(String(value || ""));
+}
+
+export function isRepeatedByteAddress(value: string | undefined): boolean {
+  const clean = String(value || "").toLowerCase();
+  if (!isValidSuiAddress(clean)) return false;
+  const firstByte = clean.slice(2, 4);
+  return clean.slice(2).match(new RegExp(`^(?:${firstByte}){32}$`)) !== null;
+}
+
+export function clearIdentitySession(): void {
+  try {
+    ["rn_session", "rn_github", "rn_zk_attestation", "rn_gh_state"].forEach((key) => localStorage.removeItem(key));
+    ["rn_zk_session", "rn_zk_eph", "rn_oauth_state", "rn_gh_state"].forEach((key) => sessionStorage.removeItem(key));
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
+export function isTrustedSession(session: ZkLoginSession | null): session is ZkLoginSession {
+  if (!session?.address || !isValidSuiAddress(session.address)) return false;
+  if (isRepeatedByteAddress(session.address)) return false;
+  return Boolean(session.sub && session.iss && session.ts);
+}
+
+export function readTrustedSession(): ZkLoginSession | null {
+  const session = readSession();
+  if (!session) return null;
+  if (isTrustedSession(session)) return session;
+  clearIdentitySession();
+  return null;
+}
+
+export function readGithubForSession(session: ZkLoginSession | null): GithubBinding | null {
+  const gh = readGithub();
+  return session?.address && gh?.sui_address === session.address ? gh : null;
+}
+
 export function emptyWorkbenchState(): WorkbenchState {
   return {
     reports: [],

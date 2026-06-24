@@ -165,7 +165,47 @@ describe("AccountPage production UI", () => {
     expect(html).toContain('href="/workbench.html"');
     expect(html).toContain('href="/account.html"');
     expect(html).toContain('<main class="wrap">');
+    expect(html).toContain('data-build-status');
+    expect(html).toContain('data-build-check');
+    expect(html).toContain('data-clear-browser-state');
+    expect(html).toContain('<script src="/site.js" defer></script>');
     expect(html).not.toContain('class="container" style=');
+  });
+
+  it("clears QA-seeded local sessions in the legacy static account page too", async () => {
+    const { renderAccountPage } = await import("../src/core/web.js");
+    const legacyDom = new JSDOM(renderAccountPage(), {
+      url: "http://127.0.0.1/account.html",
+      runScripts: "dangerously",
+      pretendToBeVisual: true,
+      beforeParse(window) {
+        window.localStorage.setItem(
+          "rn_session",
+          JSON.stringify({
+            address: "0x" + "17".repeat(32),
+            email: "euraxluo@gmail.com",
+            provider: "google"
+          })
+        );
+        window.localStorage.setItem(
+          "rn_github",
+          JSON.stringify({
+            sui_address: "0x" + "17".repeat(32),
+            login: "Euraxluo",
+            installation_id: 139753991,
+            repos: ["Euraxluo/research-network"]
+          })
+        );
+      }
+    });
+    await new Promise((resolve) => legacyDom.window.setTimeout(resolve, 0));
+
+    const text = legacyDom.window.document.body.textContent || "";
+    expect(text).toContain("Not signed in.");
+    expect(text).not.toContain("0x1717171717171717");
+    expect(legacyDom.window.localStorage.getItem("rn_session")).toBeNull();
+    expect(legacyDom.window.localStorage.getItem("rn_github")).toBeNull();
+    legacyDom.window.close();
   });
 
   it("does not expose production acceptance controls in the user account page", async () => {

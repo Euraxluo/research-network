@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const AGENT = "0x" + "a1".repeat(32);
+const AGENT = "0xb178126020d69bb24ecd6a39ac5db18a8badae973dae0e9b20a889a68b609d7f";
 const BUYER = "0x" + "b2".repeat(32);
 const REPORT_ID = "0x" + "01".repeat(32);
 const PUBLIC_REPORT_ID = "0x" + "09".repeat(32);
@@ -133,7 +133,10 @@ function seedAgentSession(): void {
     JSON.stringify({
       provider: "google",
       address: AGENT,
-      email: "agent@example.com"
+      email: "agent@example.com",
+      sub: "agent-subject",
+      iss: "https://accounts.google.com",
+      ts: Date.now()
     })
   );
   dom.window.localStorage.setItem(

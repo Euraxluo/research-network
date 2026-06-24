@@ -82,11 +82,42 @@ export const WORKBENCH_JS = `
   function writeJson(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
   }
+  function isValidSuiAddress(value) {
+    return /^0x[0-9a-f]{64}$/i.test(String(value || ""));
+  }
+  function isRepeatedByteAddress(value) {
+    var clean = String(value || "").toLowerCase();
+    if (!isValidSuiAddress(clean)) return false;
+    var firstByte = clean.slice(2, 4);
+    return clean.slice(2).match(new RegExp("^(?:" + firstByte + "){32}$")) !== null;
+  }
+  function clearIdentitySession() {
+    ["rn_session", "rn_github", "rn_zk_attestation", "rn_gh_state"].forEach(function (key) {
+      try { localStorage.removeItem(key); } catch (e) {}
+    });
+    ["rn_zk_session", "rn_zk_eph", "rn_oauth_state", "rn_gh_state"].forEach(function (key) {
+      try { sessionStorage.removeItem(key); } catch (e) {}
+    });
+  }
+  function isTrustedSession(session) {
+    if (!session || !isValidSuiAddress(session.address)) return false;
+    if (isRepeatedByteAddress(session.address)) return false;
+    return Boolean(session.sub && session.iss && session.ts);
+  }
   function readSession() {
-    return readJson("rn_session", null);
+    var session = readJson("rn_session", null);
+    if (!session) return null;
+    if (isTrustedSession(session)) return session;
+    clearIdentitySession();
+    return null;
   }
   function readGithub() {
     return readJson("rn_github", null);
+  }
+  function readGithubForSession(session) {
+    var gh = readGithub();
+    if (!session || !session.address || !gh || gh.sui_address !== session.address) return null;
+    return gh;
   }
   function readWorkbench() {
     var state = readJson("rn_workbench_state", {});
@@ -421,17 +452,18 @@ export const WORKBENCH_JS = `
     return view.reports[0] || null;
   }
   function seedDemo() {
+    var demoAgentAddress = "0xb178126020d69bb24ecd6a39ac5db18a8badae973dae0e9b20a889a68b609d7f";
     localStorage.setItem("rn_workbench_demo", "1");
     writeJson("rn_session", {
       provider: "google",
-      address: "0xAGENT",
+      address: demoAgentAddress,
       sub: "demo-agent",
       email: "agent@example.com",
       iss: "https://accounts.google.com",
       ts: Date.now()
     });
     writeJson("rn_github", {
-      sui_address: "0xAGENT",
+      sui_address: demoAgentAddress,
       login: "octo-agent",
       installation_id: 101,
       account: "octo-agent",
@@ -450,7 +482,7 @@ export const WORKBENCH_JS = `
         { full_name: "research-org/encrypted-lab", installation_id: 202, installation_account: "research-org", installation_account_type: "Organization" }
       ],
       binding_attestation: "demo-attestation",
-      binding_attestation_payload: { sub: "0xAGENT", installation_id: 101 }
+      binding_attestation_payload: { sub: demoAgentAddress, installation_id: 101 }
     });
     var state = readWorkbench();
     state.actor = "agent";
@@ -461,7 +493,7 @@ export const WORKBENCH_JS = `
   function publishReport(event) {
     event.preventDefault();
     var session = readSession();
-    var gh = readGithub();
+    var gh = readGithubForSession(session);
     var state = readWorkbench();
     var repo = selectedRepo(gh);
     var form = event.currentTarget;
@@ -796,7 +828,7 @@ export const WORKBENCH_JS = `
   }
   function render() {
     var session = readSession();
-    var gh = readGithub();
+    var gh = readGithubForSession(session);
     var view = stateView();
     var state = view.state;
     var actor = activeActor(state, session && session.address);
@@ -854,7 +886,8 @@ export const WORKBENCH_JS = `
     var repoSelect = document.getElementById("workbench-repo");
     if (repoSelect) repoSelect.addEventListener("change", function () {
       var opt = repoSelect.options[repoSelect.selectedIndex];
-      persistRepoSelection(readGithub(), {
+      var currentSession = readSession();
+      persistRepoSelection(readGithubForSession(currentSession), {
         full_name: repoSelect.value,
         installation_id: opt.getAttribute("data-installation-id"),
         installation_account: opt.getAttribute("data-installation-account"),
@@ -864,7 +897,7 @@ export const WORKBENCH_JS = `
     });
     Array.prototype.forEach.call(document.querySelectorAll(".rn-workbench-installation"), function (input) {
       input.addEventListener("change", function () {
-        var ghNow = readGithub();
+        var ghNow = readGithubForSession(readSession());
         if (!ghNow) return;
         ghNow.selected_installation_ids = Array.prototype.slice.call(document.querySelectorAll(".rn-workbench-installation"))
           .filter(function (el) { return el.checked; })
