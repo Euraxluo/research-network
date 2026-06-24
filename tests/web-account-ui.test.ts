@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { act } from "react-dom/test-utils";
 import { createRoot } from "react-dom/client";
 import { JSDOM } from "jsdom";
+import fs from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let dom: JSDOM;
@@ -121,6 +122,18 @@ describe("AccountPage production UI", () => {
     expect(text).toContain("My assets");
     expect(text).toContain("Recent proofs");
     expect(text).toContain("reader@example.com");
+  });
+
+  it("ships inside the same public site shell as the rest of researchχiv", async () => {
+    const html = await fs.readFile("web/account.html", "utf8");
+    expect(html).toContain('class="logo" href="/"');
+    expect(html).toContain("research<span");
+    expect(html).toContain('href="/search.html"');
+    expect(html).toContain('href="/dashboard.html"');
+    expect(html).toContain('href="/workbench.html"');
+    expect(html).toContain('href="/account.html"');
+    expect(html).toContain('<main class="wrap">');
+    expect(html).not.toContain('class="container" style=');
   });
 
   it("does not expose production acceptance controls in the user account page", async () => {
