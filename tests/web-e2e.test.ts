@@ -123,8 +123,7 @@ describe("static web E2E", () => {
         { path: `/abs/${assetSeg}.html`, expect: /id="tex"/ },
         { path: `/abs/${assetSeg}.html`, expect: /tex-source/ },
         { path: `/paper/${assetSeg}/main.pdf`, expect: "%PDF" },
-        { path: `/paper/${assetSeg}/main.tex`, expect: /\\documentclass/ },
-        { path: `/graph/${assetSeg}.html`, expect: /graph-canvas/ }
+        { path: `/paper/${assetSeg}/main.tex`, expect: /\\documentclass/ }
       ];
 
       for (const route of routes) {
@@ -137,6 +136,8 @@ describe("static web E2E", () => {
           expect(body, `${route.path} body`).toContain(route.expect);
         }
       }
+      const graphResponse = await fetch(sitePath(server.url, `/graph/${assetSeg}.html`));
+      expect(graphResponse.status).toBe(404);
 
       const apiHealth = await fetch(sitePath(server.url, "/api/index/health"));
       expect(apiHealth.status).toBe(200);
@@ -759,8 +760,9 @@ describe("static web E2E", () => {
     expect(shellSiteJs).toContain("data-live-skills");
     expect(shellSiteJs).toContain("research install");
     expect(shellSiteJs).toContain("live-skill-card");
-    expect(shellSiteJs).toContain("Asset Graph");
-    expect(shellSiteJs).toContain("README.md from the live Walrus release");
+    expect(shellSiteJs).toContain("README");
+    expect(shellSiteJs).not.toContain("Asset Graph");
+    expect(shellSiteJs).not.toContain("graph-canvas");
     const absFiles = await fs.readdir(path.join(shellDir, "abs"));
     expect(absFiles).toEqual([]);
     const loopSeg = routeSegment("ra:showcase:loop-engine");

@@ -1,7 +1,6 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { getGraph } from "./indexer.js";
 import { readIndex } from "./local-store.js";
 import { DEFAULT_LOCALNET_DIR, WEB_DIST_DIR } from "./paths.js";
 import { renderWorkbenchBody, WORKBENCH_JS } from "./web-workbench.js";
@@ -101,7 +100,7 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)} - Research Network</title>
-  <meta name="description" content="Agent-native decentralized research asset network: Paper, Skill, Workflow, Dataset and Code as one verifiable graph.">
+  <meta name="description" content="Agent-native decentralized research asset network: papers, skills, datasets and code published with verifiable Sui and Walrus provenance.">
   <meta http-equiv="Content-Security-Policy" content="${STATIC_CSP}">
   <link rel="stylesheet" href="/styles.css?v=${STATIC_ASSET_VERSION}">
   <script src="/site.js?v=${STATIC_ASSET_VERSION}" defer></script>
@@ -1383,9 +1382,6 @@ canvas.pdfjs-page { display: block; max-width: 100%; height: auto !important; bo
 .download-list li:last-child { border-bottom: 0; padding-bottom: 0; }
 .download-list a { font-weight: 700; }
 .download-list code { display: block; width: 100%; background: transparent; padding: 0; color: var(--muted); overflow-wrap: anywhere; }
-.readme-sidebar .readme-box { border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 10px 0 0; max-width: none; background: transparent; font-size: 12.5px; line-height: 1.45; }
-.readme-sidebar .md-doc h2, .readme-sidebar .md-doc h3, .readme-sidebar .md-doc h4 { font-size: 13px; margin: 11px 0 5px; }
-.readme-sidebar .md-doc p, .readme-sidebar .md-doc ul, .readme-sidebar .md-doc ol { margin-bottom: 8px; }
 .tex-source { margin: 0; padding: 14px 0 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; color: #222; overflow-x: auto; background: transparent; border: 0; }
 .format-panel .ltx-page { border: 0; box-shadow: none; margin: 0; padding: 0; border-radius: 0; background: transparent; }
 .ltx-page { border: 0; border-radius: 0; background: transparent; box-shadow: none; padding: 0; margin: 0; }
@@ -1459,15 +1455,8 @@ a.card h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--link); }
 .local-tx { color: #444; }
 .local-badge { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--muted); font: 10px/1.5 var(--sans); text-transform: uppercase; vertical-align: 1px; }
 
-/* graph page */
-.graph-canvas-wrap { border: 1px solid var(--line); border-radius: 4px; overflow: hidden; background: #fff; margin: 16px 0 22px; }
-.graph-canvas-wrap canvas { display: block; width: 100%; height: 420px; cursor: crosshair; }
-.legend { display: flex; flex-wrap: wrap; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 11.5px; color: var(--muted); background: #fafafa; }
-.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
-.graph { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-
 @media (max-width: 820px) {
-  .abs-grid, .graph { grid-template-columns: 1fr; }
+  .abs-grid { grid-template-columns: 1fr; }
   .chain-facts { grid-template-columns: 1fr; }
   .banner-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
   .banner-search { width: 100%; }
@@ -2183,7 +2172,7 @@ const SITE_JS = `
     var wordPath = paper.word_path || (hasArtifactExt(sourcePath, ["word", "docx", "doc"]) ? sourcePath : "");
     var pptPath = paper.ppt_path || (hasArtifactExt(sourcePath, ["pptx", "ppt"]) ? sourcePath : "");
     var bibPath = paper.bib_path || "";
-    var readmePath = paper.readme_path || "README.md";
+    var readmePath = paper.readme_path || "";
     var formats = [];
     var downloads = [];
     var seen = {};
@@ -2199,6 +2188,7 @@ const SITE_JS = `
     addFormat("pdf", "pdf", "PDF", pdfPath);
     addFormat("word", "paper-word", "Word", wordPath);
     addFormat("ppt", "paper-ppt", "PPT", pptPath);
+    addFormat("markdown", "readme", "README", readmePath);
     pushUniqueDownload(downloads, seen, "BibTeX raw", bibPath, artifactUrl(asset, bibPath, artifactApi, aggregatorUrl));
     pushUniqueDownload(downloads, seen, "README raw", readmePath, artifactUrl(asset, readmePath, artifactApi, aggregatorUrl));
     return {
@@ -2665,16 +2655,6 @@ const SITE_JS = `
     });
   }
 
-  function setupLiveReadme(root, readme) {
-    var box = root.querySelector("[data-live-readme]");
-    if (!box || !readme || !readme.url) return;
-    fetchArtifactText(readme.url).then(function (text) {
-      box.innerHTML = '<div class="readme-box readme-sidebar-box md-doc">' + markdownToHtml(text) + '</div>';
-    }).catch(function () {
-      box.innerHTML = '<p class="muted">README.md is not present in this live Walrus release, or it could not be loaded.</p>';
-    });
-  }
-
   function renderLiveSkills(asset, artifactApi, aggregatorUrl) {
     var skills = Array.isArray(asset.skills) ? asset.skills : [];
     if (!skills.length) {
@@ -2711,58 +2691,6 @@ const SITE_JS = `
         (stages.length ? '<ol class="small-list">' + stages.slice(0, 6).map(function (stage) { return '<li><strong>' + esc(stage.name || stage.id || "Stage") + '</strong> <span class="muted">' + esc(stage.instructions || "") + '</span></li>'; }).join("") + '</ol>' : '') +
       '</article>';
     }).join("") + '</div>';
-  }
-
-  function liveAssetGraph(asset) {
-    var nodes = [];
-    var edges = [];
-    var seen = {};
-    function addNode(id, label, type) {
-      if (!id || seen[id]) return;
-      seen[id] = true;
-      nodes.push({ id: id, label: label || id, type: type || "asset" });
-    }
-    addNode(asset.id || asset.sui_object_id || "asset", asset.title || asset.id || "Research Asset", "asset");
-    (Array.isArray(asset.skills) ? asset.skills : []).forEach(function (skill) {
-      addNode(skill.id, skill.name || skill.id, "skill");
-    });
-    (Array.isArray(asset.workflows) ? asset.workflows : []).forEach(function (workflow) {
-      addNode(workflow.id, workflow.name || workflow.id, "workflow");
-    });
-    (Array.isArray(asset.relationships) ? asset.relationships : []).forEach(function (edge) {
-      addNode(edge.src_id, edge.src_id, edge.src_id && edge.src_id.indexOf("skill:") === 0 ? "skill" : edge.src_id && edge.src_id.indexOf("workflow:") === 0 ? "workflow" : "asset");
-      addNode(edge.dst_id, edge.dst_id, edge.dst_id && edge.dst_id.indexOf("skill:") === 0 ? "skill" : edge.dst_id && edge.dst_id.indexOf("workflow:") === 0 ? "workflow" : "asset");
-      edges.push({ src_id: edge.src_id, dst_id: edge.dst_id, relation_type: edge.relation_type || "related_to" });
-    });
-    if (!edges.length) {
-      (Array.isArray(asset.skills) ? asset.skills : []).forEach(function (skill) {
-        edges.push({ src_id: asset.id || asset.sui_object_id || "asset", dst_id: skill.id, relation_type: "contains_skill" });
-      });
-      (Array.isArray(asset.workflows) ? asset.workflows : []).forEach(function (workflow) {
-        edges.push({ src_id: asset.id || asset.sui_object_id || "asset", dst_id: workflow.id, relation_type: "contains_workflow" });
-      });
-    }
-    return { nodes: nodes, edges: edges };
-  }
-
-  function renderLiveGraph(asset) {
-    var graph = liveAssetGraph(asset);
-    if (graph.nodes.length <= 1 && !graph.edges.length) {
-      return '<p class="muted">No skill, workflow, or relationship graph is declared in this live Walrus release manifest.</p>';
-    }
-    var legend = [];
-    graph.nodes.forEach(function (node) {
-      if (legend.indexOf(node.type) === -1) legend.push(node.type);
-    });
-    var legendColors = { paper: "#b31b1b", skill: "#1a7f37", workflow: "#b58105", dataset: "#bc4c75", asset: "#5b4ccc" };
-    return '<div class="graph-canvas-wrap live-graph-canvas-wrap">' +
-      '<canvas id="graph-canvas"></canvas>' +
-      '<div class="legend">' + legend.map(function (type) { return '<span><i style="background:' + esc(legendColors[type] || "#5b4ccc") + '"></i>' + esc(type) + '</span>'; }).join("") + '</div>' +
-      '</div>' +
-      '<div class="graph live-graph-list">' +
-        '<section><h3>Nodes</h3>' + graph.nodes.map(function (node) { return '<div class="card"><strong>' + esc(node.label) + '</strong><br><span class="muted">' + esc(node.id) + ' &middot; ' + esc(node.type) + '</span></div>'; }).join("") + '</section>' +
-        '<section><h3>Edges</h3>' + (graph.edges.length ? graph.edges.map(function (edge) { return '<div class="card"><strong>' + esc(edge.relation_type) + '</strong><br><span class="muted">' + esc(edge.src_id) + ' &rarr; ' + esc(edge.dst_id) + '</span></div>'; }).join("") : '<p class="muted">No graph edges declared.</p>') + '</section>' +
-      '</div>';
   }
 
   function liveSkillInstallCommand(skill) {
@@ -2930,8 +2858,6 @@ const SITE_JS = `
             '<h2>Agent-Native Assets</h2>' +
             renderLiveSkills(asset, artifactApi, aggregatorUrl) +
             renderLiveWorkflows(asset) +
-            '<h2>Asset Graph</h2>' +
-            renderLiveGraph(asset) +
           '</div>' +
           '<aside class="extra-services">' +
             '<div class="sidebar-section asset-sidebar-summary">' +
@@ -2952,10 +2878,6 @@ const SITE_JS = `
                 '<div><dt>Verification</dt><dd><span class="chain-status chain-status-' + (state.verified ? "verified" : "warning") + '">' + esc(state.label) + '</span> <span class="muted">' + esc(state.detail) + '</span></dd></div>' +
               '</dl>' +
             '</div>' +
-            '<div class="sidebar-section readme-sidebar">' +
-              '<h3>README.md</h3>' +
-              '<div data-live-readme><p class="muted">Loading README.md from the live Walrus release...</p></div>' +
-            '</div>' +
             '<div class="sidebar-section">' +
               '<h3>Verifiable Record</h3>' +
               '<dl class="verification">' +
@@ -2970,11 +2892,8 @@ const SITE_JS = `
             '</div>' +
           '</aside>' +
         '</div>';
-      window.__GRAPH__ = liveAssetGraph(asset);
       setupPaperViewer();
       renderLiveArtifactPanels(root, asset);
-      setupLiveReadme(root, bundle.readme);
-      setupGraph();
       setupPdfRender();
     }).catch(function (err) {
       root.innerHTML = '<p class="muted">Could not load the live research asset: ' + esc(err && err.message ? err.message : "request failed") + '</p>';
@@ -3322,96 +3241,6 @@ const SITE_JS = `
     });
   }
 
-  function fitCanvas(canvas) {
-    var dpr = window.devicePixelRatio || 1;
-    var rect = canvas.getBoundingClientRect();
-    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-    return { w: canvas.width, h: canvas.height, dpr: dpr };
-  }
-
-  /* asset graph viewer */
-  function setupGraph() {
-    var canvas = document.getElementById("graph-canvas");
-    if (!canvas || !window.__GRAPH__) return;
-    var ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    var graph = window.__GRAPH__;
-    var size = fitCanvas(canvas);
-    var nodes = graph.nodes.map(function (n, i) {
-      var center = i === 0;
-      var angle = (i / Math.max(1, graph.nodes.length - 1)) * Math.PI * 2;
-      var radius = center ? 0 : Math.min(size.w, size.h) * 0.32;
-      return {
-        id: n.id, label: n.label, type: n.type,
-        bx: size.w / 2 + Math.cos(angle) * radius,
-        by: size.h / 2 + Math.sin(angle) * radius,
-        phase: Math.random() * Math.PI * 2,
-        r: (center ? 9 : 6) * size.dpr,
-        c: TYPE_COLORS[n.type] || "#5b4ccc"
-      };
-    });
-    var byId = {};
-    nodes.forEach(function (n) { byId[n.id] = n; });
-    var hover = null;
-    canvas.addEventListener("mousemove", function (event) {
-      var rect = canvas.getBoundingClientRect();
-      var mx = (event.clientX - rect.left) * size.dpr, my = (event.clientY - rect.top) * size.dpr;
-      hover = null;
-      nodes.forEach(function (n) {
-        var dx = n.x - mx, dy = n.y - my;
-        if (Math.sqrt(dx * dx + dy * dy) < n.r + 12 * size.dpr) hover = n;
-      });
-      canvas.style.cursor = hover ? "pointer" : "crosshair";
-    });
-    var t = 0;
-    function frame() {
-      t += 0.016;
-      ctx.clearRect(0, 0, size.w, size.h);
-      nodes.forEach(function (n) {
-        var wob = reduced ? 0 : 4 * size.dpr;
-        n.x = n.bx + Math.sin(t * 0.8 + n.phase) * wob;
-        n.y = n.by + Math.cos(t * 0.6 + n.phase) * wob;
-      });
-      graph.edges.forEach(function (e) {
-        var a = byId[e.src_id], b = byId[e.dst_id];
-        if (!a || !b) return;
-        var active = hover && (hover === a || hover === b);
-        ctx.strokeStyle = active ? "rgba(179,27,27,.85)" : "rgba(0,0,0,.22)";
-        ctx.lineWidth = (active ? 1.8 : 1) * size.dpr;
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-        var midx = (a.x + b.x) / 2, midy = (a.y + b.y) / 2;
-        ctx.fillStyle = active ? "#b31b1b" : "rgba(0,0,0,.5)";
-        ctx.font = (10 * size.dpr) + "px ui-monospace, Menlo, monospace";
-        ctx.textAlign = "center";
-        ctx.fillText(e.relation_type, midx, midy - 5 * size.dpr);
-      });
-      nodes.forEach(function (n) {
-        var active = hover === n;
-        ctx.fillStyle = n.c;
-        ctx.beginPath(); ctx.arc(n.x, n.y, n.r * (active ? 1.25 : 1), 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = active ? "#b31b1b" : "#333";
-        ctx.font = (active ? 12.5 : 11) * size.dpr + "px ui-monospace, Menlo, monospace";
-        ctx.textAlign = "center";
-        var label = n.label.length > 34 ? n.label.slice(0, 33) + "\\u2026" : n.label;
-        ctx.fillText(label, n.x, n.y + n.r + 15 * size.dpr);
-      });
-      if (!reduced) requestAnimationFrame(frame);
-    }
-    frame();
-    window.addEventListener("resize", function () {
-      size = fitCanvas(canvas);
-      nodes.forEach(function (n, i) {
-        var center = i === 0;
-        var angle = (i / Math.max(1, nodes.length - 1)) * Math.PI * 2;
-        var radius = center ? 0 : Math.min(size.w, size.h) * 0.32;
-        n.bx = size.w / 2 + Math.cos(angle) * radius;
-        n.by = size.h / 2 + Math.sin(angle) * radius;
-      });
-    });
-  }
-
   function setupPaperViewer() {
     var root = document.querySelector("[data-paper-viewer]");
     if (!root) return;
@@ -3514,7 +3343,6 @@ const SITE_JS = `
     setupLiveSearch();
     setupLiveSkillCatalog();
     setupLiveAssetDetail();
-    setupGraph();
     setupPaperViewer();
   }
   if (document.readyState === "loading") {
@@ -3537,7 +3365,6 @@ export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: st
   await fs.rm(outputDir, { recursive: true, force: true });
   await fs.mkdir(path.join(outputDir, "abs"), { recursive: true });
   await fs.mkdir(path.join(outputDir, "skill"), { recursive: true });
-  await fs.mkdir(path.join(outputDir, "graph"), { recursive: true });
   if (walrusSitesResources) {
     await fs.writeFile(path.join(outputDir, "ws-resources.json"), walrusSitesResources, "utf8");
   }
@@ -3749,13 +3576,12 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
       <p class="muted">${escapeHtml(accessNote)}</p>
       ${assetReports.length ? `<h3>Research reports</h3>${renderAssetReports(assetReports, explorer)}` : ""}
     </div>
-    <div class="sidebar-section">
+    ${primarySkill ? `<div class="sidebar-section">
       <h3>Tools</h3>
       <ul class="small-list">
-        ${primarySkill ? `<li><a href="${escapeHtml(webPath("skill", `${routeSegment(primarySkill.id)}.html`))}">Install Skill</a></li>` : ""}
-        <li><a href="${escapeHtml(webPath("graph", `${seg}.html`))}">View Asset Graph</a></li>
+        <li><a href="${escapeHtml(webPath("skill", `${routeSegment(primarySkill.id)}.html`))}">Install Skill</a></li>
       </ul>
-    </div>
+    </div>` : ""}
     <div class="sidebar-section">
       <h3>Verifiable Record</h3>
       ${verificationRows(
@@ -3787,7 +3613,7 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
   }
 
   const homeBody = `
-<p class="intro">An agent-native, decentralized research asset network. Papers, skills, workflows, datasets and code are authored in Git, snapshotted on Walrus, registered on Sui, and indexed as one verifiable graph for humans and agents alike.</p>
+<p class="intro">An agent-native, decentralized research asset network. Papers, skills, datasets and code are authored in Git, snapshotted on Walrus, registered on Sui, and resolved back to their original source artifacts for humans and agents alike.</p>
 <p class="stats-line">Live Sui ${escapeHtml(onChainProofConfig.network)} registry &middot; package ${explorerLink("object", onChainProofConfig.packageId, explorer)} &middot; event <code>ResearchAssetPublished</code></p>
 <div class="search-box"><input id="filter" type="search" placeholder="Search titles, authors, tags&hellip;" autocomplete="off" aria-label="Search submissions"></div>
 <h2>Recent submissions</h2>
@@ -3843,25 +3669,6 @@ ${verificationRows(
 <h2>Manifest</h2>
 <pre>${escapeHtml(JSON.stringify(skill.manifest, null, 2))}</pre>`;
     await fs.writeFile(path.join(outputDir, "skill", `${routeSegment(skill.id)}.html`), shell(skill.name, body, { subject: "Skill" }), "utf8");
-  }
-
-  for (const asset of assets) {
-    const graph = await getGraph(asset.id, localnetRoot);
-    const legend = Array.from(new Set(graph.nodes.map((node) => node.type)));
-    const legendColors: Record<string, string> = { paper: "#b31b1b", skill: "#1a7f37", workflow: "#b58105", dataset: "#bc4c75", asset: "#5b4ccc" };
-    const body = `
-<h1>${escapeHtml(asset.title)} &mdash; Asset Graph</h1>
-<p class="muted">Interactive projection of the indexed relationship graph. Hover nodes to highlight their edges.</p>
-<div class="graph-canvas-wrap">
-  <canvas id="graph-canvas"></canvas>
-  <div class="legend">${legend.map((type) => `<span><i style="background:${escapeHtml(legendColors[type] ?? "#5b4ccc")}"></i>${escapeHtml(type)}</span>`).join("")}</div>
-</div>
-<script>window.__GRAPH__ = ${jsonForInlineScript(graph)};</script>
-<div class="graph">
-  <section><h2>Nodes</h2>${graph.nodes.map((node) => `<div class="card"><strong>${escapeHtml(node.label)}</strong><br><span class="muted">${escapeHtml(node.id)} &middot; ${escapeHtml(node.type)}</span></div>`).join("")}</section>
-  <section><h2>Edges</h2>${graph.edges.map((edge) => `<div class="card"><strong>${escapeHtml(edge.relation_type)}</strong><br><span class="muted">${escapeHtml(edge.src_id)} &rarr; ${escapeHtml(edge.dst_id)}</span></div>`).join("")}</section>
-</div>`;
-    await fs.writeFile(path.join(outputDir, "graph", `${routeSegment(asset.id)}.html`), shell(`${asset.title} Graph`, body, { subject: "Asset Graph" }), "utf8");
   }
 
   return outputDir;
