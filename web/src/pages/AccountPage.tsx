@@ -132,6 +132,47 @@ function sameAddress(left: string | undefined, right: string | undefined): boole
   return Boolean(a && b && a === b);
 }
 
+function isValidSuiAddress(value: string | undefined): boolean {
+  return /^0x[0-9a-f]{64}$/i.test(String(value || ""));
+}
+
+function isRepeatedByteAddress(value: string | undefined): boolean {
+  const clean = String(value || "").toLowerCase();
+  if (!isValidSuiAddress(clean)) return false;
+  const firstByte = clean.slice(2, 4);
+  return clean.slice(2).match(new RegExp(`^(?:${firstByte}){32}$`)) !== null;
+}
+
+function isTrustedAccountSession(session: ZkLoginSession | null): session is ZkLoginSession {
+  if (!session?.address || !isValidSuiAddress(session.address)) return false;
+  if (isRepeatedByteAddress(session.address)) return false;
+  return Boolean(session.sub && session.iss && session.ts);
+}
+
+function clearAccountSession(): void {
+  try {
+    localStorage.removeItem("rn_session");
+    localStorage.removeItem("rn_github");
+    localStorage.removeItem("rn_zk_attestation");
+    localStorage.removeItem("rn_gh_state");
+  } catch {
+    /* ignore storage failures */
+  }
+}
+
+function readTrustedAccountSession(): ZkLoginSession | null {
+  const session = readSession();
+  if (!session) return null;
+  if (isTrustedAccountSession(session)) return session;
+  clearAccountSession();
+  return null;
+}
+
+function readGithubForSession(session: ZkLoginSession | null): GithubBinding | null {
+  const gh = readGithub();
+  return session?.address && gh?.sui_address === session.address ? gh : null;
+}
+
 function formatDate(value: string | undefined): string {
   if (!value) return "live";
   const date = new Date(value);
@@ -224,12 +265,12 @@ function eventAmount(event: LiveIndexEvent): string {
 }
 
 export function AccountPage() {
-  const [session, setSession] = useState<ZkLoginSession | null>(() => readSession());
-  const [gh, setGh] = useState<GithubBinding | null>(() => readGithub());
+  const [session, setSession] = useState<ZkLoginSession | null>(() => readTrustedAccountSession());
+  const [gh, setGh] = useState<GithubBinding | null>(() => readGithubForSession(readTrustedAccountSession()));
   const sessionRaw = useRef<string | null>(storageItem("rn_session"));
   const githubRaw = useRef<string | null>(storageItem("rn_github"));
-  const [attested, setAttested] = useState<boolean>(() => hasServerAttestation(readGithub()));
-  const [checking, setChecking] = useState<boolean>(() => hasServerAttestation(readGithub()));
+  const [attested, setAttested] = useState<boolean>(() => hasServerAttestation(readGithubForSession(readTrustedAccountSession())));
+  const [checking, setChecking] = useState<boolean>(() => hasServerAttestation(readGithubForSession(readTrustedAccountSession())));
   const [liveIndex, setLiveIndex] = useState<LiveIndexResponse | null>(null);
   const [liveStatus, setLiveStatus] = useState<LiveStatus>("idle");
   const [liveError, setLiveError] = useState<string>("");
@@ -280,12 +321,14 @@ export function AccountPage() {
       const nextSessionRaw = storageItem("rn_session");
       if (nextSessionRaw !== sessionRaw.current) {
         sessionRaw.current = nextSessionRaw;
-        setSession(readSession());
+        const trusted = readTrustedAccountSession();
+        setSession(trusted);
+        setGh(readGithubForSession(trusted));
       }
       const nextGithubRaw = storageItem("rn_github");
       if (nextGithubRaw !== githubRaw.current) {
         githubRaw.current = nextGithubRaw;
-        setGh(readGithub());
+        setGh(readGithubForSession(readTrustedAccountSession()));
       }
     }, 1000);
     return () => window.clearInterval(id);

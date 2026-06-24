@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let dom: JSDOM;
 let root: ReturnType<typeof createRoot> | null = null;
+const TEST_ADDRESS = "0xb178126020d69bb24ecd6a39ac5db18a8badae973dae0e9b20a889a68b609d7f";
 
 function installDom(): void {
   dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -48,9 +49,12 @@ function seedSignedInSession(): void {
   dom.window.localStorage.setItem(
     "rn_session",
     JSON.stringify({
-      address: "0x" + "12".repeat(32),
+      address: TEST_ADDRESS,
       email: "reader@example.com",
-      provider: "google"
+      provider: "google",
+      sub: "google-subject",
+      iss: "https://accounts.google.com",
+      ts: Date.now()
     })
   );
 }
@@ -59,7 +63,7 @@ function seedGithubBinding(): void {
   dom.window.localStorage.setItem(
     "rn_github",
     JSON.stringify({
-      sui_address: "0x" + "12".repeat(32),
+      sui_address: TEST_ADDRESS,
       login: "echo",
       installation_id: 101,
       account: "echo",
@@ -124,6 +128,34 @@ describe("AccountPage production UI", () => {
     expect(text).toContain("reader@example.com");
   });
 
+  it("clears QA-seeded local sessions instead of showing fake zkLogin addresses", async () => {
+    dom.window.localStorage.setItem(
+      "rn_session",
+      JSON.stringify({
+        address: "0x" + "17".repeat(32),
+        email: "euraxluo@gmail.com",
+        provider: "google"
+      })
+    );
+    dom.window.localStorage.setItem(
+      "rn_github",
+      JSON.stringify({
+        sui_address: "0x" + "17".repeat(32),
+        login: "Euraxluo",
+        installation_id: 139753991,
+        repos: ["Euraxluo/research-network"]
+      })
+    );
+
+    await renderAccountPage();
+
+    const text = dom.window.document.body.textContent || "";
+    expect(text).toContain("Not signed in.");
+    expect(text).not.toContain("0x1717171717171717");
+    expect(dom.window.localStorage.getItem("rn_session")).toBeNull();
+    expect(dom.window.localStorage.getItem("rn_github")).toBeNull();
+  });
+
   it("ships inside the same public site shell as the rest of researchχiv", async () => {
     const html = await fs.readFile("web/account.html", "utf8");
     expect(html).toContain('class="logo" href="/"');
@@ -154,7 +186,7 @@ describe("AccountPage production UI", () => {
   });
 
   it("loads this profile's assets and activity from the live index API", async () => {
-    const address = "0x" + "12".repeat(32);
+    const address = TEST_ADDRESS;
     seedSignedInSession();
     seedGithubBinding();
     mockIndexResponse({
