@@ -720,7 +720,7 @@ describe("static web E2E", () => {
     expect(indexHtml).toContain("Recent submissions");
     expect(indexHtml).toContain("data-chain-submissions");
     expect(indexHtml).toContain("ResearchAssetPublished");
-    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v1");
+    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v2");
     expect(indexHtml).not.toContain("Demo Research Asset");
     expect(indexHtml).not.toContain("Untitled Research Asset");
     expect(indexHtml).not.toContain("Describe the research problem");
@@ -745,9 +745,6 @@ describe("static web E2E", () => {
     expect(assetHtml).toContain("data-live-asset-detail");
     expect(assetHtml).toContain("/api/index");
     expect(assetHtml).toContain("mathjax@3.2.2");
-    const skillHtml = await fs.readFile(path.join(shellDir, "skill.html"), "utf8");
-    expect(skillHtml).toContain("data-live-skill-detail");
-    expect(skillHtml).toContain("/api/index");
     const shellSiteJs = await fs.readFile(path.join(shellDir, "site.js"), "utf8");
     expect(shellSiteJs).not.toContain("Served by <code>/api/index</code>");
     expect(shellSiteJs).toContain("Verified on Sui and Walrus");
@@ -758,13 +755,11 @@ describe("static web E2E", () => {
     expect(shellSiteJs).toContain("mammoth@1.12.0");
     expect(shellSiteJs).toContain("jszip@3.10.1");
     expect(shellSiteJs).toContain("download-list");
-    expect(shellSiteJs).toContain("data-live-skill-detail");
+    expect(shellSiteJs).toContain("Agent-Native Assets");
     expect(shellSiteJs).toContain("data-live-skills");
+    expect(shellSiteJs).toContain("research install");
     expect(shellSiteJs).toContain("live-skill-card");
-    expect(shellSiteJs).toContain("copy install");
-    expect(shellSiteJs).toContain("View Skill");
-    expect(shellSiteJs).toContain("Raw skill.yaml");
-    expect(shellSiteJs).toContain("Skill Links");
+    expect(shellSiteJs).toContain("Asset Graph");
     expect(shellSiteJs).toContain("README.md from the live Walrus release");
     const absFiles = await fs.readdir(path.join(shellDir, "abs"));
     expect(absFiles).toEqual([]);
