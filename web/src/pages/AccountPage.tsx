@@ -17,7 +17,6 @@ interface LiveIndexAsset {
   href?: string;
   created_at?: string;
   abstract?: string;
-  tags?: string[];
   manifest_hash?: string;
   repo_url?: string;
   repo_commit?: string;

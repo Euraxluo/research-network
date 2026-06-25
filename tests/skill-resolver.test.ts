@@ -20,7 +20,6 @@ function liveIndex(): LiveIndexResult {
       authors: "Codex",
       abstract: "Loop engine research asset",
       types: ["paper", "skill"],
-      tags: ["loop-engine"],
       created_at: "2026-06-24T00:00:00.000Z",
       manifest_hash: "sha256:manifest",
       manifest_hash_verified: true,

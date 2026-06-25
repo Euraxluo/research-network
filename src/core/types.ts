@@ -44,7 +44,6 @@ export interface ResearchAssetManifest {
   version: string;
   types: AssetType[];
   abstract?: string;
-  tags?: string[];
   categories?: string[];
   authors: ResearchAuthor[];
   assets?: {
@@ -199,7 +198,6 @@ export interface IndexedAsset {
   version: string;
   types: AssetType[];
   abstract?: string;
-  tags: string[];
   categories: string[];
   walrus_blob_id: string;
   manifest_hash: string;
@@ -499,7 +497,6 @@ export interface SearchDocument {
   entity_id: string;
   title: string;
   body: string;
-  tags: string[];
   metadata: Record<string, unknown>;
   updated_at: string;
 }

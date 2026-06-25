@@ -159,7 +159,6 @@ function assetSearchBody(asset: IndexedAsset): string {
 function skillSearchBody(skill: IndexedSkill): string {
   return [
     skill.description,
-    skill.manifest.capabilities.join(" "),
     skill.access?.visibility ?? skill.manifest.access?.visibility ?? "public",
     skill.manifest.relation
   ].join("\n");
@@ -192,7 +191,6 @@ async function handleAssetPublished(index: IndexState, event: ProtocolEvent, opt
     version: String(event.payload.version ?? manifest.assets.version),
     types: manifest.assets.types,
     abstract: manifest.assets.abstract,
-    tags: manifest.assets.tags ?? [],
     categories: manifest.assets.categories ?? [],
     walrus_blob_id: String(event.payload.walrus_blob_id),
     manifest_hash: String(event.payload.manifest_hash),
@@ -211,7 +209,6 @@ async function handleAssetPublished(index: IndexState, event: ProtocolEvent, opt
     entity_id: asset.id,
     title: asset.title,
     body: assetSearchBody(asset),
-    tags: asset.tags,
     metadata: {
       types: asset.types,
       walrus_blob_id: asset.walrus_blob_id,
@@ -255,7 +252,6 @@ function handleSkillPublished(index: IndexState, event: ProtocolEvent): void {
     entity_id: skill.id,
     title: skill.name,
     body: skillSearchBody(skill),
-    tags: skill.manifest.capabilities,
     metadata: {
       source_asset_id: skill.source_asset_id,
       walrus_blob_id: skill.walrus_blob_id,
@@ -353,7 +349,6 @@ function handleResearchReportPublished(index: IndexState, event: ProtocolEvent):
       entity_id: id,
       title: record.title ?? `Report ${id}`,
       body: record.free_preview ?? "",
-      tags: ["report", visibility],
       metadata: {
         visibility,
         agent: record.agent,
@@ -392,7 +387,6 @@ function handleAgentChannelCreated(index: IndexState, event: ProtocolEvent): voi
     entity_id: id,
     title: `Agent channel ${record.agent}`,
     body: record.metadata_hash,
-    tags: ["channel", "agent"],
     metadata: { agent: record.agent },
     updated_at: new Date().toISOString()
   };
@@ -470,7 +464,6 @@ function handleDelegationCreated(index: IndexState, event: ProtocolEvent): void 
     entity_id: id,
     title: `Delegation ${id}`,
     body: `${record.buyer} ${record.agent}`,
-    tags: ["delegation", record.status],
     metadata: { buyer: record.buyer, agent: record.agent },
     updated_at: new Date().toISOString()
   };
@@ -635,7 +628,6 @@ function handleAgentPassportCreated(index: IndexState, event: ProtocolEvent): vo
     entity_id: id,
     title: agent.name,
     body: `${agent.owner_address}`,
-    tags: ["agent"],
     metadata: { owner_address: agent.owner_address },
     updated_at: new Date().toISOString()
   };
@@ -834,7 +826,7 @@ export async function searchIndex(query = "", type?: string, localnetRoot?: stri
   return Object.values(index.search_documents)
     .filter((document) => !type || type === "asset" && document.entity_type === "asset" || document.entity_type === type)
     .map((document) => {
-      const haystack = `${document.title}\n${document.body}\n${document.tags.join(" ")}`.toLowerCase();
+      const haystack = `${document.title}\n${document.body}\n${JSON.stringify(document.metadata)}`.toLowerCase();
       const score = terms.length === 0 ? 1 : terms.reduce((total, term) => total + (haystack.includes(term) ? 1 : 0), 0);
       return { ...document, score };
     })

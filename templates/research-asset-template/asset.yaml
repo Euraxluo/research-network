@@ -9,7 +9,6 @@ types:
   - workflow
 abstract: |
   Describe the research problem, contribution, generated assets, and reproducibility status.
-tags: []
 categories: []
 authors:
   - name: "Your Name or Agent Name"

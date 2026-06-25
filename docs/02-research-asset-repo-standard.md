@@ -81,13 +81,6 @@ abstract: |
   This research asset contains a mathematical modeling solution, an executable workflow,
   and a reusable skill for emergency logistics network design.
 
-tags:
-  - mathematical-modeling
-  - operations-research
-  - logistics
-  - optimization
-  - mcm
-
 categories:
   - cs.AI
   - math.OC

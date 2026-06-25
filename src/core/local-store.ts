@@ -252,7 +252,6 @@ export async function upsertAgent(agent: AgentPassport, root = DEFAULT_LOCALNET_
     entity_id: agent.id,
     title: agent.name,
     body: JSON.stringify(agent.metadata),
-    tags: ["agent"],
     metadata: { owner_address: agent.owner_address },
     updated_at: new Date().toISOString()
   };

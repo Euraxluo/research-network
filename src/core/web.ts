@@ -9,7 +9,7 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
-const STATIC_ASSET_VERSION = "20260624-live-skills-v3";
+const STATIC_ASSET_VERSION = "20260624-live-skills-v4";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
@@ -112,7 +112,7 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
     <div class="wrap banner-inner">
       <a class="logo" href="/">research<span class="logo-chi">&chi;</span>iv</a>
       <form class="banner-search" action="/" method="get">
-        <input type="search" name="q" placeholder="Search assets, skills, tags&hellip;" aria-label="Search">
+        <input type="search" name="q" placeholder="Search assets, skills, authors&hellip;" aria-label="Search">
         <button type="submit">Search</button>
       </form>
     </div>
@@ -718,7 +718,6 @@ export interface AccountDirectoryAsset {
   created_at: string;
   abstract?: string;
   types?: string[];
-  tags?: string[];
   manifest_hash?: string;
   repo_url?: string;
   repo_commit?: string;
@@ -1236,8 +1235,6 @@ h1.abs-title { font-size: 25px; line-height: 1.25; margin: 2px 0 6px; }
 .abs-authors { font-size: 15.5px; margin: 0 0 10px; }
 blockquote.abstract { margin: 14px 0 18px; padding: 0; font-size: 15.5px; line-height: 1.55; max-width: 800px; }
 blockquote.abstract .descriptor { font-weight: 700; }
-.abs-tags { margin: 0 0 12px; }
-.tag { display: inline-block; border: 1px solid #ccc; border-radius: 999px; background: #f7f7f7; color: #555; font-size: 12px; font-family: var(--mono); padding: 1px 9px; margin: 0 5px 5px 0; }
 .metatable { font-size: 13.5px; margin: 0 0 8px; }
 .metatable table { border-collapse: collapse; }
 .metatable td { padding: 2px 10px 2px 0; vertical-align: top; }
@@ -1278,8 +1275,6 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .compact-skill-main, .compact-skill-meta { min-width: 0; }
 .compact-skill-main strong { display: block; font-size: 14.5px; overflow-wrap: anywhere; }
 .compact-skill-main p { margin: 3px 0 0; color: #333; font-size: 13.5px; line-height: 1.45; }
-.compact-skill-tags { margin-top: 6px; }
-.compact-skill-tags .tag { margin-bottom: 0; }
 .compact-skill-meta { display: grid; gap: 4px; justify-items: end; text-align: right; font-size: 12.5px; }
 .compact-skill-meta code { max-width: 100%; overflow-wrap: anywhere; }
 .compact-skill-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
@@ -1835,7 +1830,6 @@ const SITE_JS = `
       authors: releaseAuthorLine(asset.authors),
       abstract: String(asset.abstract || ""),
       types: Array.isArray(asset.types) ? asset.types : ["asset"],
-      tags: Array.isArray(asset.tags) ? asset.tags : [],
       created_at: String(release && release.created_at ? release.created_at : fallback.created_at || ""),
       manifest_hash: fallback.manifest_hash,
       repo_url: normalizeRepoUrl(release && release.repo),
@@ -1880,8 +1874,7 @@ const SITE_JS = `
     var title = String(asset.title || asset.id || "Research Asset");
     var titleHtml = asset.href ? plainLink(asset.href, title) : proofLabelLink(suiExplorer, "object", asset.sui_object_id, title);
     var types = Array.isArray(asset.types) && asset.types.length ? asset.types : ["asset"];
-    var tags = Array.isArray(asset.tags) ? asset.tags : [];
-    var subjects = '<span class="primary-subject">' + esc(types[0] || "asset") + '</span>' + types.slice(1).map(function (type) { return '; ' + esc(type); }).join("") + (tags.length ? ' &middot; ' + esc(tags.join(", ")) : "");
+    var subjects = '<span class="primary-subject">' + esc(types[0] || "asset") + '</span>' + types.slice(1).map(function (type) { return '; ' + esc(type); }).join("");
     var proof = asset.proof || {};
     var verified = Boolean(proof.tx_success && proof.object_type_match && proof.owner_match && proof.blob_match && proof.manifest_match && proof.release_manifest_match);
     var statusClass = verified ? "verified" : "warning";
@@ -1947,7 +1940,6 @@ const SITE_JS = `
     var assetHref = asset.href || (asset.id ? "/asset.html?id=" + routeSegment(asset.id) : "");
     var titleHtml = assetHref ? plainLink(assetHref, title) : proofLabelLink(suiExplorer, "object", asset.sui_object_id, title);
     var types = Array.isArray(asset.types) && asset.types.length ? asset.types.join(", ") : "asset";
-    var tags = Array.isArray(asset.tags) && asset.tags.length ? " · " + asset.tags.join(", ") : "";
     var created = asset.created_at ? String(asset.created_at).replace("T", " ").slice(0, 19) + " UTC" : "not recorded";
     var repoText = asset.repo_url ? asset.repo_url.replace(/^https?:\\/\\/(www\\.)?github\\.com\\//, "") : "";
     var repoHtml = asset.repo_url ? plainLink(asset.repo_url, repoText || asset.repo_url) : '<span class="muted">not recorded in release manifest</span>';
@@ -1959,7 +1951,7 @@ const SITE_JS = `
         '<strong>' + titleHtml + '</strong>' +
         '<div class="muted">[' + (index + 1) + '] ' + esc(asset.id || asset.sui_object_id || "") + '</div>' +
         '<div>' + esc(asset.authors || "Unknown") + '</div>' +
-        '<div class="muted">' + esc(types + tags) + ' · published ' + esc(created) + '</div>' +
+        '<div class="muted">' + esc(types) + ' · published ' + esc(created) + '</div>' +
         '<p>' + esc(shortText(asset.abstract || "Indexed from a live Sui ResearchAssetPublished event and its Walrus release manifest.", 160, 40)) + '</p>' +
       '</td>' +
       '<td class="live-dashboard-proof">' +
@@ -2100,10 +2092,9 @@ const SITE_JS = `
   function liveAssetResultHtml(asset) {
     var title = String(asset.title || asset.id || "Research Asset");
     var href = asset.href || (asset.id ? "/asset.html?id=" + routeSegment(asset.id) : "#");
-    var tags = Array.isArray(asset.tags) && asset.tags.length ? " · " + asset.tags.join(", ") : "";
     return '<a class="result" href="' + esc(href) + '">' +
       '<strong>' + esc(title) + '</strong><br>' +
-      '<span class="muted">' + esc((Array.isArray(asset.types) ? asset.types.join(", ") : "asset") + tags) + '</span><br>' +
+      '<span class="muted">' + esc(Array.isArray(asset.types) ? asset.types.join(", ") : "asset") + '</span><br>' +
       '<span>' + esc(shortText(asset.abstract || "", 180, 30)) + '</span>' +
     '</a>';
   }
@@ -2678,14 +2669,12 @@ const SITE_JS = `
     }
     return '<div class="compact-skill-list">' + skills.map(function (skill) {
       var entryUrl = artifactUrl(asset, skill.entry_path, artifactApi, aggregatorUrl);
-      var caps = Array.isArray(skill.capabilities) ? skill.capabilities : [];
       var installCommand = liveSkillInstallCommand(skill);
       var objectId = skill.id || "";
       return '<div class="compact-skill-row">' +
         '<div class="compact-skill-main">' +
           '<strong>' + esc(skill.name || objectId || "Skill") + '</strong>' +
           '<p>' + esc(shortText(skill.description || "No skill description recorded.", 140, 28)) + '</p>' +
-          (caps.length ? '<div class="compact-skill-tags">' + caps.slice(0, 5).map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + (caps.length > 5 ? '<span class="muted">+' + (caps.length - 5) + '</span>' : '') + '</div>' : '') +
         '</div>' +
         '<div class="compact-skill-meta">' +
           (objectId ? '<code title="' + esc(objectId) + '">' + esc(shortText(objectId, 12, 10)) + '</code>' : '') +
@@ -2722,7 +2711,6 @@ const SITE_JS = `
       skill.source_asset_id,
       skill.name,
       skill.description,
-      Array.isArray(skill.capabilities) ? skill.capabilities.join(" ") : "",
       skill.relation,
       skill.access_visibility,
       asset.id,
@@ -2739,7 +2727,6 @@ const SITE_JS = `
     var assetHref = asset.href || (asset.id ? "/asset.html?id=" + routeSegment(asset.id) : "");
     var entryUrl = artifactUrl(asset, skill.entry_path, artifactApi, aggregatorUrl);
     var installCommand = liveSkillInstallCommand(skill);
-    var caps = Array.isArray(skill.capabilities) ? skill.capabilities : [];
     var state = liveProofState(asset);
     var repoText = asset.repo_url ? asset.repo_url.replace(/^https?:\\/\\/(www\\.)?github\\.com\\//, "") : "";
     var signer = asset.tx_sender || asset.event_owner_address || asset.creator_address || "";
@@ -2747,7 +2734,6 @@ const SITE_JS = `
       '<div class="dateline">Skill · ' + esc(skill.access_visibility || "public") + ' · ' + esc(skill.relation || "owned") + '</div>' +
       '<h3>' + esc(skill.name || skill.id || "Skill") + '</h3>' +
       '<p>' + esc(skill.description || "No skill description recorded.") + '</p>' +
-      (caps.length ? '<div class="abs-tags">' + caps.slice(0, 8).map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + '</div>' : '') +
       '<div class="copy-row"><code>' + esc(installCommand) + '</code><button class="copy-btn" type="button" data-copy="' + esc(installCommand) + '">copy</button></div>' +
       '<dl class="verification">' +
         '<div><dt>Skill object</dt><dd><code>' + esc(skill.id || "") + '</code></dd></div>' +
@@ -2854,7 +2840,6 @@ const SITE_JS = `
       var state = liveProofState(asset);
       var bundle = livePaperBundle(asset, artifactApi, aggregatorUrl);
       var types = Array.isArray(asset.types) && asset.types.length ? asset.types.join("; ") : "Research Asset";
-      var tags = Array.isArray(asset.tags) ? asset.tags : [];
       var signer = asset.tx_sender || asset.event_owner_address || asset.creator_address || "";
       root.innerHTML =
         '<div class="abs-grid live-asset-paper">' +
@@ -2862,7 +2847,6 @@ const SITE_JS = `
             '<div class="dateline">[Live Sui testnet submission on ' + esc(formatMembershipDate(asset.created_at)) + ']</div>' +
             '<h1 class="abs-title">' + esc(asset.title || asset.id || "Research Asset") + '</h1>' +
             '<div class="abs-authors">' + esc(asset.authors || "Unknown") + '</div>' +
-            '<div class="abs-tags">' + tags.map(function (tag) { return '<span class="tag">' + esc(tag) + '</span>'; }).join("") + '</div>' +
             renderLivePaperViewer(bundle.formats) +
             '<h2>Skills</h2>' +
             renderLiveSkills(asset, artifactApi, aggregatorUrl) +
@@ -3098,8 +3082,7 @@ const SITE_JS = `
     var titleHtml = metadata && metadata.href ? plainLink(metadata.href, title) : proofLabelLink(suiExplorer, "object", objectId, title);
     var authorsHtml = metadata && metadata.authors ? esc(String(metadata.authors)) : "Owner " + proofLink(suiExplorer, "account", eventOwner);
     var types = metadata && Array.isArray(metadata.types) && metadata.types.length ? metadata.types : ["sui-testnet"];
-    var tags = metadata && Array.isArray(metadata.tags) ? metadata.tags : [];
-    var subjects = '<span class="primary-subject">' + esc(types[0] || "sui-testnet") + '</span>' + types.slice(1).map(function (type) { return '; ' + esc(type); }).join("") + (tags.length ? ' &middot; ' + esc(tags.join(", ")) : "");
+    var subjects = '<span class="primary-subject">' + esc(types[0] || "sui-testnet") + '</span>' + types.slice(1).map(function (type) { return '; ' + esc(type); }).join("");
     var abstract = metadata && metadata.abstract ? String(metadata.abstract) : "This row is rendered from live ResearchAssetPublished events and cross-checked against the current Sui object, transaction effects, Walrus blob id, and manifest hash.";
     var metadataSource = metadata
       ? "Title, authors, abstract and repository are read from the Walrus release manifest addressed by the on-chain blob id; the release manifest hash matches this live Sui event."
@@ -3389,20 +3372,20 @@ export async function buildStaticWeb(outputDir = WEB_DIST_DIR, localnetRoot?: st
 ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 <section data-live-search data-live-search-limit="20" aria-live="polite">
   <p class="muted">Search is loaded from the backend live index. It reads Sui <code>ResearchAssetPublished</code> events, verifies the referenced object and Walrus release manifest, then filters the live rows.</p>
-  <div class="search-box"><input data-live-search-input type="search" placeholder="Filter live assets, authors, tags&hellip;" autocomplete="off"></div>
+  <div class="search-box"><input data-live-search-input type="search" placeholder="Filter live assets, authors, object ids&hellip;" autocomplete="off"></div>
   <p class="chain-source-note" data-live-search-status>Loading live search from <code>/api/index</code>...</p>
   <div data-live-search-results><p class="muted">Loading live results...</p></div>
 </section>` : `
 <p class="muted">Static search snapshot generated from the local index. Filtering runs entirely in your browser.</p>
-<div class="search-box"><input id="filter" type="search" placeholder="Filter assets, skills, tags&hellip;" autocomplete="off"></div>
-${Object.values(index.search_documents).map((document) => `<a class="result" href="${document.entity_type === "asset" ? escapeHtml(webPath("abs", `${routeSegment(document.entity_id)}.html`)) : document.entity_type === "skill" ? escapeHtml(webPath("skill", `${routeSegment(document.entity_id)}.html`)) : "#"}"><strong>${escapeHtml(document.title)}</strong><br><span class="muted">${escapeHtml(document.entity_type)} &middot; ${escapeHtml(document.tags.join(", "))}</span></a>`).join("")}`;
+<div class="search-box"><input id="filter" type="search" placeholder="Filter assets, skills, authors&hellip;" autocomplete="off"></div>
+${Object.values(index.search_documents).map((document) => `<a class="result" href="${document.entity_type === "asset" ? escapeHtml(webPath("abs", `${routeSegment(document.entity_id)}.html`)) : document.entity_type === "skill" ? escapeHtml(webPath("skill", `${routeSegment(document.entity_id)}.html`)) : "#"}"><strong>${escapeHtml(document.title)}</strong><br><span class="muted">${escapeHtml(document.entity_type)}</span></a>`).join("")}`;
   await fs.writeFile(path.join(outputDir, "search.html"), shell("Search", searchBody, { subject: "Search" }), "utf8");
 
   const skillsBody = publicLiveOnly ? `
 ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 <section data-live-skills data-live-skills-limit="20" aria-live="polite">
   <p class="muted">Find installable agent skills from live research assets. The catalog is resolved through <code>/api/index</code>, so each result keeps its source asset, Sui proof, Walrus release, repository, and commit attached.</p>
-  <div class="search-box"><input data-live-skills-input type="search" placeholder="Search skills, capabilities, source assets, repos&hellip;" autocomplete="off"></div>
+  <div class="search-box"><input data-live-skills-input type="search" placeholder="Search skills, source assets, repos, object ids&hellip;" autocomplete="off"></div>
   <p class="chain-source-note" data-live-skills-status>Loading skill catalog from <code>/api/index</code>...</p>
   <div data-live-skills-results><p class="muted">Loading live skills...</p></div>
 </section>` : `
@@ -3410,7 +3393,7 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 <div class="grid live-skill-grid">
 ${skills.map((skill) => {
   const installCommand = `research install ${skill.id}`;
-  return `<article class="card live-skill-card"><h3><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">${escapeHtml(skill.name)}</a></h3><p>${escapeHtml(skill.description)}</p><div>${skill.manifest.capabilities.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div><div class="copy-row"><code>${escapeHtml(installCommand)}</code><button class="copy-btn" type="button" data-copy="${escapeHtml(installCommand)}">copy</button></div></article>`;
+  return `<article class="card live-skill-card"><h3><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">${escapeHtml(skill.name)}</a></h3><p>${escapeHtml(skill.description)}</p><div class="copy-row"><code>${escapeHtml(installCommand)}</code><button class="copy-btn" type="button" data-copy="${escapeHtml(installCommand)}">copy</button></div></article>`;
 }).join("")}
 </div>`;
   await fs.writeFile(path.join(outputDir, "skills.html"), shell("Skills", skillsBody, { subject: "Find Skills" }), "utf8");
@@ -3554,7 +3537,6 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
     <h1 class="abs-title">${escapeHtml(asset.title)}</h1>
     <div class="abs-authors">${escapeHtml(authors)}</div>
     <blockquote class="abstract"><span class="descriptor">Abstract:</span> ${escapeHtml(asset.abstract)}</blockquote>
-    <div class="abs-tags">${asset.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>
     <div class="metatable"><table>
       <tr><td class="label">Subjects:</td><td>${escapeHtml(typeLabel)}</td></tr>
       <tr><td class="label">Access:</td><td>${escapeHtml(accessLabel)}</td></tr>
@@ -3569,7 +3551,7 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
     ${readmeText ? `<h2>README</h2><div class="readme-box md-doc">${renderMarkdownBody(readmeText)}</div>` : ""}
 
     <h2>Skills</h2>
-    <div class="compact-skill-list">${asset.manifest.skills.map((skill) => `<div class="compact-skill-row"><div class="compact-skill-main"><strong><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">${escapeHtml(skill.manifest.name)}</a></strong><p>${escapeHtml(skill.manifest.description)}</p><div class="compact-skill-tags">${skill.manifest.capabilities.slice(0, 5).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}${skill.manifest.capabilities.length > 5 ? `<span class="muted">+${skill.manifest.capabilities.length - 5}</span>` : ""}</div></div><div class="compact-skill-meta"><code title="${escapeHtml(skill.id)}">${escapeHtml(skill.id)}</code><div class="compact-skill-actions"><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">Open skill</a></div></div></div>`).join("") || "<p class=\"muted\">No skills declared.</p>"}</div>
+    <div class="compact-skill-list">${asset.manifest.skills.map((skill) => `<div class="compact-skill-row"><div class="compact-skill-main"><strong><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">${escapeHtml(skill.manifest.name)}</a></strong><p>${escapeHtml(skill.manifest.description)}</p></div><div class="compact-skill-meta"><code title="${escapeHtml(skill.id)}">${escapeHtml(skill.id)}</code><div class="compact-skill-actions"><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">Open skill</a></div></div></div>`).join("") || "<p class=\"muted\">No skills declared.</p>"}</div>
   </div>
   <aside class="extra-services">
     <div class="access-box">
@@ -3621,7 +3603,7 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
   const homeBody = `
 <p class="intro">An agent-native, decentralized research asset network. Papers, skills, datasets and code are authored in Git, snapshotted on Walrus, registered on Sui, and resolved back to their original source artifacts for humans and agents alike.</p>
 <p class="stats-line">Live Sui ${escapeHtml(onChainProofConfig.network)} registry &middot; package ${explorerLink("object", onChainProofConfig.packageId, explorer)} &middot; event <code>ResearchAssetPublished</code></p>
-<div class="search-box"><input id="filter" type="search" placeholder="Search titles, authors, tags&hellip;" autocomplete="off" aria-label="Search submissions"></div>
+<div class="search-box"><input id="filter" type="search" placeholder="Search titles, authors, object ids&hellip;" autocomplete="off" aria-label="Search submissions"></div>
 <h2>Recent submissions</h2>
 ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 <dl class="listing" data-chain-submissions aria-live="polite" aria-busy="true">
@@ -3645,7 +3627,6 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
     created_at: asset.created_at,
     abstract: asset.abstract,
     types: asset.types,
-    tags: asset.tags,
     manifest_hash: asset.manifest_hash,
     repo_url: asset.repo_url,
     repo_commit: asset.repo_commit
@@ -3663,7 +3644,6 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
     const body = `
 <h1>${escapeHtml(skill.name)}</h1>
 <p class="muted">${escapeHtml(skill.relation)} skill &middot; ${escapeHtml(skill.description)}</p>
-<div>${skill.manifest.capabilities.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>
 <div class="copy-row"><code>${escapeHtml(installCommand)}</code><button class="copy-btn" type="button" data-copy="${escapeHtml(installCommand)}">copy</button></div>
 <p><a class="button" href="${escapeHtml(webPath("abs", `${routeSegment(skill.source_asset_id)}.html`))}">Source asset</a><a class="button" href="/api/skills/${escapeHtml(routeSegment(skill.id))}/install">Install manifest</a></p>
 <h2>Verification</h2>

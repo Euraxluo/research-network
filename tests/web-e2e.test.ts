@@ -721,7 +721,7 @@ describe("static web E2E", () => {
     expect(indexHtml).toContain("Recent submissions");
     expect(indexHtml).toContain("data-chain-submissions");
     expect(indexHtml).toContain("ResearchAssetPublished");
-    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v3");
+    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v4");
     expect(indexHtml).not.toContain("Demo Research Asset");
     expect(indexHtml).not.toContain("Untitled Research Asset");
     expect(indexHtml).not.toContain("Describe the research problem");

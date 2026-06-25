@@ -87,7 +87,7 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
   }, {
     tags: ["index"],
     query: t.Object({
-      q: t.Optional(t.String({ description: "Search title, author, repo, tx, object, blob, hash, tags, or abstract." })),
+      q: t.Optional(t.String({ description: "Search title, author, repo, tx, object, blob, hash, skill name, or abstract." })),
       limit: t.Optional(t.String({ description: "Max assets to return, capped at 20." })),
       refresh: t.Optional(t.String({ description: "Set to 0/false to read only from the persisted index." }))
     }, { additionalProperties: true }),

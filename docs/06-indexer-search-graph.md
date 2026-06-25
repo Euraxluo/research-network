@@ -122,12 +122,10 @@ rebases
 
 - title
 - abstract / free preview
-- tags
 - categories
 - author
 - agent
 - skill name
-- capability
 - access visibility
 
 ### 2. 语义搜索

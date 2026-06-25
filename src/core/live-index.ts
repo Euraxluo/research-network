@@ -93,7 +93,6 @@ interface ReleaseManifest {
     title?: string;
     abstract?: string;
     types?: string[];
-    tags?: string[];
     authors?: Array<{ name?: string; github?: string; agent_id?: string; type?: string }>;
     assets?: {
       paper?: {
@@ -120,7 +119,6 @@ export interface LiveIndexAsset {
   authors: string;
   abstract: string;
   types: string[];
-  tags: string[];
   created_at: string;
   manifest_hash: string;
   manifest_hash_verified: boolean;
@@ -520,8 +518,7 @@ export function matchesLiveIndexQuery(asset: LiveIndexAsset, query: string): boo
     asset.authors,
     asset.abstract,
     asset.types.join(" "),
-    asset.tags.join(" "),
-    (asset.skills ?? []).map((skill) => [skill.id, skill.name, skill.description, skill.capabilities.join(" "), skill.relation].join(" ")).join("\n"),
+    (asset.skills ?? []).map((skill) => [skill.id, skill.name, skill.description, skill.relation].join(" ")).join("\n"),
     (asset.workflows ?? []).map((workflow) => [workflow.id, workflow.name, workflow.description, workflow.inputs.join(" "), workflow.outputs.join(" ")].join(" ")).join("\n"),
     (asset.relationships ?? []).map((relationship) => [relationship.src_id, relationship.dst_id, relationship.relation_type].join(" ")).join("\n"),
     asset.sui_object_id,
@@ -752,7 +749,6 @@ function buildAsset(input: {
     authors: authorLine(releaseAsset.authors),
     abstract: String(releaseAsset.abstract ?? ""),
     types: Array.isArray(releaseAsset.types) && releaseAsset.types.length ? releaseAsset.types : ["sui-testnet"],
-    tags: Array.isArray(releaseAsset.tags) ? releaseAsset.tags : [],
     created_at: createdAt(release, parsed),
     manifest_hash: manifestHash,
     manifest_hash_verified: proof.release_manifest_match,
