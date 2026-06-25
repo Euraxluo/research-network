@@ -27,7 +27,7 @@ describe("live Sui/Walrus index", () => {
     expect(releaseHasDeclaredFile(undefined, "paper/main.tex")).toBe(false);
   });
 
-  it("indexes transaction signer and gas evidence for live research assets", async () => {
+  it("keeps transaction signer and gas evidence for unresolved live anchors without listing them as assets", async () => {
     const rpcBodies: Array<{ method?: string; params?: unknown[] }> = [];
     const packageId = "0xabc";
     const signer = `0x${"8a".repeat(32)}`;
@@ -101,13 +101,17 @@ describe("live Sui/Walrus index", () => {
       showEvents: true,
       showBalanceChanges: true
     });
-    expect(index.assets[0]).toMatchObject({
-      event_owner_address: signer,
-      creator_address: signer,
-      object_owner_address: signer,
-      tx_sender: signer,
-      gas_owner: signer,
-      sui_spent_mist: "4262680",
+    expect(index.assets).toEqual([]);
+    expect(index.unresolved_anchors).toHaveLength(1);
+    expect(index.unresolved_anchors[0]).toMatchObject({
+      id: assetId,
+      title: "On-chain Research Asset v0.1.0",
+      sui_object_id: assetId,
+      walrus_blob_id: "blob123",
+      tx_digest: txDigest,
+      repo_commit: "abc1234",
+      release_manifest_status: "unavailable",
+      release_error: "Walrus blob blob123 HTTP 404",
       proof: {
         tx_success: true,
         sender_match: true,

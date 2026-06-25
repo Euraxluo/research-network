@@ -1,9 +1,83 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
+import { createServer, type Server } from "node:http";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { researchIndexApi } from "../src/api/index-service.js";
 
 const ORIGINAL_CRON_SECRET = process.env.CRON_SECRET;
 const ORIGINAL_RN_INDEX_CRON_SECRET = process.env.RN_INDEX_CRON_SECRET;
+const execFileAsync = promisify(execFile);
+
+async function makeReleaseBlobWithTex(): Promise<Uint8Array> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "rn-render-api-"));
+  try {
+    const releaseDir = path.join(root, "release");
+    const tarPath = path.join(root, "release.tar");
+    const archivePath = path.join(root, "release.tar.zst");
+    await fs.mkdir(path.join(releaseDir, "paper"), { recursive: true });
+    await fs.writeFile(path.join(releaseDir, "manifest.json"), JSON.stringify({
+      schema: "research-asset-manifest/v0.1",
+      title: "Loop Engine Research",
+      assets: { id: "ra:test" },
+      files: [
+        { path: "manifest.json" },
+        { path: "paper/main.tex" }
+      ]
+    }), "utf8");
+    await fs.writeFile(path.join(releaseDir, "paper", "main.tex"), String.raw`
+\documentclass{article}
+\title{: Loop Engine Runtime Notes}
+\author{Research Network}
+\begin{document}
+\maketitle
+\begin{abstract}
+Loop Engine coordinates agent runs, commit evidence, and chain-backed research assertions.
+\end{abstract}
+\section{Indexed Assertion}
+The verified runtime state is $S_t = f(S_{t-1}, a_t)$, with repository evidence stored next to the on-chain object.
+\end{document}
+`, "utf8");
+    await execFileAsync("tar", ["-cf", tarPath, "-C", releaseDir, "."]);
+    await execFileAsync("zstd", ["-q", "-f", tarPath, "-o", archivePath]);
+    return new Uint8Array(await fs.readFile(archivePath));
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+}
+
+async function serveWalrusBlob(blob: Uint8Array): Promise<{ url: string; close: () => Promise<void> }> {
+  const server = createServer((request, response) => {
+    if (request.url === "/v1/blobs/test-render-blob") {
+      response.writeHead(200, { "content-type": "application/octet-stream" });
+      response.end(Buffer.from(blob));
+      return;
+    }
+    response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    response.end("not found");
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  const address = server.address();
+  if (!address || typeof address === "string") {
+    await closeServer(server);
+    throw new Error("test Walrus server did not expose a TCP address");
+  }
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    close: () => closeServer(server)
+  };
+}
+
+async function closeServer(server: Server): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve());
+  });
+}
 
 afterEach(() => {
   process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
@@ -56,5 +130,26 @@ describe("live index Elysia API", () => {
       success: false,
       error: "unauthorized_index_job"
     });
+  });
+
+  it("renders a live Walrus LaTeX artifact through make4ht", async () => {
+    const blob = await makeReleaseBlobWithTex();
+    const walrus = await serveWalrusBlob(blob);
+    try {
+      const response = await researchIndexApi.handle(new Request(
+        `http://127.0.0.1/api/index/artifact/render?format=html&blob=test-render-blob&path=paper/main.tex&aggregator=${encodeURIComponent(walrus.url)}`
+      ));
+      expect(response.status).toBe(200);
+      expect(response.headers.get("x-research-renderer")).toBe("make4ht");
+      expect(response.headers.get("content-type")).toContain("text/html");
+      const html = await response.text();
+      expect(html).toContain("Loop Engine Runtime Notes");
+      expect(html).toContain("Indexed Assertion");
+      expect(html.replace(/\s+/g, " ")).toContain("chain-backed research assertions");
+      expect(html).not.toContain("Missing superscript or subscript argument");
+      expect(html).not.toContain("mjx-container");
+    } finally {
+      await walrus.close();
+    }
   });
 });

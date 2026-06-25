@@ -8,6 +8,7 @@ import {
   forkWorkspace,
   initWorkspace,
   initPdfOnlyWorkspace,
+  installProjectSkill,
   installSkill,
   packageWorkspace,
   publishWorkspace,
@@ -72,6 +73,26 @@ describe("Research Network protocol kit", () => {
     await expect(fs.stat(pkg.archivePath)).resolves.toBeTruthy();
     expect(pkg.manifest.schema).toBe("research-asset-manifest/v0.1");
     expect(pkg.manifest.skills).toHaveLength(1);
+  });
+
+  it("installs the bundled Research Network project skill into a workspace", async () => {
+    const workspace = await initWorkspace({
+      target: await makeTempDir("project-skill"),
+      title: "Project Skill Consumer",
+      force: true
+    });
+    const installed = await installProjectSkill({ workspace });
+    expect(installed).toMatchObject({
+      skill_name: "research-network-builder",
+      mode: "vendored",
+      path: "vendor/skills/research-network-builder/"
+    });
+    const skillEntry = await fs.readFile(path.join(workspace, "vendor", "skills", "research-network-builder", "SKILL.md"), "utf8");
+    const skillYaml = await fs.readFile(path.join(workspace, "vendor", "skills", "research-network-builder", "skill.yaml"), "utf8");
+    const assetYaml = await fs.readFile(path.join(workspace, "asset.yaml"), "utf8");
+    expect(skillEntry).toContain("Agent Research Network Builder Skill");
+    expect(skillYaml).toContain("name: research-network-builder");
+    expect(assetYaml).toContain("vendor/skills/research-network-builder/");
   });
 
   it("publishes, replays indexer, searches, forks, installs skill, and builds web", async () => {

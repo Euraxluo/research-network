@@ -106,7 +106,8 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
       generated_at: new Date().toISOString(),
       source: "live-sui-testnet+walrus-release-manifest",
       storage: liveIndexStorageState(),
-      assets: []
+      assets: [],
+      unresolved_anchors: []
     };
   }, {
     tags: ["index"],

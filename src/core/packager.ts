@@ -72,6 +72,9 @@ async function collectNestedManifests(
       continue;
     }
     const manifest = await readYamlFile<ResearchSkillManifest>(path.join(root, skillPath));
+    if (manifest.relation !== "owned" && manifest.relation !== "forked") {
+      continue;
+    }
     const manifestId = `skill:${slugify(manifest.name)}@${manifest.version}`;
     const id = scopedChildId("skill", namespace, manifestId);
     skills.push({ id, manifest_id: manifestId, source_asset_id: assetId, path: skillPath, manifest });

@@ -1,9 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { copyDirectory, pathExists, readYamlFile, writeYamlFile } from "./fs.js";
 import { TEMPLATE_DIR, DEMO_PDF_PATH } from "./paths.js";
 import { readIndex } from "./local-store.js";
-import { type ResearchAssetManifest } from "./types.js";
+import { type ResearchAssetManifest, type ResearchSkillManifest } from "./types.js";
 
 export interface InitOptions {
   target: string;
@@ -65,6 +66,7 @@ export async function initWorkspace(options: InitOptions): Promise<string> {
   }
   await writeYamlFile(manifestPath, manifest);
   await updatePaperSourceMetadata(target, manifest);
+  await installProjectSkill({ workspace: target });
   return target;
 }
 
@@ -132,6 +134,101 @@ export interface InstallSkillOptions {
   workspace: string;
   mode: "referenced" | "vendored";
   localnetRoot?: string;
+}
+
+const PROJECT_SKILL_NAME = "research-network-builder";
+const PROJECT_SKILL_ENTRY = "SKILL.md";
+const PROJECT_SKILL_FALLBACK = `# Agent Research Network Builder Skill
+
+## Purpose
+
+Operate the Agent-Native Research Asset Protocol from a local workspace.
+
+This is a CLI-bundled local builder skill. It is not a published on-chain
+SkillAsset from another user.
+
+## Workflow
+
+1. Initialize or open a Research Asset workspace.
+2. Use Git for source control, Walrus for immutable snapshots, and Sui for registry evidence.
+3. Use this bundled builder guidance to construct the user's own asset.
+4. Resolve live SkillAsset object ids through the Research CLI when inspecting
+   published asset-specific skills.
+5. Install referenced or vendored skills into the current workspace.
+6. Package, validate, and publish assets with reproducible paper, skill, workflow, code, data, and experiment files.
+`;
+
+function packageRootCandidates(): string[] {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return [
+    path.resolve(here, "../.."),
+    path.resolve(here, "../../.."),
+    process.cwd()
+  ];
+}
+
+async function readProjectSkillContent(): Promise<string> {
+  for (const root of packageRootCandidates()) {
+    const candidate = path.join(root, PROJECT_SKILL_ENTRY);
+    if (await pathExists(candidate)) {
+      return fs.readFile(candidate, "utf8");
+    }
+  }
+  return PROJECT_SKILL_FALLBACK;
+}
+
+function projectSkillManifest(): ResearchSkillManifest {
+  return {
+    schema: "research-skill/v0.1",
+    name: PROJECT_SKILL_NAME,
+    version: "0.1.0",
+    description: "Research Network protocol operating skill for initializing, validating, packaging, installing, and publishing agent-native research assets.",
+    capabilities: [
+      "research-asset-workspace",
+      "skill-installation",
+      "walrus-sui-publishing",
+      "live-index-verification"
+    ],
+    relation: "vendored",
+    entry: PROJECT_SKILL_ENTRY,
+    access: { visibility: "public" },
+    depends_on: [],
+    tests: []
+  };
+}
+
+export interface InstallProjectSkillOptions {
+  workspace: string;
+}
+
+export async function installProjectSkill(options: InstallProjectSkillOptions) {
+  const workspace = path.resolve(options.workspace);
+  const manifestPath = path.join(workspace, "asset.yaml");
+  const manifest = await readYamlFile<ResearchAssetManifest>(manifestPath);
+  const vendorPath = `vendor/skills/${PROJECT_SKILL_NAME}/`;
+  const vendorDir = path.join(workspace, vendorPath);
+  await fs.mkdir(vendorDir, { recursive: true });
+  await writeYamlFile(path.join(vendorDir, "skill.yaml"), projectSkillManifest());
+  await fs.writeFile(path.join(vendorDir, PROJECT_SKILL_ENTRY), await readProjectSkillContent(), "utf8");
+  const existingSkills = manifest.assets?.skills ?? [];
+  manifest.assets = {
+    ...(manifest.assets ?? {}),
+    skills: [
+      ...existingSkills.filter((skill) => skill.name !== PROJECT_SKILL_NAME && skill.path !== vendorPath),
+      {
+        name: PROJECT_SKILL_NAME,
+        path: vendorPath,
+        relation: "vendored"
+      }
+    ]
+  };
+  await writeYamlFile(manifestPath, manifest);
+  return {
+    skill_name: PROJECT_SKILL_NAME,
+    mode: "vendored",
+    workspace,
+    path: vendorPath
+  };
 }
 
 export async function installSkill(options: InstallSkillOptions) {

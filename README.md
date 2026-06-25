@@ -142,6 +142,11 @@ npx tsx src/cli.ts web:build
 npx tsx src/cli.ts web:serve --dir web/dist --port 4173
 ```
 
+The preview server is not a generic static server: it also mounts the live
+`/api/index` routes used by the public pages. Do not use `python -m http.server`
+or `npx http-server` for UI acceptance, because those servers return 404 for
+`/api/index` and make the live index look empty.
+
 Run the Vite product app:
 
 ```bash
@@ -153,6 +158,7 @@ Build the Vercel production shell locally:
 ```bash
 npm run vercel:shell
 npm run web:vite:build
+npm run vercel:shell:serve
 ```
 
 ## Project Structure

@@ -309,6 +309,7 @@ export async function readPersistedLiveIndex(options: BuildLiveIndexOptions = {}
     limit: config.limit,
     query: options.query,
     assets,
+    unresolved_anchors: [],
     membership: emptyLiveMembershipSummary(config.packageId),
     delegations: emptyLiveDelegationSummary(config.packageId)
   };

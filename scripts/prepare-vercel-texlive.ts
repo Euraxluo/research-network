@@ -18,6 +18,10 @@ const ARCHIVE = path.join(CACHE_DIR, `TinyTeX-1-linux-x86_64-v${TINYTEX_VERSION}
 const TLMGR_REPOSITORY = process.env.RN_TLMGR_REPOSITORY || "https://mirror.ctan.org/systems/texlive/tlnet";
 const DEFAULT_PACKAGES = ["make4ht", "tex4ht", "booktabs"];
 
+function truthy(value: string | undefined): boolean {
+  return value === "1" || value === "true";
+}
+
 async function exists(filePath: string): Promise<boolean> {
   try {
     await stat(filePath);
@@ -117,31 +121,39 @@ async function download(url: string, output: string) {
 
 async function main() {
   const shouldBundle =
-    process.env.RN_BUNDLE_TEXLIVE === "1" ||
-    process.env.RN_BUNDLE_TEXLIVE === "true" ||
+    truthy(process.env.RN_BUNDLE_TEXLIVE) ||
     (process.env.VERCEL === "1" && process.platform === "linux" && process.arch === "x64");
+  const requireBundle = truthy(process.env.RN_REQUIRE_TEXLIVE);
   if (!shouldBundle) {
     console.log("Skipping TinyTeX bundle; set RN_BUNDLE_TEXLIVE=1 to force it locally.");
     return;
   }
-  const existing = await findFile(ROOT, "make4ht").catch(() => undefined);
-  if (existing) {
-    console.log(`TinyTeX already prepared: ${existing}`);
-    return;
+  try {
+    const existing = await findFile(ROOT, "make4ht").catch(() => undefined);
+    if (existing) {
+      console.log(`TinyTeX already prepared: ${existing}`);
+      return;
+    }
+    console.log(`Downloading TinyTeX runtime: ${TINYTEX_URL}`);
+    await download(TINYTEX_URL, ARCHIVE);
+    console.log(`Extracting TinyTeX runtime to ${ROOT}`);
+    await rm(ROOT, { recursive: true, force: true });
+    await mkdir(ROOT, { recursive: true });
+    await execFileAsync("tar", ["-xJf", ARCHIVE, "-C", ROOT], { maxBuffer: 8 * 1024 * 1024 });
+    const make4ht = await installMake4ht(ROOT);
+    await pruneRuntime(ROOT);
+    await execFileAsync("chmod", ["-R", "u+rwX,go+rX", ROOT], { maxBuffer: 8 * 1024 * 1024 });
+    const binDir = path.dirname(make4ht);
+    const env = { ...process.env, LC_ALL: "C", LANG: "C", PATH: `${binDir}:${process.env.PATH ?? ""}` };
+    await execFileAsync(make4ht, ["--version"], { env, maxBuffer: 1024 * 1024 });
+    console.log(`TinyTeX make4ht ready: ${make4ht}`);
+  } catch (error) {
+    await rm(ROOT, { recursive: true, force: true }).catch(() => undefined);
+    if (requireBundle) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`TinyTeX make4ht bundle unavailable; continuing without server-side LaTeX rendering: ${message}`);
+    console.warn("Set RN_REQUIRE_TEXLIVE=1 to make this a hard build failure.");
   }
-  console.log(`Downloading TinyTeX runtime: ${TINYTEX_URL}`);
-  await download(TINYTEX_URL, ARCHIVE);
-  console.log(`Extracting TinyTeX runtime to ${ROOT}`);
-  await rm(ROOT, { recursive: true, force: true });
-  await mkdir(ROOT, { recursive: true });
-  await execFileAsync("tar", ["-xJf", ARCHIVE, "-C", ROOT], { maxBuffer: 8 * 1024 * 1024 });
-  const make4ht = await installMake4ht(ROOT);
-  await pruneRuntime(ROOT);
-  await execFileAsync("chmod", ["-R", "u+rwX,go+rX", ROOT], { maxBuffer: 8 * 1024 * 1024 });
-  const binDir = path.dirname(make4ht);
-  const env = { ...process.env, LC_ALL: "C", LANG: "C", PATH: `${binDir}:${process.env.PATH ?? ""}` };
-  await execFileAsync(make4ht, ["--version"], { env, maxBuffer: 1024 * 1024 });
-  console.log(`TinyTeX make4ht ready: ${make4ht}`);
 }
 
 main().catch((error) => {

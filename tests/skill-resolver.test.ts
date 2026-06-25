@@ -13,6 +13,7 @@ function liveIndex(): LiveIndexResult {
     event_type: "0xpackage::research_asset::ResearchAssetPublished",
     aggregator_url: "https://aggregator.walrus-testnet.walrus.space",
     limit: 20,
+    unresolved_anchors: [],
     assets: [{
       id: "0x4141e4bd5c85d1c25adbde619ead911df044326497efb2383d9b73ecf37a4b18",
       sui_object_id: "0x4141e4bd5c85d1c25adbde619ead911df044326497efb2383d9b73ecf37a4b18",

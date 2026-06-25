@@ -9,7 +9,7 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
-const STATIC_ASSET_VERSION = "20260624-live-skills-v8";
+const STATIC_ASSET_VERSION = "20260624-live-skills-v11";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
@@ -89,6 +89,25 @@ function buildStatusHtml(): string {
     </div>`;
 }
 
+function renderCliStarterPanel(): string {
+  return `<section class="start-skill-panel" aria-labelledby="start-with-skill">
+  <div class="start-skill-main">
+    <p class="start-kicker">Start here</p>
+    <h2 id="start-with-skill">Start with the Research CLI</h2>
+    <p>Install the CLI, then create your own research workspace. <code>research init</code> automatically installs the CLI-bundled local builder skill so an agent knows how to build, validate, package, and publish research assets.</p>
+    <div class="start-skill-actions">
+      <a class="button button-primary" href="/use-cli.html">Install CLI</a>
+      <a class="button" href="/skills.html">Browse published skills</a>
+    </div>
+  </div>
+  <ol class="start-steps">
+    <li><strong>Install the CLI</strong><span>Use npm to install the local Research Network tool on your machine.</span></li>
+    <li><strong>Create your research</strong><span>Run <code>research init my-research</code>. The local builder skill is installed during init.</span></li>
+    <li><strong>Build and publish</strong><span>The bundled builder is local CLI guidance, not another user's published SkillAsset.</span></li>
+  </ol>
+</section>`;
+}
+
 function shell(title: string, body: string, options: { math?: boolean; subject?: string } = {}): string {
   const mathjax = options.math
     ? `<script>window.MathJax={tex:{inlineMath:[["\\\\(","\\\\)"]],displayMath:[["\\\\[","\\\\]"]]}};</script>
@@ -119,6 +138,7 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
   </header>
   <div class="subnav"><div class="wrap subnav-inner">
     <a href="/">Browse</a>
+    <a href="/use-cli.html">Use CLI</a>
     <a href="/search.html">Search</a>
     <a href="/skills.html">Skills</a>
     <a href="/dashboard.html">Dashboard</a>
@@ -1237,11 +1257,27 @@ h2 { font-size: 19px; margin: 26px 0 10px; }
 .chain-status-pending { color: #555; background: #fff; }
 .chain-status-verified { color: #1a7f37; border-color: #9bd1aa; background: #f0fbf3; }
 .chain-status-warning { color: #8f1414; border-color: #e5a3a3; background: #fff6f6; }
+.start-skill-panel { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 22px; align-items: start; border-top: 2px solid var(--arxiv-red); border-bottom: 1px solid var(--line); padding: 16px 0 18px; margin: 0 0 22px; }
+.start-kicker { margin: 0 0 3px; color: var(--arxiv-red); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .7px; }
+.start-skill-main h2 { margin: 0 0 8px; font-size: 22px; line-height: 1.2; }
+.start-skill-main p { margin: 0; max-width: 680px; color: #333; }
+.start-skill-actions { margin-top: 13px; }
+.button-primary { border-color: var(--arxiv-red); color: var(--arxiv-red); font-weight: 700; }
+.start-steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 9px; counter-reset: start-step; }
+.start-steps li { position: relative; padding: 0 0 9px 34px; border-bottom: 1px solid #eee; counter-increment: start-step; }
+.start-steps li:last-child { border-bottom: 0; padding-bottom: 0; }
+.start-steps li::before { content: counter(start-step); position: absolute; left: 0; top: 1px; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--arxiv-red); border-radius: 50%; color: var(--arxiv-red); font: 700 12px/1 var(--mono); }
+.start-steps strong { display: block; font-size: 13.5px; }
+.start-steps span { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
 .chain-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 18px; margin: 8px 0 0; max-width: 880px; border-top: 1px solid #eee; padding-top: 7px; }
 .chain-facts div { min-width: 0; }
 .chain-facts dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
 .chain-facts dd { margin: 0; min-width: 0; font-family: var(--mono); font-size: 11.5px; word-break: break-all; }
 .chain-facts code { font-size: 1em; }
+.compact-chain-anchor-list { margin: 8px 0 0; padding: 0; list-style: none; max-width: 980px; border-top: 1px solid #eee; }
+.compact-chain-anchor-list li { display: flex; flex-wrap: wrap; gap: 7px 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid #f1f1f1; font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
+.compact-chain-anchor-list li:last-child { border-bottom: 0; }
+.compact-chain-anchor-list code { font-size: 1em; }
 .live-dashboard { border-top: 2px solid var(--arxiv-red); padding-top: 12px; margin-bottom: 24px; }
 .live-dashboard-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
 .live-dashboard-head h2 { margin-top: 0; }
@@ -1316,6 +1352,8 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .access-box li { margin: 0 0 6px; }
 .access-box a.download-pdf { font-weight: 700; }
 .access-box .disabled { color: #999; }
+.skill-start-box p { margin: 0 0 9px; color: #333; font-size: 12.8px; line-height: 1.45; }
+.skill-start-box code { display: block; margin: 8px 0 9px; white-space: normal; overflow-wrap: anywhere; word-break: break-word; background: #fff; border: 1px solid #eee; padding: 7px 8px; }
 .report-list { display: grid; gap: 10px; }
 .report-card { border-top: 1px solid var(--line); padding-top: 10px; }
 .report-card h4 { margin: 0 0 6px; font-size: 12px; text-transform: capitalize; }
@@ -1537,6 +1575,7 @@ a.card h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--link); }
   .compact-skill-row { grid-template-columns: 1fr; }
   .compact-skill-meta { justify-items: start; text-align: left; }
   .compact-skill-actions { justify-content: flex-start; }
+  .start-skill-panel { grid-template-columns: 1fr; gap: 16px; }
   .chain-facts { grid-template-columns: 1fr; }
   .banner-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
   .banner-search { width: 100%; }
@@ -1937,6 +1976,56 @@ const SITE_JS = `
     return liveManifestCache[cacheKey];
   }
 
+  function isVerifiedLiveIndexAsset(asset) {
+    var proof = asset && asset.proof ? asset.proof : {};
+    return Boolean(
+      asset &&
+      asset.release_manifest_status === "resolved" &&
+      proof.tx_success &&
+      proof.object_type_match &&
+      proof.owner_match &&
+      proof.blob_match &&
+      proof.manifest_match &&
+      proof.release_manifest_match
+    );
+  }
+
+  function rawWalrusBlobLink(aggregatorUrl, blobId) {
+    if (!aggregatorUrl || !blobId) return "";
+    var href = aggregatorUrl.replace(/\\/$/, "") + "/v1/blobs/" + encodeURIComponent(blobId);
+    return '<a href="' + esc(href) + '" target="_blank" rel="noreferrer">raw blob</a>';
+  }
+
+  function anchorDetailsRows(anchors, suiExplorer, aggregatorUrl) {
+    var rows = (Array.isArray(anchors) ? anchors : []).slice(0, 6).map(function (anchor) {
+      var objectId = String(anchor.sui_object_id || anchor.id || "");
+      var txDigest = String(anchor.tx_digest || "");
+      var blobId = String(anchor.walrus_blob_id || "");
+      var manifestHash = String(anchor.manifest_hash || "");
+      return '<li>' +
+        '<span>object ' + proofLabelLink(suiExplorer, "object", objectId, shortText(objectId, 8, 6)) + '</span>' +
+        (txDigest ? '<span>tx ' + proofLabelLink(suiExplorer, "tx", txDigest, shortText(txDigest, 8, 6)) + '</span>' : '') +
+        (blobId ? '<span>blob <code title="' + esc(blobId) + '">' + esc(shortText(blobId, 8, 6)) + '</code></span>' : '') +
+        (blobId ? '<span>' + rawWalrusBlobLink(aggregatorUrl, blobId) + '</span>' : '') +
+        (manifestHash ? '<span><code title="' + esc(manifestHash) + '">' + esc(shortText(manifestHash, 14, 10)) + '</code></span>' : '') +
+      '</li>';
+    }).join("");
+    return rows ? '<ul class="compact-chain-anchor-list">' + rows + '</ul>' : "";
+  }
+
+  function appendSuiAnchorsNotice(listing, hiddenCount, totalCount, anchors, suiExplorer, aggregatorUrl) {
+    if (!hiddenCount) return;
+    var dt = document.createElement("dt");
+    var dd = document.createElement("dd");
+    dt.className = "chain-submission-entry chain-submission-diagnostic";
+    dd.className = "chain-submission-entry chain-submission-diagnostic";
+    dt.innerHTML = '<span class="list-identifier">Sui anchors only</span>';
+    dd.innerHTML = '<p class="muted">' + esc(hiddenCount + " of " + totalCount + " ResearchAssetPublished anchors do not have a resolved Walrus release manifest yet. They are shown only as chain anchors, not as research assets.") + '</p>' +
+      anchorDetailsRows(anchors, suiExplorer, aggregatorUrl);
+    listing.appendChild(dt);
+    listing.appendChild(dd);
+  }
+
   function appendLiveIndexEntry(listing, asset, position, suiExplorer, walrusExplorer) {
     var dt = document.createElement("dt");
     var dd = document.createElement("dd");
@@ -1947,7 +2036,7 @@ const SITE_JS = `
     var proof = asset.proof || {};
     var verified = Boolean(proof.tx_success && proof.object_type_match && proof.owner_match && proof.blob_match && proof.manifest_match && proof.release_manifest_match);
     var statusClass = verified ? "verified" : "warning";
-    var statusLabel = verified ? "Live indexed" : "Live evidence incomplete";
+    var statusLabel = verified ? "Live indexed" : "Needs manifest verification";
     var missing = [];
     if (!proof.tx_success) missing.push("tx");
     if (!proof.object_type_match) missing.push("type");
@@ -1997,7 +2086,7 @@ const SITE_JS = `
     return {
       verified: missing.length === 0,
       missing: missing,
-      label: missing.length === 0 ? "Live verified" : "Live evidence incomplete",
+      label: missing.length === 0 ? "Live verified" : "Needs manifest verification",
       detail: missing.length === 0 ? "event, tx, object, blob and release manifest agree" : "missing: " + missing.join(", ")
     };
   }
@@ -2909,7 +2998,26 @@ const SITE_JS = `
   }
 
   function liveSkillInstallCommand(skill) {
-    return "research install " + String(skill && (skill.id || skill.name) || "skill");
+    return "research install " + String(skill && (skill.id || skill.name) || "skill") + " .";
+  }
+
+  function renderLiveAssetSkillStart(asset, artifactApi, aggregatorUrl) {
+    var skills = Array.isArray(asset.skills) ? asset.skills : [];
+    var primary = skills[0] || null;
+    var objectId = primary && primary.id ? String(primary.id) : "";
+    var entryUrl = primary ? artifactUrl(asset, primary.entry_path, artifactApi, aggregatorUrl) : "";
+    var installCommand = primary ? liveSkillInstallCommand(primary) : "research install <skill-object-id> .";
+    return '<div class="access-box skill-start-box">' +
+      '<h2>Install this Skill</h2>' +
+      '<p>Use the Research CLI to install this asset skill by object id. The CLI resolves the original SKILL.md and skill.yaml from the live assert release.</p>' +
+      '<ul>' +
+        '<li><a class="download-pdf" href="/use-cli.html">Install Research CLI</a></li>' +
+        (primary ? '<li><a href="/skills.html?q=' + encodeURIComponent(objectId || primary.name || "") + '">Open this skill in catalog</a></li>' : '<li><a href="/skills.html">Browse live skills</a></li>') +
+        (entryUrl ? '<li><a href="' + esc(entryUrl) + '" download>View original asset SKILL.md</a></li>' : '') +
+      '</ul>' +
+      '<code>' + esc(installCommand) + '</code>' +
+      (primary ? '<p class="muted">' + esc(primary.name || objectId || "Skill") + '</p>' : '<p class="muted">This live asset does not declare an installable skill yet.</p>') +
+    '</div>';
   }
 
   function liveSkillEntries(assets) {
@@ -3023,8 +3131,8 @@ const SITE_JS = `
       render();
       if (input) input.addEventListener("input", render);
     }).catch(function (err) {
-      if (status) status.innerHTML = 'Could not load skill catalog from ' + plainLink(indexUrl, "/api/index") + ': ' + esc(err && err.message ? err.message : "request failed");
-      if (results) results.innerHTML = '<p class="muted">Skills are intentionally loaded from the backend live index. Check <code>/api/index/health</code> if this stays empty.</p>';
+      if (status) status.innerHTML = 'Live skill catalog is unavailable in this preview. The catalog is populated by the backend index after deployment.';
+      if (results) results.innerHTML = '<p class="muted">No fixture skills are rendered here. The public catalog only shows skills from resolved live research assets.</p>';
     });
   }
 
@@ -3080,6 +3188,7 @@ const SITE_JS = `
               '<h2>Read & Download</h2>' +
               renderDownloadList(bundle.downloads) +
             '</div>' +
+            renderLiveAssetSkillStart(asset, artifactApi, aggregatorUrl) +
             '<div class="sidebar-section">' +
               '<h3>Research Asset</h3>' +
               '<dl class="verification asset-sidebar-record">' +
@@ -3198,11 +3307,13 @@ const SITE_JS = `
     var stats = root.querySelector("[data-live-dashboard-stats]");
     var status = root.querySelector("[data-live-dashboard-status]");
     var rows = root.querySelector("[data-live-dashboard-rows]");
+    var diagnostics = root.querySelector("[data-live-index-diagnostics-list]");
     var indexApi = source.getAttribute("data-chain-index-api") || "/api/index";
     var sourceLimit = Number(source.getAttribute("data-chain-limit")) || 6;
     var limit = Math.max(1, Math.min(20, Number(root.getAttribute("data-live-dashboard-limit")) || sourceLimit));
     var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
     var walrusExplorer = source.getAttribute("data-walrus-explorer") || "https://walruscan.com/testnet";
+    var walrusAggregator = source.getAttribute("data-walrus-aggregator") || "https://aggregator.walrus-testnet.walrus.space";
     var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=" + encodeURIComponent(String(limit));
     root.setAttribute("aria-busy", "true");
     fetch(indexUrl, { cache: "no-store" }).then(function (res) {
@@ -3239,6 +3350,15 @@ const SITE_JS = `
           ? assets.map(function (asset, index) { return renderDashboardLiveRow(asset, index, suiExplorer, walrusExplorer); }).join("")
           : '<tr><td colspan="4"><p class="muted">/api/index returned no live ResearchAssetPublished rows for this package.</p></td></tr>';
       }
+      if (diagnostics) {
+        var unresolvedAnchors = Array.isArray(data.unresolved_anchors) ? data.unresolved_anchors : [];
+        diagnostics.innerHTML = "";
+        if (unresolvedAnchors.length) {
+          appendSuiAnchorsNotice(diagnostics, unresolvedAnchors.length, unresolvedAnchors.length + assets.length, unresolvedAnchors, suiExplorer, walrusAggregator);
+        } else {
+          diagnostics.innerHTML = '<dt><span class="list-identifier">No unresolved Sui anchors</span></dt><dd><p class="muted">Every indexed ResearchAssetPublished row returned by this API response has a resolved Walrus release manifest.</p></dd>';
+        }
+      }
       root.setAttribute("aria-busy", "false");
     }).catch(function (err) {
       root.setAttribute("aria-busy", "false");
@@ -3246,10 +3366,13 @@ const SITE_JS = `
         stats.innerHTML = '<div class="stat"><b>0</b><span>Live assets</span></div><div class="stat"><b>API</b><span>Unavailable</span></div>';
       }
       if (status) {
-        status.innerHTML = 'Could not load ' + plainLink(indexUrl, "/api/index") + ': ' + esc(err && err.message ? err.message : "request failed");
+        status.innerHTML = 'Backend live index is unavailable in this preview. Use the deployed API or Vercel Function logs for operator diagnostics.';
       }
       if (rows) {
-        rows.innerHTML = '<tr><td colspan="4"><p class="muted">Dashboard data is intentionally served only by the backend live index. Check <code>/api/index/health</code> and Vercel Function logs.</p></td></tr>';
+        rows.innerHTML = '<tr><td colspan="4"><p class="muted">Dashboard data is intentionally served only by the backend live index.</p></td></tr>';
+      }
+      if (diagnostics) {
+        diagnostics.innerHTML = '<dt><span class="list-identifier">Index diagnostics unavailable</span></dt><dd><p class="muted">Unresolved anchor diagnostics are available when the backend index API is running.</p></dd>';
       }
     });
   }
@@ -3357,15 +3480,16 @@ const SITE_JS = `
 
     function renderFromLiveIndex(data) {
       var assets = data && Array.isArray(data.assets) ? data.assets : [];
-      if (!assets.length) {
+      var verifiedAssets = assets.filter(isVerifiedLiveIndexAsset);
+      if (!verifiedAssets.length) {
         listing.setAttribute("aria-busy", "false");
-        listing.innerHTML = '<dt><span class="list-identifier">No live submissions found</span></dt><dd><p class="muted">The live index API returned no ResearchAssetPublished assets for the configured package.</p></dd>';
+        listing.innerHTML = '<dt><span class="list-identifier">No resolved submissions yet</span></dt><dd><p class="muted">The public list only shows research assets whose release content is available. Chain and index details are on the <a href="/dashboard.html">Dashboard</a>.</p></dd>';
         notifyListingsUpdated();
         return;
       }
       listing.innerHTML = "";
       listing.setAttribute("aria-busy", "false");
-      assets.forEach(function (asset, index) {
+      verifiedAssets.forEach(function (asset, index) {
         appendLiveIndexEntry(listing, asset, index + 1, suiExplorer, walrusExplorer);
       });
       notifyListingsUpdated();
@@ -3417,7 +3541,17 @@ const SITE_JS = `
         });
         listing.innerHTML = "";
         listing.setAttribute("aria-busy", "false");
-        events.forEach(function (event, index) {
+        var visibleEvents = events.filter(function (event) {
+          var parsed = event.parsedJson || {};
+          var manifestHash = bytesToString(parsed.manifest_hash);
+          return Boolean(manifestHash && metadataByManifest[manifestHash]);
+        });
+        if (!visibleEvents.length) {
+          listing.innerHTML = '<dt><span class="list-identifier">No resolved submissions yet</span></dt><dd><p class="muted">The public list only shows research assets whose release content is available. Chain and index details are on the <a href="/dashboard.html">Dashboard</a>.</p></dd>';
+          notifyListingsUpdated();
+          return;
+        }
+        visibleEvents.forEach(function (event, index) {
           appendOnChainSubmissionEntry(listing, {
             event: event,
             objectData: objectById[event.parsedJson.asset_id],
@@ -3601,18 +3735,60 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 ${Object.values(index.search_documents).map((document) => `<a class="result" href="${document.entity_type === "asset" ? escapeHtml(webPath("abs", `${routeSegment(document.entity_id)}.html`)) : document.entity_type === "skill" ? escapeHtml(webPath("skill", `${routeSegment(document.entity_id)}.html`)) : "#"}"><strong>${escapeHtml(document.title)}</strong><br><span class="muted">${escapeHtml(document.entity_type)}</span></a>`).join("")}`;
   await fs.writeFile(path.join(outputDir, "search.html"), shell("Search", searchBody, { subject: "Search" }), "utf8");
 
+  const useCliBody = `
+${renderCliStarterPanel()}
+<section class="live-dashboard">
+  <div class="live-dashboard-head">
+    <h2>Use Research CLI</h2>
+    <span class="live-dashboard-api"><a href="/skills.html">live skills</a></span>
+  </div>
+  <p class="chain-listing-note">The website is for discovery and verification. A new user starts locally: install the CLI, then create a research workspace. <code>research init</code> automatically installs the CLI-bundled local builder skill.</p>
+  <div class="grid">
+    <article class="card">
+      <h3>1. Install the CLI</h3>
+      <div class="copy-row"><code>npm install -g @research-network/protocol-kit</code><button class="copy-btn" type="button" data-copy="npm install -g @research-network/protocol-kit">copy</button></div>
+      <p class="muted">This installs the <code>research</code> command on your machine.</p>
+    </article>
+    <article class="card">
+      <h3>2. Create your research workspace</h3>
+      <div class="copy-row"><code>research init my-research --title "My Research"</code><button class="copy-btn" type="button" data-copy="research init my-research --title &quot;My Research&quot;">copy</button></div>
+      <p class="muted">This creates the local asset workspace where your paper, code, skill, workflow, and release manifest live. It also installs <code>research-network-builder</code> into <code>vendor/skills/research-network-builder/</code>.</p>
+    </article>
+    <article class="card">
+      <h3>3. Use the bundled builder skill</h3>
+      <div class="copy-row"><code>cd my-research</code><button class="copy-btn" type="button" data-copy="cd my-research">copy</button></div>
+      <p class="muted"><code>research-network-builder</code> is shipped inside the CLI and installed locally into your workspace. It is not a published SkillAsset, not from another user, and not something you fetch from chain by object id.</p>
+      <p class="muted">Its job is to teach your local agent how to construct, validate, package, and publish your own research assets. No manual SKILL.md download is needed.</p>
+    </article>
+    <article class="card">
+      <h3>4. Inspect a published SkillAsset</h3>
+      <div class="copy-row"><code>research skill:resolve &lt;skill-object-id&gt; --include-content</code><button class="copy-btn" type="button" data-copy="research skill:resolve &lt;skill-object-id&gt; --include-content">copy</button></div>
+      <p class="muted">Optional: use this when you want to inspect a skill published by another research asset.</p>
+    </article>
+    <article class="card">
+      <h3>5. Install a published asset skill</h3>
+      <div class="copy-row"><code>research install &lt;skill-object-id&gt; .</code><button class="copy-btn" type="button" data-copy="research install &lt;skill-object-id&gt; .">copy</button></div>
+      <p class="muted">Optional: add an asset-specific SkillAsset to the same local workspace.</p>
+    </article>
+  </div>
+  <p class="chain-source-note">The repository root <code>SKILL.md</code> is protocol/repo development guidance. It is not the public user install artifact. For old workspaces, <code>research install:project-skill my-research</code> can repair the local builder install. Public skills are installed by object id through the CLI.</p>
+</section>`;
+  await fs.writeFile(path.join(outputDir, "use-cli.html"), shell("Use Research CLI", useCliBody, { subject: "Use CLI" }), "utf8");
+
   const skillsBody = publicLiveOnly ? `
 ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 <section data-live-skills data-live-skills-limit="20" aria-live="polite">
+  <h2>Live installable skills</h2>
   <p class="muted">Find installable agent skills from live research assets. The catalog is resolved through <code>/api/index</code>, so each result keeps its source asset, Sui proof, Walrus release, repository, and commit attached.</p>
   <div class="search-box"><input data-live-skills-input type="search" placeholder="Search skills, source assets, repos, object ids&hellip;" autocomplete="off"></div>
   <p class="chain-source-note" data-live-skills-status>Loading skill catalog from <code>/api/index</code>...</p>
   <div data-live-skills-results><p class="muted">Loading live skills...</p></div>
 </section>` : `
+<h2>Local installable skills</h2>
 <p class="muted">Installable skills indexed from the local workspace snapshot.</p>
 <div class="grid live-skill-grid">
 ${skills.map((skill) => {
-  const installCommand = `research install ${skill.id}`;
+  const installCommand = `research install ${skill.id} .`;
   return `<article class="card live-skill-card"><h3><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">${escapeHtml(skill.name)}</a></h3><p>${escapeHtml(skill.description)}</p><div class="copy-row"><code>${escapeHtml(installCommand)}</code><button class="copy-btn" type="button" data-copy="${escapeHtml(installCommand)}">copy</button></div></article>`;
 }).join("")}
 </div>`;
@@ -3645,6 +3821,12 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
       <tr><td colspan="4"><p class="muted">Loading live Sui testnet assets through the backend index...</p></td></tr>
     </tbody>
   </table>
+  <h2>Index diagnostics</h2>
+  <p class="chain-listing-note">Unresolved chain anchors are kept here for operator debugging. They are not rendered on the public submissions list and are not treated as research assets.</p>
+  <dl class="listing" data-live-index-diagnostics-list>
+    <dt><span class="list-identifier">Loading unresolved anchors</span></dt>
+    <dd><p class="muted">Waiting for <code>/api/index</code> diagnostics...</p></dd>
+  </dl>
 </section>`;
   await fs.writeFile(path.join(outputDir, "dashboard.html"), shell("Dashboard", dashboardBody, { subject: "Dashboard" }), "utf8");
   const membershipBody = `
@@ -3785,6 +3967,15 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
       <p class="muted">${escapeHtml(accessNote)}</p>
       ${assetReports.length ? `<h3>Research reports</h3>${renderAssetReports(assetReports, explorer)}` : ""}
     </div>
+    <div class="access-box skill-start-box">
+      <h2>Install this Skill</h2>
+      <p>Use the Research CLI to install the skill attached to this research asset.</p>
+      <ul>
+        <li><a class="download-pdf" href="/use-cli.html">Install Research CLI</a></li>
+        ${primarySkill ? `<li><a href="${escapeHtml(webPath("skill", `${routeSegment(primarySkill.id)}.html`))}">Open asset skill</a></li>` : `<li><a href="/skills.html">Browse skills</a></li>`}
+      </ul>
+      <code>${escapeHtml(primarySkill ? `research install ${primarySkill.id} .` : "research install <skill-object-id> .")}</code>
+    </div>
     ${primarySkill ? `<div class="sidebar-section">
       <h3>Tools</h3>
       <ul class="small-list">
@@ -3859,7 +4050,7 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
   await fs.writeFile(path.join(outputDir, "account.html"), renderAccountPage(assetDirectory), "utf8");
 
   for (const skill of skills) {
-    const installCommand = `research install ${skill.id}`;
+    const installCommand = `research install ${skill.id} .`;
     const skillAccess = skill.access ?? { visibility: "public" };
     const body = `
 <h1>${escapeHtml(skill.name)}</h1>

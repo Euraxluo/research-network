@@ -34,7 +34,7 @@ import { buildStaticWeb } from "./core/web.js";
 import { buildAuthAssets, buildVercelAuthShell, loadAuthSiteConfig } from "./core/web-auth.js";
 import { serveStaticSite } from "./core/web-serve.js";
 import { deployToTestnet } from "./core/testnet.js";
-import { forkWorkspace, initWorkspace, initPdfOnlyWorkspace, installSkill } from "./core/workspace.js";
+import { forkWorkspace, initWorkspace, initPdfOnlyWorkspace, installProjectSkill, installSkill } from "./core/workspace.js";
 import { validateWorkspace } from "./core/validator.js";
 import { listenApi } from "./api/server.js";
 import type { CrossChainAuthProvider, GitProvider, WalletBinding } from "./core/types.js";
@@ -128,6 +128,7 @@ Commands:
   research payments
   research economics <asset-id>
   research fork <asset-id> <target-dir> [--include paper,skill,workflow,code]
+  research install:project-skill [workspace]
   research install <skill-id> [workspace] [--mode referenced|vendored]
   research skill:resolve <skill-object-id> [--limit 20] [--include-content] [--file entry|manifest]
   research auth:start --provider github|gitlab|gitea|privy|dynamic|web3auth|particle|lit|custom-oidc --client-id id --redirect-uri URL
@@ -329,6 +330,12 @@ async function run() {
       workspace,
       mode: flagString(flags, "mode", "referenced") === "vendored" ? "vendored" : "referenced"
     }));
+    return;
+  }
+
+  if (command === "install:project-skill") {
+    const [workspace = "."] = positional;
+    printJson(await installProjectSkill({ workspace }));
     return;
   }
 
@@ -645,7 +652,7 @@ async function run() {
     const dir = path.resolve(flagString(flags, "dir", "web/dist") ?? "web/dist");
     const port = Number(flagString(flags, "port", "4173"));
     const server = await serveStaticSite(dir, port);
-    process.stdout.write(`Static site at ${server.url}\n  root: ${server.root}\nPress Ctrl+C to stop.\n`);
+    process.stdout.write(`Web preview at ${server.url}\n  root: ${server.root}\n  includes: static files + /api/index live index routes\nPress Ctrl+C to stop.\n`);
     await new Promise<void>(() => {});
     return;
   }

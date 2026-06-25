@@ -174,7 +174,9 @@ export async function validateWorkspace(rootInput = "."): Promise<ValidationRepo
       if (!(await pathExists(path.join(root, entry)))) {
         errors.push(issue("error", "skill.entry_missing", `Skill entry file does not exist: ${entry}`, entry));
       }
-      detected_assets.skills += 1;
+      if (skill.relation === "owned" || skill.relation === "forked") {
+        detected_assets.skills += 1;
+      }
     }
   }
 

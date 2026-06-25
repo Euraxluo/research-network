@@ -15,6 +15,39 @@ This deployment used the local `research deploy:testnet` flow against Walrus tes
 > `0x7de40428ce8fb805262b108a0041201618f57a857009532a355a2d3d5cbc36ee`。下一道 gate
 > 仍然是两个真实 zkLogin 账号运行带资金上限的 production acceptance。
 
+## 2026-06-25 Orbstack Loop Engine Refresh
+
+2026-06-24 的 Orbstack Loop Engine release blob 已在 Walrus testnet aggregator 上返回
+404。为避免 public index 展示不可取回内容，新的 live index 只把 Walrus release manifest
+可解析的链上对象显示为 ResearchAsset；旧对象保留为 dashboard diagnostics。
+
+2026-06-25 重新发布了同一 GitHub repo/commit 的 release package，并在当前 Sui testnet
+package 下注册了新的 ResearchAsset 和 SkillAsset。该新 blob 已通过 aggregator `HEAD`
+验证返回 `HTTP 200`，本地 `/api/index?refresh=1` 已能解析为 resolved asset。
+
+- GitHub repo: `https://github.com/Euraxluo/orbstack-loop-engine-research-asset`
+- Repo commit: `98ab5507d757813d006116f0f01fb40896e37546`
+- Package ID: `0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e`
+- Walrus release blob: `VldHk_w-YXXFKNukTgsrQ_JstLPc-HjwNzUJzSeag9w`
+- Walrus blob object: `0x090ef9bb316dca9efcfff973de7c4a31337a35b997f7466802624d6b11a6f21f`
+- Walrus storage epochs: `439` to `444`
+- Manifest hash: `sha256:3ad0bc69fc4bd096819575324cac8763ab346b2e49b1905802d44e36b61f1269`
+- ResearchAsset tx: `GXmY76SAzmtFNQZEfo8WWtzjgVXRtnCHFTVBTVLEjTU5`
+- ResearchAsset object: `0xc1f59ca4e632717a6de086e3c87f2237006aaffc64ede2e5a388ddd66586620f`
+- SkillPublished tx: `nwF5jbEJ76jRWsjJN7Mrzd1Mymyw5tb3WNmR7AUbp47`
+- SkillAsset object: `0x2af18315d971e62988656a3ce0ffaac1fe597599390079536733ce23f2d257eb`
+- Skill manifest id stored in `SkillAsset.name_hash`: `skill:orbstack-loop-engine@0.1.0`
+- Raw skill content path inside the Walrus release: `skill/orbstack-loop-engine/SKILL.md`
+
+Resolver contract:
+
+- Canonical skill lookup key: `SkillAsset` object id only.
+- `skill:orbstack-loop-engine@0.1.0` remains a release-local manifest id and is not globally unique.
+- API: `GET /api/index/skill/0x2af18315d971e62988656a3ce0ffaac1fe597599390079536733ce23f2d257eb`
+- Raw entry: `GET /api/index/skill/0x2af18315d971e62988656a3ce0ffaac1fe597599390079536733ce23f2d257eb/content`
+- Raw manifest: `GET /api/index/skill/0x2af18315d971e62988656a3ce0ffaac1fe597599390079536733ce23f2d257eb/content?file=manifest`
+- CLI: `research skill:resolve 0x2af18315d971e62988656a3ce0ffaac1fe597599390079536733ce23f2d257eb --include-content`
+
 ## 2026-06-24 Orbstack Loop Engine Asset + Skill
 
 `orbstack-loop-engine-research-asset` 已作为真实 ResearchAsset 发布，并且其 bundled

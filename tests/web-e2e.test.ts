@@ -72,6 +72,162 @@ function submit(dom: JSDOM, selector: string): void {
   el!.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
 }
 
+async function waitForDom(dom: JSDOM, predicate: () => boolean): Promise<void> {
+  for (let i = 0; i < 80; i += 1) {
+    if (predicate()) return;
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 10));
+  }
+  throw new Error("timed out waiting for DOM condition");
+}
+
+async function loadLiveAssetShellDom(shellDir: string): Promise<JSDOM> {
+  const assetId = "ra:test:loop-engine";
+  const html = await fs.readFile(path.join(shellDir, "asset.html"), "utf8");
+  const js = await fs.readFile(path.join(shellDir, "site.js"), "utf8");
+  const inlined = html
+    .replace(/<script src="\/site\.js[^"]*" defer><\/script>/, `<script>${js}</script>`)
+    .replace(
+      /window\.MathJax=\{tex:\{inlineMath:\[\["\\\\\(","\\\\\)"\]\],displayMath:\[\["\\\\\[","\\\\\]"\]\]\}\};/,
+      'window.__typesetCalls=0;window.MathJax={tex:{inlineMath:[["\\\\(","\\\\)"]],displayMath:[["\\\\[","\\\\]"]]},typesetPromise:function(){window.__typesetCalls+=1;return Promise.resolve();}};'
+    );
+  const dom = new JSDOM(inlined, {
+    url: `http://127.0.0.1/asset.html?id=${routeSegment(assetId)}`,
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    beforeParse(window) {
+      const asset = {
+        id: assetId,
+        sui_object_id: `0x${"37".repeat(32)}`,
+        title: "Loop Engine Runtime Notes",
+        authors: "Research Network",
+        abstract: "Live UI acceptance asset for make4ht rendering.",
+        created_at: "2026-06-25T00:00:00.000Z",
+        types: ["Research Asset"],
+        walrus_blob_id: "test-render-blob",
+        repo_url: "https://github.com/Euraxluo/research-network",
+        repo_commit: "b9dd3a6",
+        tx_digest: "7MGBt7CZkUE1ep71iFse4kyydKzAKk4oXQEmBPqFLpXx",
+        tx_sender: `0x${"8a".repeat(32)}`,
+        gas_owner: `0x${"8a".repeat(32)}`,
+        sui_spent_mist: "4262680",
+        manifest_hash: "sha256:test",
+        proof: {
+          tx_success: true,
+          sender_match: true,
+          object_type_match: true,
+          owner_match: true,
+          gas_paid: true,
+          blob_match: true,
+          manifest_match: true
+        },
+        paper: { source_path: "paper/main.tex" },
+        skills: [{
+          id: "rn:skill:sui-testnet:0x3737373737373737373737373737373737373737373737373737373737373737:skill:loop-engine-cartographer@0.1.0",
+          manifest_id: "skill:loop-engine-cartographer@0.1.0",
+          source_asset_id: assetId,
+          name: "loop-engine-cartographer",
+          description: "Navigate loop-engine runtime state and evidence.",
+          relation: "owned",
+          access_visibility: "public",
+          entry_path: "skill/loop-engine-cartographer/SKILL.md"
+        }]
+      };
+      const make4htHtml = '<div class="maketitle"><h1 class="titleHead"><span class="titlemark">:</span> : Loop Engine Runtime Notes</h1></div>'
+        + '<section class="abstract"><p>Loop Engine coordinates agent runs, commit evidence, and chain-backed research assertions.</p></section>'
+        + '<h3 class="sectionHead"><span class="titlemark">1</span> Indexed Assertion</h3>'
+        + '<p>The verified runtime state is <span class="cmmi-10">S</span><sub>t</sub> = f(S<sub>t-1</sub>, a<sub>t</sub>).</p>';
+      window.fetch = async (input: RequestInfo | URL) => {
+        const url = new URL(String(input), "http://127.0.0.1");
+        if (url.pathname === "/api/index") {
+          return Response.json({ generated_at: "2026-06-25T00:00:00.000Z", source: "mock-live-index", assets: [asset] });
+        }
+        if (url.pathname === "/api/index/artifact/render") {
+          return new Response(make4htHtml, {
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+              "x-research-renderer": "make4ht"
+            }
+          });
+        }
+        if (url.pathname === "/api/index/artifact") {
+          return new Response("\\title{: Loop Engine Runtime Notes}", {
+            headers: { "content-type": "application/x-tex; charset=utf-8" }
+          });
+        }
+        return new Response("not found", { status: 404 });
+      };
+    }
+  });
+  await waitForDom(dom, () => Boolean(dom.window.document.querySelector('[data-latex-renderer="make4ht"]')));
+  return dom;
+}
+
+async function loadShellDomWithLiveIndex(shellDir: string, pageFile = "index.html", pageUrl = "http://127.0.0.1/"): Promise<JSDOM> {
+  const html = await fs.readFile(path.join(shellDir, pageFile), "utf8");
+  const js = await fs.readFile(path.join(shellDir, "site.js"), "utf8");
+  const inlined = html.replace(/<script src="\/site\.js[^"]*" defer><\/script>/, `<script>${js}</script>`);
+  const resolvedAsset = {
+    id: "ra:test:resolved",
+    sui_object_id: `0x${"12".repeat(32)}`,
+    title: "Resolved Research Paper",
+    authors: "Research Network",
+    abstract: "A fully resolved live research asset.",
+    types: ["paper", "skill"],
+    created_at: "2026-06-25T00:00:00.000Z",
+    walrus_blob_id: "resolved-walrus-blob",
+    tx_digest: "ResolvedTxDigest",
+    manifest_hash: "sha256:resolved",
+    repo_url: "https://github.com/Euraxluo/research-network",
+    repo_commit: "abc1234",
+    release_manifest_status: "resolved",
+    href: "/asset.html?id=ra-test-resolved",
+    proof: {
+      tx_success: true,
+      object_type_match: true,
+      owner_match: true,
+      blob_match: true,
+      manifest_match: true,
+      release_manifest_match: true
+    }
+  };
+  const unresolvedAsset = {
+    ...resolvedAsset,
+    id: "ra:test:unresolved",
+    sui_object_id: `0x${"34".repeat(32)}`,
+    title: "On-chain Research Asset v0.1.0",
+    authors: "Unknown",
+    abstract: "",
+    href: "",
+    walrus_blob_id: "unresolved-walrus-blob",
+    release_manifest_status: "unavailable",
+    proof: {
+      ...resolvedAsset.proof,
+      release_manifest_match: false
+    }
+  };
+  const dom = new JSDOM(inlined, {
+    url: pageUrl,
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    beforeParse(window) {
+      window.fetch = async (input: RequestInfo | URL) => {
+        const url = new URL(String(input), "http://127.0.0.1");
+        if (url.pathname === "/api/index") {
+          return Response.json({
+            source: "live-sui-testnet+walrus-release-manifest",
+            generated_at: "2026-06-25T00:00:00.000Z",
+            assets: [resolvedAsset],
+            unresolved_anchors: [unresolvedAsset]
+          });
+        }
+        return new Response("not found", { status: 404 });
+      };
+    }
+  });
+  await waitForDom(dom, () => (dom.window.document.body.textContent ?? "").includes("Resolved Research Paper"));
+  return dom;
+}
+
 describe("static web E2E", () => {
   beforeEach(async () => {
     tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "research-web-e2e-"));
@@ -107,6 +263,7 @@ describe("static web E2E", () => {
       const routes: Array<{ path: string; expect: RegExp | string }> = [
         { path: "/", expect: /Recent submissions/ },
         { path: "/index.html", expect: /logo-chi/ },
+        { path: "/use-cli.html", expect: /Use Research CLI/ },
         { path: "/search.html", expect: /Filter assets, skills/ },
         { path: "/skills.html", expect: /Find Skills/ },
         { path: "/dashboard.html", expect: /Events/ },
@@ -714,6 +871,8 @@ describe("static web E2E", () => {
     expect(await exists(path.join(shellDir, "auth", "github-callback.js"))).toBe(true);
     expect(await exists(path.join(shellDir, "auth", "github-callback.html"))).toBe(true);
     expect(await exists(path.join(shellDir, "zklogin-browser.js"))).toBe(true);
+    expect(await exists(path.join(shellDir, "use-cli.html"))).toBe(true);
+    expect(await exists(path.join(shellDir, "skill", "research-network-builder", "SKILL.md"))).toBe(false);
     // Interactive pages are emitted by the Vite build, not by this shell step.
     expect(await exists(path.join(shellDir, "login.html"))).toBe(false);
     expect(await exists(path.join(shellDir, "assets", "old-workbench.js"))).toBe(false);
@@ -721,7 +880,11 @@ describe("static web E2E", () => {
     expect(indexHtml).toContain("Recent submissions");
     expect(indexHtml).toContain("data-chain-submissions");
     expect(indexHtml).toContain("ResearchAssetPublished");
-    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v8");
+    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v11");
+    expect(indexHtml).not.toContain("Start with the Research CLI");
+    expect(indexHtml).toContain("/use-cli.html");
+    expect(indexHtml).not.toContain("Download starter SKILL.md");
+    expect(indexHtml).not.toContain("/skill/research-network-builder/SKILL.md");
     expect(indexHtml).not.toContain("Demo Research Asset");
     expect(indexHtml).not.toContain("Untitled Research Asset");
     expect(indexHtml).not.toContain("Describe the research problem");
@@ -738,6 +901,23 @@ describe("static web E2E", () => {
     const skillsHtml = await fs.readFile(path.join(shellDir, "skills.html"), "utf8");
     expect(skillsHtml).toContain("data-live-skills");
     expect(skillsHtml).toContain("/api/index");
+    expect(skillsHtml).not.toContain("Start with the Research CLI");
+    expect(skillsHtml).toContain("/use-cli.html");
+    expect(skillsHtml).not.toContain("Download starter SKILL.md");
+    expect(skillsHtml).toContain("Live installable skills");
+    const useCliHtml = await fs.readFile(path.join(shellDir, "use-cli.html"), "utf8");
+    expect(useCliHtml).toContain("npm install -g @research-network/protocol-kit");
+    expect(useCliHtml).toContain("research init my-research --title");
+    expect(useCliHtml).toContain("automatically installs the CLI-bundled local builder skill");
+    expect(useCliHtml).toContain("vendor/skills/research-network-builder/");
+    expect(useCliHtml).toContain("research install:project-skill my-research");
+    expect(useCliHtml).toContain("CLI-bundled local builder skill");
+    expect(useCliHtml).toContain("research-network-builder");
+    expect(useCliHtml).toContain("It is not a published SkillAsset");
+    expect(useCliHtml).toContain("not from another user");
+    expect(useCliHtml).toContain("research skill:resolve &lt;skill-object-id&gt; --include-content");
+    expect(useCliHtml).toContain("research install &lt;skill-object-id&gt; .");
+    expect(useCliHtml).toContain("repository root <code>SKILL.md</code>");
     const delegationsHtml = await fs.readFile(path.join(shellDir, "delegations.html"), "utf8");
     expect(delegationsHtml).toContain("data-live-delegations");
     expect(delegationsHtml).not.toContain("delegation:showcase");
@@ -752,6 +932,10 @@ describe("static web E2E", () => {
     expect(shellSiteJs).toContain("/api/index/artifact");
     expect(shellSiteJs).toContain("data-render-html-url");
     expect(shellSiteJs).toContain("make4ht");
+    expect(shellSiteJs).toContain('data-latex-renderer="make4ht"');
+    expect(shellSiteJs).toContain("stripLeadingTitlePunctuation");
+    expect(shellSiteJs).toContain('querySelectorAll(".titlemark")');
+    expect(shellSiteJs).toContain('target.querySelector(\'[data-latex-renderer="make4ht"]\')');
     expect(shellSiteJs).toContain("data-live-paper");
     expect(shellSiteJs).toContain("paper-word");
     expect(shellSiteJs).toContain("paper-ppt");
@@ -766,6 +950,42 @@ describe("static web E2E", () => {
     expect(shellSiteJs).toContain("README");
     expect(shellSiteJs).not.toContain("Asset Graph");
     expect(shellSiteJs).not.toContain("graph-canvas");
+    expect(shellSiteJs).not.toContain("Live evidence incomplete");
+    const indexDom = await loadShellDomWithLiveIndex(shellDir);
+    const indexText = indexDom.window.document.body.textContent?.replace(/\s+/g, " ") ?? "";
+    expect(indexText).toContain("Resolved Research Paper");
+    expect(indexText).not.toContain("Sui anchors only");
+    expect(indexText).not.toContain("raw blob");
+    expect(indexText).not.toContain("On-chain Research Asset v0.1.0");
+    expect(indexText).not.toContain("release manifest not resolved");
+    expect(indexText).not.toContain("Live evidence incomplete");
+    indexDom.window.close();
+    const dashboardDom = await loadShellDomWithLiveIndex(shellDir, "dashboard.html", "http://127.0.0.1/dashboard.html");
+    await waitForDom(dashboardDom, () => Boolean(dashboardDom.window.document.querySelector("[data-live-index-diagnostics-list] .compact-chain-anchor-list")));
+    const dashboardText = dashboardDom.window.document.body.textContent?.replace(/\s+/g, " ") ?? "";
+    expect(dashboardText).toContain("Index diagnostics");
+    expect(dashboardText).toContain("Sui anchors only");
+    expect(dashboardText).toContain("1 of 2 ResearchAssetPublished anchors");
+    expect(dashboardText).toContain("raw blob");
+    expect(dashboardDom.window.document.querySelector('.compact-chain-anchor-list a[href="https://aggregator.walrus-testnet.walrus.space/v1/blobs/unresolved-walrus-blob"]')).toBeTruthy();
+    expect(dashboardText).not.toContain("release manifest not resolved");
+    dashboardDom.window.close();
+    const liveAssetDom = await loadLiveAssetShellDom(shellDir);
+    const liveArticle = liveAssetDom.window.document.querySelector('[data-latex-renderer="make4ht"]');
+    expect(liveArticle).toBeTruthy();
+    expect(liveArticle?.querySelector("h1, .titleHead, .title, .ltx-title")?.textContent?.replace(/\s+/g, " ").trim()).toBe("Loop Engine Runtime Notes");
+    expect(liveArticle?.textContent?.replace(/\s+/g, " ")).toContain("chain-backed research assertions");
+    const titlemarks = Array.from(liveArticle?.querySelectorAll(".titlemark") ?? []).map((node) => node.textContent?.replace(/\s+/g, " ").trim() ?? "");
+    expect(titlemarks.filter((text) => /^[:：;；|｜·•]*$/.test(text))).toEqual([]);
+    expect(liveArticle?.querySelector("sub")).toBeTruthy();
+    expect(liveAssetDom.window.document.body.textContent).not.toContain("Missing superscript or subscript argument");
+    expect(liveAssetDom.window.__typesetCalls).toBe(0);
+    expect(liveAssetDom.window.document.body.textContent).toContain("Install this Skill");
+    expect(liveAssetDom.window.document.body.textContent).toContain("research install rn:skill:sui-testnet");
+    expect(liveAssetDom.window.document.body.textContent).toContain(" .");
+    expect(liveAssetDom.window.document.querySelector('.skill-start-box a[href="/use-cli.html"]')).toBeTruthy();
+    expect(liveAssetDom.window.document.querySelector('.skill-start-box a[href="/skill/research-network-builder/SKILL.md"]')).toBeNull();
+    liveAssetDom.window.close();
     const absFiles = await fs.readdir(path.join(shellDir, "abs"));
     expect(absFiles).toEqual([]);
     const loopSeg = routeSegment("ra:showcase:loop-engine");

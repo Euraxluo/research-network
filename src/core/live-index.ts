@@ -195,6 +195,19 @@ export interface LiveIndexAsset {
   };
 }
 
+export interface LiveIndexUnresolvedAnchor {
+  id: string;
+  title: string;
+  manifest_hash: string;
+  walrus_blob_id: string;
+  sui_object_id: string;
+  tx_digest: string;
+  repo_commit: string;
+  release_manifest_status: "unavailable";
+  release_error?: string;
+  proof: LiveIndexAsset["proof"];
+}
+
 interface PublishedSkillRef {
   skillObjectId: string;
   sourceAssetId: string;
@@ -287,6 +300,7 @@ export interface LiveIndexResult {
   limit: number;
   query?: string;
   assets: LiveIndexAsset[];
+  unresolved_anchors: LiveIndexUnresolvedAnchor[];
   membership: LiveIndexMembershipSummary;
   delegations: LiveIndexDelegationSummary;
 }
@@ -785,6 +799,25 @@ function buildAsset(input: {
   };
 }
 
+function isResolvedLiveIndexAsset(asset: LiveIndexAsset): boolean {
+  return asset.release_manifest_status === "resolved" && asset.proof.release_manifest_match;
+}
+
+function unresolvedAnchorFromAsset(asset: LiveIndexAsset): LiveIndexUnresolvedAnchor {
+  return {
+    id: asset.id,
+    title: asset.title,
+    manifest_hash: asset.manifest_hash,
+    walrus_blob_id: asset.walrus_blob_id,
+    sui_object_id: asset.sui_object_id,
+    tx_digest: asset.tx_digest,
+    repo_commit: asset.repo_commit,
+    release_manifest_status: "unavailable",
+    release_error: asset.release_error,
+    proof: asset.proof
+  };
+}
+
 const LIVE_MEMBERSHIP_EVENTS = [
   { module: "access", name: "PlatformMembershipPurchased" },
   { module: "settlement", name: "PlatformMembershipPaid" },
@@ -1079,7 +1112,7 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
     }
   }
   const txByDigest = new Map(txResponses.map((entry) => [entry.digest, entry]));
-  const assets = events
+  const indexedAssets = events
     .map((event, index) => buildAsset({
       event,
       objectData: objectById.get(String(event.parsedJson?.asset_id ?? "")),
@@ -1090,6 +1123,8 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
       publishedSkills
     }))
     .filter((asset) => matchesLiveIndexQuery(asset, options.query ?? ""));
+  const assets = indexedAssets.filter(isResolvedLiveIndexAsset);
+  const unresolved_anchors = indexedAssets.filter((asset) => !isResolvedLiveIndexAsset(asset)).map(unresolvedAnchorFromAsset);
 
   return {
     generated_at: new Date().toISOString(),
@@ -1101,6 +1136,7 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
     limit,
     query: options.query,
     assets,
+    unresolved_anchors,
     membership,
     delegations
   };
