@@ -9,7 +9,7 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
-const STATIC_ASSET_VERSION = "20260624-live-skills-v5";
+const STATIC_ASSET_VERSION = "20260624-live-skills-v6";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
@@ -374,7 +374,7 @@ function stashLatexHtmlBlocks(input: string, blocks: string[]): string {
     return `\n\n@@RN_HTML_${id}@@\n\n`;
   };
   return input
-    .replace(/\\begin\{table\*?\}(?:\[[^\]]*\])?([\s\S]*?)\\end\{table\*?\}/g, (_match, body) => stash(renderLatexTableEnvironment(body)))
+    .replace(/\\begin\{table\*?\}\s*(?:\[[^\]]*\])?([\s\S]*?)\\end\{table\*?\}/g, (_match, body) => stash(renderLatexTableEnvironment(body)))
     .replace(/\\begin\{tabular\*?\}(?:\{[^{}]*\}){1,2}([\s\S]*?)\\end\{tabular\*?\}/g, (_match, body) => stash(latexTable(body)));
 }
 
@@ -1466,6 +1466,12 @@ canvas.pdfjs-page { display: block; max-width: 100%; height: auto !important; bo
 .ppt-slide p { margin: 0 0 10px; font-size: 16px; line-height: 1.45; }
 .ltx-title { font-size: 24px; font-weight: 700; text-align: center; line-height: 1.3; margin: 0 0 14px; }
 .ltx-authors { text-align: center; font-size: 16px; margin: 0 0 30px; }
+.latexjs-document .title { font-size: 24px; font-weight: 700; text-align: center; line-height: 1.3; margin: 0 0 14px; }
+.latexjs-document .author, .latexjs-document .date { text-align: center; font-size: 16px; margin: 0 0 12px; }
+.latexjs-document .date { color: var(--muted); font-size: 13px; margin-bottom: 22px; }
+.latexjs-document h2 { font-family: var(--serif); font-size: 19.5px; font-weight: 700; margin: 28px 0 10px; }
+.latexjs-document h3 { font-family: var(--serif); font-size: 17px; font-weight: 700; margin: 20px 0 8px; }
+.latexjs-document p { margin: 0 0 13px; text-align: justify; hyphens: auto; }
 .ltx-abstract { margin: 0 auto 30px; max-width: 88%; font-size: 15px; }
 .ltx-abstract h6 { text-align: center; font-size: 15px; font-weight: 700; margin: 0 0 8px; }
 .ltx-abstract p { margin: 0 0 10px; text-align: justify; hyphens: auto; }
@@ -2542,14 +2548,13 @@ const SITE_JS = `
     return latexTableClient(match ? match[1] : "", latexCaptionClient(body));
   }
 
-  function latexParagraphsClient(input) {
+  function stashLatexHtmlBlocksClient(input, htmlBlocks) {
     var text = String(input || "");
-    var htmlBlocks = [];
     function stash(html) {
       var id = htmlBlocks.push(html) - 1;
-      return "\\n\\n@@RN_HTML_" + id + "@@\\n\\n";
+      return "\\n\\nRNHTMLPLACEHOLDER" + id + "\\n\\n";
     }
-    var tableEnvPattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{table\\\\*?\\\\}(?:\\\\[[^\\\\]]*\\\\])?([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{table\\\\*?\\\\}", "g");
+    var tableEnvPattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{table\\\\*?\\\\}\\\\s*(?:\\\\[[^\\\\]]*\\\\])?([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{table\\\\*?\\\\}", "g");
     text = text.replace(tableEnvPattern, function (_match, body) {
       return stash(latexTableEnvironmentClient(body));
     });
@@ -2557,16 +2562,25 @@ const SITE_JS = `
     text = text.replace(tablePattern, function (_match, body) {
       return stash(latexTableClient(body, ""));
     });
+    return text;
+  }
+
+  function latexParagraphsClient(input) {
+    var htmlBlocks = [];
+    var text = stashLatexHtmlBlocksClient(input, htmlBlocks).replace(/RNHTMLPLACEHOLDER(\\d+)/g, function (_match, id) {
+      return "@@RN_HTML_" + id + "@@";
+    });
     var envPattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{(itemize|enumerate|description)\\\\}(?:\\\\[[^\\\\]]*\\\\])?([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{(?:itemize|enumerate|description)\\\\}", "g");
     text = text.replace(envPattern, function (_match, env, body) {
-      return stash(latexListClient(env, body));
+      var id = htmlBlocks.push(latexListClient(env, body)) - 1;
+      return "\\n\\n@@RN_HTML_" + id + "@@\\n\\n";
     });
     return text.split(/\\n\\s*\\n/).map(function (block) {
       return latexParagraphsOnlyClient(block, htmlBlocks);
     }).join("");
   }
 
-  function renderLatexPaperClient(source, fallbackTitle, fallbackAuthors) {
+  function renderLatexPaperFallbackClient(source, fallbackTitle, fallbackAuthors) {
     var title = latexCommandValue(source, "title") || fallbackTitle;
     var author = latexCommandValue(source, "author").replace(new RegExp(LATEX_BS + LATEX_BS + "and\\\\b", "g"), ", ") || fallbackAuthors || "Unknown";
     var abstract = "";
@@ -2609,6 +2623,50 @@ const SITE_JS = `
       if (html) pieces.push('<section class="ltx-section">' + html + '</section>');
     });
     return '<div class="ltx-page"><article class="ltx-document">' + pieces.join("") + '</article></div>';
+  }
+
+  function stripLatexRenderArtifacts(html) {
+    var template = document.createElement("template");
+    template.innerHTML = String(html || "");
+    Array.prototype.slice.call(template.content.querySelectorAll("p, div, span")).forEach(function (node) {
+      var text = String(node.textContent || "").trim();
+      if (/^\\[[!htbpH,\\s]+\\]$/.test(text) || text === "") {
+        node.remove();
+      }
+    });
+    return template.innerHTML;
+  }
+
+  function loadLatexJs() {
+    return loadExternalScript("https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/latex.js", function () {
+      return Boolean(window.latexjs && window.latexjs.parse && window.latexjs.HtmlGenerator);
+    }).then(function () { return window.latexjs; });
+  }
+
+  function renderWithLatexJs(source, fallbackTitle, fallbackAuthors) {
+    var htmlBlocks = [];
+    var preprocessed = stashLatexHtmlBlocksClient(source, htmlBlocks);
+    return loadLatexJs().then(function (latexjs) {
+      var generator = new latexjs.HtmlGenerator({ hyphenate: false });
+      generator = latexjs.parse(preprocessed, { generator: generator });
+      var wrapper = document.createElement("div");
+      wrapper.appendChild(generator.domFragment().cloneNode(true));
+      var html = sanitizeDocumentHtml(wrapper.innerHTML);
+      htmlBlocks.forEach(function (block, index) {
+        html = html.replace(new RegExp("RNHTMLPLACEHOLDER" + index, "g"), block);
+      });
+      html = stripLatexRenderArtifacts(html);
+      var text = wrapper.textContent || "";
+      if (!html.trim() || /\\\\begin\\{/.test(text)) throw new Error("latex.js returned incomplete HTML");
+      return '<div class="ltx-page"><article class="ltx-document latexjs-document" data-latex-renderer="latex.js">' + html + '</article></div>';
+    }).catch(function (err) {
+      var fallback = stripLatexRenderArtifacts(renderLatexPaperFallbackClient(source, fallbackTitle, fallbackAuthors));
+      return fallback.replace('<article class="ltx-document"', '<article class="ltx-document" data-latex-renderer="fallback" data-render-warning="' + esc(err && err.message ? err.message : "latex.js failed") + '"');
+    });
+  }
+
+  function renderLatexPaperClient(source, fallbackTitle, fallbackAuthors) {
+    return renderWithLatexJs(source, fallbackTitle, fallbackAuthors);
   }
 
   var externalScriptPromises = {};
@@ -2765,7 +2823,7 @@ const SITE_JS = `
       if (kind === "markdown") {
         fetchArtifactText(url).then(function (text) { done(renderMarkdownPaperClient(text, asset.title || asset.id || "Research Asset", asset.authors || "Unknown")); }).catch(fail);
       } else if (kind === "tex") {
-        fetchArtifactText(url).then(function (text) { done(renderLatexPaperClient(text, asset.title || asset.id || "Research Asset", asset.authors || "Unknown")); }).catch(fail);
+        fetchArtifactText(url).then(function (text) { return renderLatexPaperClient(text, asset.title || asset.id || "Research Asset", asset.authors || "Unknown"); }).then(done).catch(fail);
       } else if (kind === "word") {
         fetchArtifactBuffer(url).then(function (buffer) { return renderWordBuffer(buffer, pathValue); }).then(done).catch(fail);
       } else if (kind === "ppt") {
