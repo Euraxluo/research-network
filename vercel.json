@@ -2,7 +2,7 @@
   "buildCommand": "npm run vercel:texlive && npm run vercel:shell && npm run web:vite:build",
   "outputDirectory": ".vercel-shell",
   "functions": {
-    "api/**/*.ts": {
+    "api/index/[...path].ts": {
       "includeFiles": ".vercel/texlive/**"
     }
   },
