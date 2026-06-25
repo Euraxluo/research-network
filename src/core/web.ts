@@ -9,7 +9,7 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
-const STATIC_ASSET_VERSION = "20260624-live-skills-v7";
+const STATIC_ASSET_VERSION = "20260624-live-skills-v8";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
@@ -2655,6 +2655,10 @@ const SITE_JS = `
     return template.innerHTML;
   }
 
+  function stripLeadingTitlePunctuation(text) {
+    return String(text || "").replace(/^\\s*[:：;；|｜·•]+\\s*/, "");
+  }
+
   function loadLatexJs() {
     return loadExternalScript("https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/latex.js", function () {
       return Boolean(window.latexjs && window.latexjs.parse && window.latexjs.HtmlGenerator);
@@ -2688,7 +2692,17 @@ const SITE_JS = `
   }
 
   function renderServerLatexHtmlClient(html) {
-    var body = sanitizeDocumentHtml(String(html || ""));
+    var template = document.createElement("template");
+    template.innerHTML = sanitizeDocumentHtml(String(html || ""));
+    Array.prototype.slice.call(template.content.querySelectorAll(".titlemark")).forEach(function (node) {
+      if (/^\\s*[:：;；|｜·•]*\\s*$/.test(String(node.textContent || ""))) node.remove();
+    });
+    Array.prototype.slice.call(template.content.querySelectorAll("h1, .titleHead, .title, .ltx-title")).forEach(function (node) {
+      var text = String(node.textContent || "");
+      var cleaned = stripLeadingTitlePunctuation(text);
+      if (cleaned !== text && cleaned.trim()) node.textContent = cleaned;
+    });
+    var body = template.innerHTML;
     body = stripLatexRenderArtifacts(body);
     if (!body.trim()) throw new Error("server returned empty LaTeX HTML");
     return '<div class="ltx-page"><article class="ltx-document latexjs-document" data-latex-renderer="make4ht">' + body + '</article></div>';
@@ -2841,7 +2855,9 @@ const SITE_JS = `
       target.setAttribute("data-rendered", "true");
       var done = function (html) {
         target.innerHTML = html;
-        typesetMathIfAvailable(target);
+        if (!target.querySelector('[data-latex-renderer="make4ht"]')) {
+          typesetMathIfAvailable(target);
+        }
       };
       var fail = function (err) {
         target.innerHTML = '<p class="pdfjs-loading">Could not render ' + esc(pathValue || kind) + ': ' + esc(err && err.message ? err.message : "request failed") + '. <a href="' + esc(url) + '" download>Download raw file</a></p>';
