@@ -1,6 +1,11 @@
 {
-  "buildCommand": "npm run vercel:shell && npm run web:vite:build",
+  "buildCommand": "npm run vercel:texlive && npm run vercel:shell && npm run web:vite:build",
   "outputDirectory": ".vercel-shell",
+  "functions": {
+    "api/**/*.ts": {
+      "includeFiles": ".vercel/texlive/**"
+    }
+  },
   "crons": [
     {
       "path": "/api/index/ingest",

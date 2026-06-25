@@ -23,6 +23,7 @@
     "web:build": "tsx src/cli.ts web:build",
     "web:vite:build": "npm run build:vite --workspace web",
     "web:dev": "npm run dev --workspace web",
+    "vercel:texlive": "tsx scripts/prepare-vercel-texlive.ts",
     "vercel:shell": "tsx src/cli.ts vercel:shell",
     "web:serve": "tsx src/cli.ts web:serve --port 4173",
     "web:portal": "docker rm -f research-walrus-portal 2>/dev/null; docker run --rm --name research-walrus-portal -v /tmp/walrus-portal-config.yaml:/portal-config.yaml:ro -e PORTAL_CONFIG=/portal-config.yaml -p 3010:3000 mysten/walrus-sites-server-portal:mainnet-v2.10.0",
