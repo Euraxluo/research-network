@@ -721,7 +721,7 @@ describe("static web E2E", () => {
     expect(indexHtml).toContain("Recent submissions");
     expect(indexHtml).toContain("data-chain-submissions");
     expect(indexHtml).toContain("ResearchAssetPublished");
-    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v2");
+    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v3");
     expect(indexHtml).not.toContain("Demo Research Asset");
     expect(indexHtml).not.toContain("Untitled Research Asset");
     expect(indexHtml).not.toContain("Describe the research problem");
@@ -756,7 +756,8 @@ describe("static web E2E", () => {
     expect(shellSiteJs).toContain("mammoth@1.12.0");
     expect(shellSiteJs).toContain("jszip@3.10.1");
     expect(shellSiteJs).toContain("download-list");
-    expect(shellSiteJs).toContain("Agent-Native Assets");
+    expect(shellSiteJs).toContain("compact-skill-list");
+    expect(shellSiteJs).toContain("Open in Skills");
     expect(shellSiteJs).toContain("data-live-skills");
     expect(shellSiteJs).toContain("research install");
     expect(shellSiteJs).toContain("live-skill-card");

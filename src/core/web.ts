@@ -9,7 +9,7 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
-const STATIC_ASSET_VERSION = "20260624-live-skills-v2";
+const STATIC_ASSET_VERSION = "20260624-live-skills-v3";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
@@ -120,6 +120,7 @@ function shell(title: string, body: string, options: { math?: boolean; subject?:
   <div class="subnav"><div class="wrap subnav-inner">
     <a href="/">Browse</a>
     <a href="/search.html">Search</a>
+    <a href="/skills.html">Skills</a>
     <a href="/dashboard.html">Dashboard</a>
     <a href="/workbench.html">Workbench</a>
     <a href="/membership.html">Membership</a>
@@ -1147,7 +1148,7 @@ code { font-family: var(--mono); font-size: .92em; background: #f4f4f4; padding:
 .banner-search button { border: 0; border-radius: 2px; background: #fff; color: var(--arxiv-red); font-weight: 700; font-size: 13px; padding: 6px 12px; cursor: pointer; }
 .banner-search button:hover { background: #f3dcdc; }
 .subnav { background: #fafafa; border-bottom: 1px solid var(--line); }
-.subnav-inner { display: flex; gap: 22px; padding-top: 7px; padding-bottom: 7px; font-size: 13px; }
+.subnav-inner { display: flex; flex-wrap: wrap; gap: 7px 22px; padding-top: 7px; padding-bottom: 7px; font-size: 13px; }
 .subnav a { color: #444; }
 .subnav a:hover { color: var(--arxiv-red); text-decoration: none; }
 .subject-strip { border-bottom: 1px solid var(--line); }
@@ -1272,6 +1273,18 @@ blockquote.abstract .descriptor { font-weight: 700; }
 .small-list { margin: 0; padding: 0; list-style: none; font-size: 13px; }
 .small-list li { padding: 4px 0; border-bottom: 1px solid #eee; }
 .small-list li:last-child { border-bottom: 0; }
+.compact-skill-list { border-top: 1px solid var(--line); max-width: 860px; }
+.compact-skill-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, 260px); gap: 12px 18px; padding: 11px 0; border-bottom: 1px solid #eee; align-items: start; }
+.compact-skill-main, .compact-skill-meta { min-width: 0; }
+.compact-skill-main strong { display: block; font-size: 14.5px; overflow-wrap: anywhere; }
+.compact-skill-main p { margin: 3px 0 0; color: #333; font-size: 13.5px; line-height: 1.45; }
+.compact-skill-tags { margin-top: 6px; }
+.compact-skill-tags .tag { margin-bottom: 0; }
+.compact-skill-meta { display: grid; gap: 4px; justify-items: end; text-align: right; font-size: 12.5px; }
+.compact-skill-meta code { max-width: 100%; overflow-wrap: anywhere; }
+.compact-skill-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.compact-skill-install { max-width: 100%; }
+.compact-skill-install code { display: block; max-width: 100%; background: transparent; padding: 0; color: var(--muted); font-size: 11.5px; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 .repo-control { margin: 8px 0 10px; }
 .repo-select { width: min(520px, 100%); margin-top: 4px; padding: 7px 10px; border: 1px solid #bbb; border-radius: 3px; background: #fff; color: var(--ink); font: inherit; }
 .repo-select:focus { outline: 2px solid rgba(0, 104, 172, .22); border-color: var(--link); }
@@ -1457,6 +1470,9 @@ a.card h3 { margin: 0 0 4px; font-size: 15.5px; color: var(--link); }
 
 @media (max-width: 820px) {
   .abs-grid { grid-template-columns: 1fr; }
+  .compact-skill-row { grid-template-columns: 1fr; }
+  .compact-skill-meta { justify-items: start; text-align: left; }
+  .compact-skill-actions { justify-content: flex-start; }
   .chain-facts { grid-template-columns: 1fr; }
   .banner-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
   .banner-search { width: 100%; }
@@ -2660,22 +2676,26 @@ const SITE_JS = `
     if (!skills.length) {
       return '<p class="muted">No skills are declared in this live Walrus release manifest.</p>';
     }
-    return '<div class="grid live-skill-grid">' + skills.map(function (skill) {
+    return '<div class="compact-skill-list">' + skills.map(function (skill) {
       var entryUrl = artifactUrl(asset, skill.entry_path, artifactApi, aggregatorUrl);
       var caps = Array.isArray(skill.capabilities) ? skill.capabilities : [];
-      return '<article class="card live-skill-card">' +
-        '<h3>' + esc(skill.name || skill.id || "Skill") + '</h3>' +
-        '<p>' + esc(skill.description || "No skill description recorded.") + '</p>' +
-        (caps.length ? '<div class="abs-tags">' + caps.map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + '</div>' : '') +
-        '<dl class="verification">' +
-          '<div><dt>Skill object</dt><dd><code>' + esc(skill.id || "") + '</code></dd></div>' +
-          '<div><dt>Manifest ID</dt><dd><code>' + esc(skill.manifest_id || "") + '</code></dd></div>' +
-          '<div><dt>Relation</dt><dd>' + esc(skill.relation || "owned") + '</dd></div>' +
-          '<div><dt>Access</dt><dd>' + esc(skill.access_visibility || "public") + '</dd></div>' +
-          '<div><dt>Manifest path</dt><dd><code>' + esc(skill.path || "") + '</code></dd></div>' +
-        '</dl>' +
-        (entryUrl ? '<p><a class="button" href="' + esc(entryUrl) + '" download>Download SKILL.md</a></p>' : '') +
-      '</article>';
+      var installCommand = liveSkillInstallCommand(skill);
+      var objectId = skill.id || "";
+      return '<div class="compact-skill-row">' +
+        '<div class="compact-skill-main">' +
+          '<strong>' + esc(skill.name || objectId || "Skill") + '</strong>' +
+          '<p>' + esc(shortText(skill.description || "No skill description recorded.", 140, 28)) + '</p>' +
+          (caps.length ? '<div class="compact-skill-tags">' + caps.slice(0, 5).map(function (cap) { return '<span class="tag">' + esc(cap) + '</span>'; }).join("") + (caps.length > 5 ? '<span class="muted">+' + (caps.length - 5) + '</span>' : '') + '</div>' : '') +
+        '</div>' +
+        '<div class="compact-skill-meta">' +
+          (objectId ? '<code title="' + esc(objectId) + '">' + esc(shortText(objectId, 12, 10)) + '</code>' : '') +
+          '<div class="compact-skill-actions">' +
+            '<a href="/skills.html?q=' + encodeURIComponent(objectId || skill.name || "") + '">Open in Skills</a>' +
+            (entryUrl ? '<a href="' + esc(entryUrl) + '" download>Download</a>' : '') +
+          '</div>' +
+          '<div class="compact-skill-install"><code>' + esc(installCommand) + '</code></div>' +
+        '</div>' +
+      '</div>';
     }).join("") + '</div>';
   }
 
@@ -2757,6 +2777,9 @@ const SITE_JS = `
     var suiExplorer = source.getAttribute("data-sui-explorer") || "https://suiscan.xyz/testnet";
     var limit = Math.max(1, Math.min(20, Number(root.getAttribute("data-live-skills-limit")) || 20));
     var indexUrl = indexApi + (indexApi.indexOf("?") === -1 ? "?" : "&") + "limit=" + encodeURIComponent(String(limit));
+    var initialQuery = "";
+    try { initialQuery = new URLSearchParams(location.search).get("q") || ""; } catch (err) {}
+    if (input && initialQuery) input.value = initialQuery;
     var entries = [];
     var assetCount = 0;
     var resolvedManifestCount = 0;
@@ -2841,7 +2864,7 @@ const SITE_JS = `
             '<div class="abs-authors">' + esc(asset.authors || "Unknown") + '</div>' +
             '<div class="abs-tags">' + tags.map(function (tag) { return '<span class="tag">' + esc(tag) + '</span>'; }).join("") + '</div>' +
             renderLivePaperViewer(bundle.formats) +
-            '<h2>Agent-Native Assets</h2>' +
+            '<h2>Skills</h2>' +
             renderLiveSkills(asset, artifactApi, aggregatorUrl) +
           '</div>' +
           '<aside class="extra-services">' +
@@ -3545,8 +3568,8 @@ ${renderChainSubmissionSource(onChainProofConfig, explorer)}
 
     ${readmeText ? `<h2>README</h2><div class="readme-box md-doc">${renderMarkdownBody(readmeText)}</div>` : ""}
 
-    <h2>Agent-Native Assets</h2>
-    <div class="grid">${asset.manifest.skills.map((skill) => `<a class="card" href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}"><h3>${escapeHtml(skill.manifest.name)}</h3><p>${escapeHtml(skill.manifest.description)}</p><span class="muted">${escapeHtml(skill.manifest.capabilities.join(", "))}</span></a>`).join("") || "<p class=\"muted\">No skills declared.</p>"}</div>
+    <h2>Skills</h2>
+    <div class="compact-skill-list">${asset.manifest.skills.map((skill) => `<div class="compact-skill-row"><div class="compact-skill-main"><strong><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">${escapeHtml(skill.manifest.name)}</a></strong><p>${escapeHtml(skill.manifest.description)}</p><div class="compact-skill-tags">${skill.manifest.capabilities.slice(0, 5).map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}${skill.manifest.capabilities.length > 5 ? `<span class="muted">+${skill.manifest.capabilities.length - 5}</span>` : ""}</div></div><div class="compact-skill-meta"><code title="${escapeHtml(skill.id)}">${escapeHtml(skill.id)}</code><div class="compact-skill-actions"><a href="${escapeHtml(webPath("skill", `${routeSegment(skill.id)}.html`))}">Open skill</a></div></div></div>`).join("") || "<p class=\"muted\">No skills declared.</p>"}</div>
   </div>
   <aside class="extra-services">
     <div class="access-box">
