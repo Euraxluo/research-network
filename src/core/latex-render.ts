@@ -46,6 +46,8 @@ async function resolveMake4ht(): Promise<{ command: string; env: NodeJS.ProcessE
       command: process.env.RN_MAKE4HT_PATH,
       env: {
         ...process.env,
+        LC_ALL: "C",
+        LANG: "C",
         PATH: `${path.dirname(process.env.RN_MAKE4HT_PATH)}:${process.env.PATH ?? ""}`
       }
     };
@@ -58,6 +60,8 @@ async function resolveMake4ht(): Promise<{ command: string; env: NodeJS.ProcessE
       command: bundled,
       env: {
         ...process.env,
+        LC_ALL: "C",
+        LANG: "C",
         PATH: `${binDir}:${process.env.PATH ?? ""}`
       }
     };

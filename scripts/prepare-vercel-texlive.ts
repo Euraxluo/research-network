@@ -72,7 +72,12 @@ async function installMake4ht(root: string) {
     throw new Error("TinyTeX archive did not contain make4ht or tlmgr");
   }
   const binDir = path.dirname(tlmgr);
-  const env = { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` };
+  const env = {
+    ...process.env,
+    LC_ALL: "C",
+    LANG: "C",
+    PATH: `${binDir}:${process.env.PATH ?? ""}`
+  };
   const packages = (process.env.RN_TINYTEX_PACKAGES || DEFAULT_PACKAGES.join(" "))
     .split(/\s+/)
     .map((item) => item.trim())
@@ -80,6 +85,11 @@ async function installMake4ht(root: string) {
   await execFileAsync(tlmgr, ["option", "repository", TLMGR_REPOSITORY], { env, maxBuffer: 8 * 1024 * 1024 });
   await execFileAsync(tlmgr, ["option", "docfiles", "0"], { env, maxBuffer: 8 * 1024 * 1024 });
   await execFileAsync(tlmgr, ["option", "srcfiles", "0"], { env, maxBuffer: 8 * 1024 * 1024 });
+  await execFileAsync(tlmgr, ["update", "--self"], {
+    env,
+    timeout: Number(process.env.RN_TLMGR_UPDATE_TIMEOUT_MS ?? 240_000),
+    maxBuffer: 16 * 1024 * 1024
+  });
   await execFileAsync(tlmgr, ["install", ...packages], {
     env,
     timeout: Number(process.env.RN_TLMGR_INSTALL_TIMEOUT_MS ?? 240_000),
@@ -129,7 +139,7 @@ async function main() {
   await pruneRuntime(ROOT);
   await execFileAsync("chmod", ["-R", "u+rwX,go+rX", ROOT], { maxBuffer: 8 * 1024 * 1024 });
   const binDir = path.dirname(make4ht);
-  const env = { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` };
+  const env = { ...process.env, LC_ALL: "C", LANG: "C", PATH: `${binDir}:${process.env.PATH ?? ""}` };
   await execFileAsync(make4ht, ["--version"], { env, maxBuffer: 1024 * 1024 });
   console.log(`TinyTeX make4ht ready: ${make4ht}`);
 }
