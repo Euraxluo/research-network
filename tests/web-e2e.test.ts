@@ -721,7 +721,7 @@ describe("static web E2E", () => {
     expect(indexHtml).toContain("Recent submissions");
     expect(indexHtml).toContain("data-chain-submissions");
     expect(indexHtml).toContain("ResearchAssetPublished");
-    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v6");
+    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v7");
     expect(indexHtml).not.toContain("Demo Research Asset");
     expect(indexHtml).not.toContain("Untitled Research Asset");
     expect(indexHtml).not.toContain("Describe the research problem");
@@ -750,6 +750,8 @@ describe("static web E2E", () => {
     expect(shellSiteJs).not.toContain("Served by <code>/api/index</code>");
     expect(shellSiteJs).toContain("Verified on Sui and Walrus");
     expect(shellSiteJs).toContain("/api/index/artifact");
+    expect(shellSiteJs).toContain("data-render-html-url");
+    expect(shellSiteJs).toContain("make4ht");
     expect(shellSiteJs).toContain("data-live-paper");
     expect(shellSiteJs).toContain("paper-word");
     expect(shellSiteJs).toContain("paper-ppt");

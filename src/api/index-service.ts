@@ -17,6 +17,7 @@ import {
   resolveSkillFromLiveIndex,
   type SkillArtifactKind
 } from "../core/skill-resolver.js";
+import { LatexHtmlRendererUnavailable, renderLatexToHtmlWithMake4ht } from "../core/latex-render.js";
 
 function intQuery(value: unknown, fallback: number): number {
   const parsed = Number(value);
@@ -297,6 +298,62 @@ export const researchIndexApi = new Elysia({ prefix: "/api", aot: false })
     detail: {
       summary: "Read a file from a live Walrus release blob",
       description: "Streams paper, TeX, README, and other release artifacts by unpacking the zstd-compressed Walrus release blob. Public pages use this to render the live paper view without local fixtures."
+    }
+  })
+  .get("/index/artifact/render", async ({ query, set }) => {
+    const blobId = cleanQuery(query.blob);
+    const artifactPath = cleanQuery(query.path);
+    const format = cleanQuery(query.format) ?? "html";
+    if (!blobId || !artifactPath) {
+      set.status = 400;
+      return { error: "missing_release_artifact_query", message: "blob and path are required" };
+    }
+    if (format !== "html") {
+      set.status = 400;
+      return { error: "unsupported_render_format", message: "Only format=html is supported." };
+    }
+    if (!/\.tex$/i.test(artifactPath)) {
+      set.status = 400;
+      return { error: "unsupported_render_source", message: "Only .tex artifacts can be rendered by this endpoint." };
+    }
+    try {
+      const artifact = await readLiveReleaseArtifact({
+        blobId,
+        path: artifactPath,
+        aggregatorUrl: cleanQuery(query.aggregator) ?? process.env.RN_WALRUS_AGGREGATOR_URL ?? process.env.WALRUS_AGGREGATOR_URL ?? DEFAULT_LIVE_INDEX_WALRUS_AGGREGATOR_URL
+      });
+      if (!artifact) {
+        set.status = 404;
+        return { error: "release_artifact_not_found", blob: blobId, path: artifactPath };
+      }
+      const source = new TextDecoder().decode(artifact.bytes);
+      const html = await renderLatexToHtmlWithMake4ht(source);
+      return new Response(html, {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "public, max-age=300, stale-while-revalidate=3600",
+          "x-research-renderer": "make4ht"
+        }
+      });
+    } catch (error) {
+      set.status = error instanceof LatexHtmlRendererUnavailable ? 503 : 502;
+      return {
+        error: "latex_render_unavailable",
+        renderer: "make4ht",
+        message: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }, {
+    tags: ["index"],
+    query: t.Object({
+      blob: t.String({ description: "Walrus release blob id containing the packed research asset." }),
+      path: t.String({ description: "LaTeX artifact path inside the release tarball, for example paper/main.tex." }),
+      format: t.Optional(t.String({ description: "Render output format. Currently only html is supported." })),
+      aggregator: t.Optional(t.String({ description: "Optional Walrus aggregator URL override." }))
+    }, { additionalProperties: true }),
+    detail: {
+      summary: "Render a live LaTeX artifact to HTML",
+      description: "Attempts server-side LaTeX-to-HTML rendering with make4ht/TeX4ht. If the runtime does not provide make4ht, callers should fall back to browser rendering."
     }
   })
   .get("/index/ingest", async ({ query, request, set }) => {

@@ -9,7 +9,7 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
-const STATIC_ASSET_VERSION = "20260624-live-skills-v6";
+const STATIC_ASSET_VERSION = "20260624-live-skills-v7";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
@@ -2221,6 +2221,17 @@ const SITE_JS = `
     return artifactApi + "?" + params.toString();
   }
 
+  function artifactRenderUrl(asset, pathValue, artifactApi, aggregatorUrl, format) {
+    if (!asset || !asset.walrus_blob_id || !pathValue) return "";
+    var base = String(artifactApi || "/api/index/artifact").split("?")[0].replace(/\\/$/, "");
+    var params = new URLSearchParams();
+    params.set("format", format || "html");
+    params.set("blob", asset.walrus_blob_id);
+    params.set("path", pathValue);
+    if (aggregatorUrl) params.set("aggregator", aggregatorUrl);
+    return base + "/render?" + params.toString();
+  }
+
   function artifactExt(pathValue) {
     var clean = String(pathValue || "").split("?")[0].split("#")[0];
     var match = clean.match(/\\.([A-Za-z0-9]+)$/);
@@ -2255,7 +2266,14 @@ const SITE_JS = `
     function addFormat(kind, id, label, pathValue) {
       var url = artifactUrl(asset, pathValue, artifactApi, aggregatorUrl);
       if (!pathValue || !url) return;
-      formats.push({ kind: kind, id: id, label: label, path: pathValue, url: url });
+      formats.push({
+        kind: kind,
+        id: id,
+        label: label,
+        path: pathValue,
+        url: url,
+        renderUrl: kind === "tex" ? artifactRenderUrl(asset, pathValue, artifactApi, aggregatorUrl, "html") : ""
+      });
       pushUniqueDownload(downloads, seen, label + " raw", pathValue, url);
     }
     addFormat("html", "paper-html", "HTML", htmlPath);
@@ -2303,7 +2321,7 @@ const SITE_JS = `
       }
       return '<section id="' + esc(format.id) + '" class="' + cls + '" aria-label="' + esc(format.label) + '">' +
         '<p class="source-note">Rendered from ' + esc(format.path) + ' &middot; <a href="' + esc(format.url) + '" download>download raw file</a></p>' +
-        '<div class="live-document-renderer" data-render-kind="' + esc(format.kind) + '" data-artifact-url="' + esc(format.url) + '" data-artifact-path="' + esc(format.path) + '">' +
+        '<div class="live-document-renderer" data-render-kind="' + esc(format.kind) + '" data-artifact-url="' + esc(format.url) + '" data-render-html-url="' + esc(format.renderUrl || "") + '" data-artifact-path="' + esc(format.path) + '">' +
         '<p class="pdfjs-loading">Rendering ' + esc(format.label) + ' content...</p>' +
         '</div></section>';
     }).join("");
@@ -2669,6 +2687,13 @@ const SITE_JS = `
     return renderWithLatexJs(source, fallbackTitle, fallbackAuthors);
   }
 
+  function renderServerLatexHtmlClient(html) {
+    var body = sanitizeDocumentHtml(String(html || ""));
+    body = stripLatexRenderArtifacts(body);
+    if (!body.trim()) throw new Error("server returned empty LaTeX HTML");
+    return '<div class="ltx-page"><article class="ltx-document latexjs-document" data-latex-renderer="make4ht">' + body + '</article></div>';
+  }
+
   var externalScriptPromises = {};
   function loadExternalScript(src, test) {
     if (test && test()) return Promise.resolve();
@@ -2811,6 +2836,7 @@ const SITE_JS = `
     Array.prototype.slice.call(scope.querySelectorAll(".live-document-renderer:not([data-rendered])")).forEach(function (target) {
       var kind = target.getAttribute("data-render-kind") || "";
       var url = target.getAttribute("data-artifact-url") || "";
+      var renderHtmlUrl = target.getAttribute("data-render-html-url") || "";
       var pathValue = target.getAttribute("data-artifact-path") || "";
       target.setAttribute("data-rendered", "true");
       var done = function (html) {
@@ -2823,7 +2849,15 @@ const SITE_JS = `
       if (kind === "markdown") {
         fetchArtifactText(url).then(function (text) { done(renderMarkdownPaperClient(text, asset.title || asset.id || "Research Asset", asset.authors || "Unknown")); }).catch(fail);
       } else if (kind === "tex") {
-        fetchArtifactText(url).then(function (text) { return renderLatexPaperClient(text, asset.title || asset.id || "Research Asset", asset.authors || "Unknown"); }).then(done).catch(fail);
+        var browserRender = function () {
+          return fetchArtifactText(url).then(function (text) {
+            return renderLatexPaperClient(text, asset.title || asset.id || "Research Asset", asset.authors || "Unknown");
+          });
+        };
+        (renderHtmlUrl
+          ? fetchArtifactText(renderHtmlUrl).then(renderServerLatexHtmlClient).catch(browserRender)
+          : browserRender()
+        ).then(done).catch(fail);
       } else if (kind === "word") {
         fetchArtifactBuffer(url).then(function (buffer) { return renderWordBuffer(buffer, pathValue); }).then(done).catch(fail);
       } else if (kind === "ppt") {
