@@ -32,7 +32,7 @@ async function findFile(dir: string, name: string): Promise<string | undefined> 
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
-    if (entry.isFile() && entry.name === name) return full;
+    if ((entry.isFile() || entry.isSymbolicLink()) && entry.name === name) return full;
     if (entry.isDirectory()) {
       const found = await findFile(full, name);
       if (found) return found;
