@@ -15,6 +15,8 @@ const TINYTEX_URL =
 const ROOT = path.resolve(".vercel", "texlive");
 const CACHE_DIR = path.resolve(".vercel", "cache");
 const ARCHIVE = path.join(CACHE_DIR, `TinyTeX-1-linux-x86_64-v${TINYTEX_VERSION}.tar.xz`);
+const TLMGR_REPOSITORY = process.env.RN_TLMGR_REPOSITORY || "https://mirror.ctan.org/systems/texlive/tlnet";
+const DEFAULT_PACKAGES = ["make4ht", "tex4ht", "booktabs"];
 
 async function exists(filePath: string): Promise<boolean> {
   try {
@@ -62,6 +64,34 @@ async function pruneRuntime(root: string) {
   await walk(root);
 }
 
+async function installMake4ht(root: string) {
+  let make4ht = await findFile(root, "make4ht");
+  if (make4ht) return make4ht;
+  const tlmgr = await findFile(root, "tlmgr");
+  if (!tlmgr) {
+    throw new Error("TinyTeX archive did not contain make4ht or tlmgr");
+  }
+  const binDir = path.dirname(tlmgr);
+  const env = { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}` };
+  const packages = (process.env.RN_TINYTEX_PACKAGES || DEFAULT_PACKAGES.join(" "))
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  await execFileAsync(tlmgr, ["option", "repository", TLMGR_REPOSITORY], { env, maxBuffer: 8 * 1024 * 1024 });
+  await execFileAsync(tlmgr, ["option", "docfiles", "0"], { env, maxBuffer: 8 * 1024 * 1024 });
+  await execFileAsync(tlmgr, ["option", "srcfiles", "0"], { env, maxBuffer: 8 * 1024 * 1024 });
+  await execFileAsync(tlmgr, ["install", ...packages], {
+    env,
+    timeout: Number(process.env.RN_TLMGR_INSTALL_TIMEOUT_MS ?? 240_000),
+    maxBuffer: 16 * 1024 * 1024
+  });
+  make4ht = await findFile(root, "make4ht");
+  if (!make4ht) {
+    throw new Error(`tlmgr install completed but make4ht was not found; packages=${packages.join(",")}`);
+  }
+  return make4ht;
+}
+
 async function download(url: string, output: string) {
   if (await exists(output)) return;
   await mkdir(path.dirname(output), { recursive: true });
@@ -95,10 +125,7 @@ async function main() {
   await rm(ROOT, { recursive: true, force: true });
   await mkdir(ROOT, { recursive: true });
   await execFileAsync("tar", ["-xJf", ARCHIVE, "-C", ROOT], { maxBuffer: 8 * 1024 * 1024 });
-  const make4ht = await findFile(ROOT, "make4ht");
-  if (!make4ht) {
-    throw new Error("TinyTeX archive did not contain make4ht");
-  }
+  const make4ht = await installMake4ht(ROOT);
   await pruneRuntime(ROOT);
   await execFileAsync("chmod", ["-R", "u+rwX,go+rX", ROOT], { maxBuffer: 8 * 1024 * 1024 });
   const binDir = path.dirname(make4ht);
