@@ -307,7 +307,7 @@ describe("static web E2E", () => {
       expect(indexHtml).not.toContain("Live testnet proof");
       expect(indexHtml).toContain("data-chain-source");
       expect(indexHtml).toContain("data-chain-submissions");
-      expect(indexHtml).toContain("data-chain-rpc=\"https://sui-testnet-rpc.publicnode.com\"");
+      expect(indexHtml).toContain("data-chain-rpc=\"https://fullnode.testnet.sui.io:443\"");
       expect(indexHtml).toContain("data-chain-package=\"0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e\"");
       expect(indexHtml).toContain("ResearchAssetPublished");
       expect(indexHtml).toContain("Loading live Sui testnet submissions");
@@ -319,6 +319,7 @@ describe("static web E2E", () => {
       expect(indexHtml).toContain("Content-Security-Policy");
       expect(indexHtml).toContain("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com");
       expect(indexHtml).toContain("connect-src 'self' data: https://api.github.com https://sui-testnet-rpc.publicnode.com");
+      expect(indexHtml).toContain("https://fullnode.testnet.sui.io:443");
       expect(indexHtml).toContain("https://aggregator.walrus-testnet.walrus.space");
 
       const dashboardHtml = await (await fetch(sitePath(server.url, "/dashboard.html"))).text();
@@ -880,7 +881,7 @@ describe("static web E2E", () => {
     expect(indexHtml).toContain("Recent submissions");
     expect(indexHtml).toContain("data-chain-submissions");
     expect(indexHtml).toContain("ResearchAssetPublished");
-    expect(indexHtml).toContain("/site.js?v=20260624-live-skills-v11");
+    expect(indexHtml).toContain("/site.js?v=20260625-live-index-rpc-v12");
     expect(indexHtml).not.toContain("Start with the Research CLI");
     expect(indexHtml).toContain("/use-cli.html");
     expect(indexHtml).not.toContain("Download starter SKILL.md");

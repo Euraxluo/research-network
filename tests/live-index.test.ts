@@ -124,6 +124,182 @@ describe("live Sui/Walrus index", () => {
     });
   });
 
+  it("falls back to the official Sui testnet RPC when the primary event index is broken", async () => {
+    const packageId = "0xabc";
+    const signer = `0x${"8a".repeat(32)}`;
+    const assetId = `0x${"37".repeat(32)}`;
+    const txDigest = "7MGBt7CZkUE1ep71iFse4kyydKzAKk4oXQEmBPqFLpXx";
+    const seenUrls: string[] = [];
+    globalThis.fetch = vi.fn(async (url, init) => {
+      seenUrls.push(String(url));
+      if (String(url).includes("walrus")) {
+        return new Response("not available in this unit test", { status: 404 });
+      }
+      const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string; params?: unknown[] };
+      if (body.method === "suix_queryEvents" && String(url) === "https://broken.sui") {
+        return Response.json({ error: { message: "primary event index is broken" } });
+      }
+      if (body.method === "suix_queryEvents") {
+        const filter = body.params?.[0] as { MoveEventType?: string } | undefined;
+        if (!filter?.MoveEventType?.endsWith("::research_asset::ResearchAssetPublished")) {
+          return Response.json({ result: { data: [] } });
+        }
+        return Response.json({
+          result: {
+            data: [{
+              id: { txDigest, eventSeq: "0" },
+              parsedJson: {
+                asset_id: assetId,
+                owner: signer,
+                creator: signer,
+                version: "0.1.0",
+                manifest_hash: "sha256:test",
+                walrus_blob_id: "blob123",
+                repo_commit: "abc1234",
+                created_ms: "1782189126775"
+              }
+            }]
+          }
+        });
+      }
+      if (body.method === "sui_multiGetObjects") {
+        return Response.json({
+          result: [{
+            data: {
+              objectId: assetId,
+              type: `${packageId}::research_asset::ResearchAsset`,
+              owner: { AddressOwner: signer },
+              content: { fields: { manifest_hash: "sha256:test", walrus_blob_id: "blob123" } }
+            }
+          }]
+        });
+      }
+      if (body.method === "sui_multiGetTransactionBlocks") {
+        return Response.json({
+          result: [{
+            digest: txDigest,
+            transaction: { data: { sender: signer, gasData: { owner: signer } } },
+            effects: { status: { status: "success" } },
+            balanceChanges: [{ owner: { AddressOwner: signer }, coinType: "0x2::sui::SUI", amount: "-4262680" }]
+          }]
+        });
+      }
+      throw new Error(`unexpected RPC method ${body.method}`);
+    }) as typeof fetch;
+
+    const index = await buildLiveIndex({
+      rpcUrl: "https://broken.sui",
+      aggregatorUrl: "https://walrus.test",
+      packageId,
+      limit: 1
+    });
+
+    expect(seenUrls).toContain("https://broken.sui");
+    expect(seenUrls).toContain("https://fullnode.testnet.sui.io:443");
+    expect(index.rpc_url).toBe("https://fullnode.testnet.sui.io:443");
+    expect(index.unresolved_anchors[0]).toMatchObject({
+      id: assetId,
+      tx_digest: txDigest,
+      proof: expect.objectContaining({ tx_success: true })
+    });
+  });
+
+  it("keeps verified assets when one historical transaction digest can no longer be fetched", async () => {
+    const releaseBytes = await fs.readFile("fixtures/public-showcase/localnet/walrus/walrus_local_c58208ad2f099b3a68d70cea/release.tar.zst");
+    const release = JSON.parse(await fs.readFile("fixtures/public-showcase/localnet/walrus/walrus_local_c58208ad2f099b3a68d70cea/manifest.json", "utf8")) as {
+      manifest_hash: string;
+      commit: string;
+    };
+    const packageId = "0xabc";
+    const signer = `0x${"8a".repeat(32)}`;
+    const goodAssetId = `0x${"37".repeat(32)}`;
+    const staleAssetId = `0x${"42".repeat(32)}`;
+    const goodTxDigest = "7MGBt7CZkUE1ep71iFse4kyydKzAKk4oXQEmBPqFLpXx";
+    const staleTxDigest = "DydfGpMKJGuM5YxU6uN4z9qrH81wnXhLnY6TopLeVKj";
+
+    globalThis.fetch = vi.fn(async (url, init) => {
+      if (String(url).includes("walrus")) {
+        return new Response(releaseBytes);
+      }
+      if (!init?.body) {
+        return ORIGINAL_FETCH(url, init);
+      }
+      const body = JSON.parse(String(init?.body ?? "{}")) as { method?: string; params?: unknown[] };
+      if (body.method === "suix_queryEvents") {
+        const filter = body.params?.[0] as { MoveEventType?: string } | undefined;
+        if (!filter?.MoveEventType?.endsWith("::research_asset::ResearchAssetPublished")) {
+          return Response.json({ result: { data: [] } });
+        }
+        const eventFor = (assetId: string, txDigest: string) => ({
+          id: { txDigest, eventSeq: "0" },
+          parsedJson: {
+            asset_id: assetId,
+            owner: signer,
+            creator: signer,
+            version: "0.1.0",
+            manifest_hash: release.manifest_hash,
+            walrus_blob_id: "walrus-loop-engine",
+            repo_commit: release.commit,
+            created_ms: "1782189126775"
+          }
+        });
+        return Response.json({ result: { data: [eventFor(goodAssetId, goodTxDigest), eventFor(staleAssetId, staleTxDigest)] } });
+      }
+      if (body.method === "sui_multiGetObjects") {
+        const ids = body.params?.[0] as string[];
+        return Response.json({
+          result: ids.map((objectId) => ({
+            data: {
+              objectId,
+              type: `${packageId}::research_asset::ResearchAsset`,
+              owner: { AddressOwner: signer },
+              content: { fields: { manifest_hash: release.manifest_hash, walrus_blob_id: "walrus-loop-engine" } }
+            }
+          }))
+        });
+      }
+      if (body.method === "sui_multiGetTransactionBlocks") {
+        const digests = body.params?.[0] as string[];
+        if (digests.length > 1 || digests[0] === staleTxDigest) {
+          return Response.json({ error: { message: `Could not find the referenced transaction events [TransactionDigest(${staleTxDigest})].` } });
+        }
+        return Response.json({
+          result: [{
+            digest: goodTxDigest,
+            transaction: { data: { sender: signer, gasData: { owner: signer } } },
+            effects: { status: { status: "success" } },
+            balanceChanges: [{ owner: { AddressOwner: signer }, coinType: "0x2::sui::SUI", amount: "-4262680" }]
+          }]
+        });
+      }
+      throw new Error(`unexpected RPC method ${body.method}`);
+    }) as typeof fetch;
+
+    const index = await buildLiveIndex({
+      rpcUrl: "https://sui.test",
+      aggregatorUrl: "https://walrus.test",
+      packageId,
+      limit: 2
+    });
+
+    expect(index.assets).toHaveLength(1);
+    expect(index.assets[0]).toMatchObject({
+      id: goodAssetId,
+      tx_digest: goodTxDigest,
+      proof: {
+        tx_success: true,
+        release_manifest_match: true
+      }
+    });
+    expect(index.unresolved_anchors).toEqual([
+      expect.objectContaining({
+        id: staleAssetId,
+        tx_digest: staleTxDigest,
+        proof: expect.objectContaining({ tx_success: false })
+      })
+    ]);
+  });
+
   it("indexes skills, workflows, and graph relationships from the Walrus release manifest", async () => {
     const releaseBytes = await fs.readFile("fixtures/public-showcase/localnet/walrus/walrus_local_c58208ad2f099b3a68d70cea/release.tar.zst");
     const release = JSON.parse(await fs.readFile("fixtures/public-showcase/localnet/walrus/walrus_local_c58208ad2f099b3a68d70cea/manifest.json", "utf8")) as {

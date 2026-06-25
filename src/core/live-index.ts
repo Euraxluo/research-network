@@ -1,6 +1,7 @@
 import { ZSTDDecoder } from "zstddec/stream";
 
-export const DEFAULT_LIVE_INDEX_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
+export const DEFAULT_LIVE_INDEX_RPC_URL = "https://fullnode.testnet.sui.io:443";
+export const FALLBACK_LIVE_INDEX_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 export const DEFAULT_LIVE_INDEX_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 export const DEFAULT_LIVE_INDEX_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
 
@@ -324,6 +325,14 @@ export function liveIndexConfig(options: BuildLiveIndexOptions = {}) {
   return { rpcUrl, packageId, aggregatorUrl, limit, eventType };
 }
 
+function liveIndexRpcCandidates(primaryRpcUrl: string): string[] {
+  return Array.from(new Set([
+    primaryRpcUrl,
+    DEFAULT_LIVE_INDEX_RPC_URL,
+    FALLBACK_LIVE_INDEX_RPC_URL
+  ].filter(Boolean)));
+}
+
 function routeSegment(id: string): string {
   if (/^[A-Za-z0-9._~-]+$/.test(id)) {
     return id;
@@ -370,6 +379,40 @@ async function rpcCall<T>(rpcUrl: string, method: string, params: unknown[]): Pr
     throw new Error(json.error.message ?? "RPC error");
   }
   return json.result;
+}
+
+async function getObjectsLenient(rpcUrl: string, objectIds: string[]): Promise<SuiObjectResponse[]> {
+  if (!objectIds.length) return [];
+  const options = { showType: true, showOwner: true, showContent: true };
+  try {
+    return await rpcCall<SuiObjectResponse[]>(rpcUrl, "sui_multiGetObjects", [objectIds, options]);
+  } catch {
+    return Promise.all(objectIds.map(async (objectId) => {
+      try {
+        const entries = await rpcCall<SuiObjectResponse[]>(rpcUrl, "sui_multiGetObjects", [[objectId], options]);
+        return entries[0] ?? {};
+      } catch {
+        return {};
+      }
+    }));
+  }
+}
+
+async function getTransactionBlocksLenient(rpcUrl: string, txDigests: string[]): Promise<SuiTxResponse[]> {
+  if (!txDigests.length) return [];
+  const options = { showInput: true, showEffects: true, showEvents: true, showBalanceChanges: true };
+  try {
+    return await rpcCall<SuiTxResponse[]>(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, options]);
+  } catch {
+    return Promise.all(txDigests.map(async (digest) => {
+      try {
+        const entries = await rpcCall<SuiTxResponse[]>(rpcUrl, "sui_multiGetTransactionBlocks", [[digest], options]);
+        return entries[0] ?? { digest };
+      } catch {
+        return { digest };
+      }
+    }));
+  }
 }
 
 async function zstdDecoder(): Promise<ZSTDDecoder> {
@@ -800,7 +843,15 @@ function buildAsset(input: {
 }
 
 function isResolvedLiveIndexAsset(asset: LiveIndexAsset): boolean {
-  return asset.release_manifest_status === "resolved" && asset.proof.release_manifest_match;
+  return asset.release_manifest_status === "resolved" &&
+    asset.proof.tx_success &&
+    asset.proof.sender_match &&
+    asset.proof.object_type_match &&
+    asset.proof.owner_match &&
+    asset.proof.gas_paid &&
+    asset.proof.blob_match &&
+    asset.proof.manifest_match &&
+    asset.proof.release_manifest_match;
 }
 
 function unresolvedAnchorFromAsset(asset: LiveIndexAsset): LiveIndexUnresolvedAnchor {
@@ -1074,11 +1125,28 @@ async function buildLiveDelegationSummary(input: {
 export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promise<LiveIndexResult> {
   const { rpcUrl, packageId, aggregatorUrl, limit, eventType } = liveIndexConfig(options);
   const skillEventType = `${packageId}::skill::SkillPublished`;
-  const [page, skillPage, membership, delegations] = await Promise.all([
-    rpcCall<{ data?: SuiEvent[] }>(rpcUrl, "suix_queryEvents", [{ MoveEventType: eventType }, null, limit, true]),
-    rpcCall<{ data?: SuiEvent[] }>(rpcUrl, "suix_queryEvents", [{ MoveEventType: skillEventType }, null, limit * 10, true]).catch(() => ({ data: [] })),
-    buildLiveMembershipSummary({ rpcUrl, packageId, limit }).catch(() => emptyLiveMembershipSummary(packageId)),
-    buildLiveDelegationSummary({ rpcUrl, packageId, limit }).catch(() => emptyLiveDelegationSummary(packageId))
+  let activeRpcUrl = rpcUrl;
+  let page: { data?: SuiEvent[] } | undefined;
+  let skillPage: { data?: SuiEvent[] } | undefined;
+  let eventQueryError: unknown;
+  for (const candidateRpcUrl of liveIndexRpcCandidates(rpcUrl)) {
+    try {
+      [page, skillPage] = await Promise.all([
+        rpcCall<{ data?: SuiEvent[] }>(candidateRpcUrl, "suix_queryEvents", [{ MoveEventType: eventType }, null, limit, true]),
+        rpcCall<{ data?: SuiEvent[] }>(candidateRpcUrl, "suix_queryEvents", [{ MoveEventType: skillEventType }, null, limit * 10, true]).catch(() => ({ data: [] }))
+      ]);
+      activeRpcUrl = candidateRpcUrl;
+      break;
+    } catch (error) {
+      eventQueryError = error;
+    }
+  }
+  if (!page || !skillPage) {
+    throw eventQueryError instanceof Error ? eventQueryError : new Error(String(eventQueryError ?? "Sui event query failed"));
+  }
+  const [membership, delegations] = await Promise.all([
+    buildLiveMembershipSummary({ rpcUrl: activeRpcUrl, packageId, limit }).catch(() => emptyLiveMembershipSummary(packageId)),
+    buildLiveDelegationSummary({ rpcUrl: activeRpcUrl, packageId, limit }).catch(() => emptyLiveDelegationSummary(packageId))
   ]);
   const events = (page.data ?? []).filter((event) => event.id?.txDigest && event.parsedJson?.asset_id);
   const skillEvents = (skillPage.data ?? []).filter((event) => event.parsedJson?.skill_id && event.parsedJson?.source_asset_id);
@@ -1086,9 +1154,9 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
   const skillObjectIds = skillEvents.map((event) => String(event.parsedJson?.skill_id ?? ""));
   const txDigests = events.map((event) => String(event.id?.txDigest ?? ""));
   const [objectResponses, skillObjectResponses, txResponses, releases] = await Promise.all([
-    objectIds.length ? rpcCall<SuiObjectResponse[]>(rpcUrl, "sui_multiGetObjects", [objectIds, { showType: true, showOwner: true, showContent: true }]) : Promise.resolve([]),
-    skillObjectIds.length ? rpcCall<SuiObjectResponse[]>(rpcUrl, "sui_multiGetObjects", [skillObjectIds, { showType: true, showOwner: true, showContent: true }]) : Promise.resolve([]),
-    txDigests.length ? rpcCall<SuiTxResponse[]>(rpcUrl, "sui_multiGetTransactionBlocks", [txDigests, { showInput: true, showEffects: true, showEvents: true, showBalanceChanges: true }]) : Promise.resolve([]),
+    getObjectsLenient(activeRpcUrl, objectIds),
+    getObjectsLenient(activeRpcUrl, skillObjectIds),
+    getTransactionBlocksLenient(activeRpcUrl, txDigests),
     Promise.all(events.map(async (event) => {
       const blobId = bytesToString(event.parsedJson?.walrus_blob_id);
       if (!blobId) return { release: undefined, error: "missing walrus_blob_id" };
@@ -1129,7 +1197,7 @@ export async function buildLiveIndex(options: BuildLiveIndexOptions = {}): Promi
   return {
     generated_at: new Date().toISOString(),
     source: "live-sui-testnet+walrus-release-manifest",
-    rpc_url: rpcUrl,
+    rpc_url: activeRpcUrl,
     package_id: packageId,
     event_type: eventType,
     aggregator_url: aggregatorUrl,

@@ -329,7 +329,13 @@ export async function latestLiveIndexRunAt(): Promise<string | undefined> {
 }
 
 export async function readOrRefreshLiveIndex(options: ReadLiveIndexOptions = {}): Promise<LiveIndexResult> {
-  const refresh = options.refresh ?? process.env.RN_INDEX_REFRESH_ON_READ !== "0";
+  const storage = liveIndexStorageState();
+  const refresh = options.refresh ?? (!storage.configured || process.env.RN_INDEX_REFRESH_ON_READ === "1");
+  if (!refresh && storage.configured) {
+    const persisted = await readPersistedLiveIndex(options);
+    if (persisted) return persisted;
+    return (await ingestLiveIndex(options)).index;
+  }
   if (refresh) {
     try {
       return (await ingestLiveIndex(options)).index;

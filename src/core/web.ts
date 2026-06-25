@@ -9,8 +9,8 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
-const STATIC_ASSET_VERSION = "20260624-live-skills-v11";
-const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
+const STATIC_ASSET_VERSION = "20260625-live-index-rpc-v12";
+const DEFAULT_TESTNET_RPC_URL = "https://fullnode.testnet.sui.io:443";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
 const DEFAULT_PROTOCOL_REPO = "Euraxluo/research-network";
@@ -3581,8 +3581,10 @@ const SITE_JS = `
         throw new Error("index API did not return live source");
       }
       renderFromLiveIndex(data);
-    }).catch(function () {
-      loadDirectFromChain();
+    }).catch(function (err) {
+      listing.setAttribute("aria-busy", "false");
+      listing.innerHTML = '<dt><span class="list-identifier">Live index unavailable</span></dt><dd><p class="muted">The public list is served by the backend index. Please retry after the index refreshes.</p></dd>';
+      notifyListingsUpdated();
     });
   }
 

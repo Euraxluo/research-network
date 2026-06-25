@@ -11,3 +11,5 @@ move/build/
 .research-network/secrets/
 .vercel
 .vercel-shell/
+.env*.local
+.DS_Store

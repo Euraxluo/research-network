@@ -49,7 +49,7 @@ function liveIndexResponse(index: Awaited<ReturnType<typeof readOrRefreshLiveInd
     ...index,
     storage,
     persisted: storage.configured,
-    serving_mode: storage.configured ? "live-refresh-with-postgres" : "live-refresh-without-persistence"
+    serving_mode: storage.configured ? "postgres-backed-index" : "live-refresh-without-persistence"
   };
 }
 
