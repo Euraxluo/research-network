@@ -148,12 +148,13 @@ export async function buildAuthAssets(
  *  current arXiv-style directory, while the Vite build (which runs after this)
  *  owns account/workbench/debug. Unknown non-API paths return the branded 404
  *  configured in vercel.json instead of a generic Walrus fallback. */
-export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteConfig | null): Promise<string> {
-  const authConfig = config ?? await loadAuthSiteConfig();
-  if (!authConfig) {
-    throw new Error("Vercel auth shell requires GOOGLE_CLIENT_ID or GitHub auth env/secrets");
-  }
+export interface VercelAuthShellResult {
+  outputDir: string;
+  auth: "generated" | "skipped";
+}
 
+export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteConfig | null): Promise<VercelAuthShellResult> {
+  const authConfig = config ?? await loadAuthSiteConfig();
   await buildStaticWeb(outputDir, PUBLIC_SHOWCASE_LOCALNET_DIR, { publicLiveOnly: true });
 
   // Vite owns these interactive pages and hashed assets. Remove any legacy
@@ -171,8 +172,12 @@ export async function buildVercelAuthShell(outputDir: string, config?: AuthSiteC
   await fs.rm(path.join(outputDir, "auth"), { recursive: true, force: true });
   await fs.rm(path.join(outputDir, "zklogin-browser.js"), { force: true });
   await fs.writeFile(path.join(outputDir, "health.txt"), "ok\n", "utf8");
+  if (!authConfig) {
+    await fs.writeFile(path.join(outputDir, "auth-disabled.txt"), "auth assets skipped: no GOOGLE_CLIENT_ID or GitHub auth env/secrets\n", "utf8");
+    return { outputDir, auth: "skipped" };
+  }
   await buildAuthAssets(outputDir, authConfig);
-  return outputDir;
+  return { outputDir, auth: "generated" };
 }
 
 const AUTH_STYLE = `<style>

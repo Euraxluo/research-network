@@ -643,8 +643,8 @@ async function run() {
 
   if (command === "vercel:shell") {
     const outputDir = path.resolve(flagString(flags, "out", ".vercel-shell") ?? ".vercel-shell");
-    await buildVercelAuthShell(outputDir);
-    printJson({ outputDir, account: "vite-owned account auth surface", auth: "generated", content: "static-current-build-with-404" });
+    const shell = await buildVercelAuthShell(outputDir);
+    printJson({ outputDir: shell.outputDir, account: "vite-owned account auth surface", auth: shell.auth, content: "static-current-build-with-404" });
     return;
   }
 
