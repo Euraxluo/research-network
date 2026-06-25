@@ -9,7 +9,7 @@ const PDFJS_VERSION = "3.11.174";
 const PDFJS_SCRIPT_INTEGRITY = "sha384-/1qUCSGwTur9vjf/z9lmu/eCUYbpOTgSjmpbMQZ1/CtX2v/WcAIKqRv+U1DUCG6e";
 const MATHJAX_VERSION = "3.2.2";
 const MATHJAX_SCRIPT_INTEGRITY = "sha384-Wuix6BuhrWbjDBs24bXrjf4ZQ5aFeFWBuKkFekO2t8xFU0iNaLQfp2K6/1Nxveei";
-const STATIC_ASSET_VERSION = "20260624-live-skills-v4";
+const STATIC_ASSET_VERSION = "20260624-live-skills-v5";
 const DEFAULT_TESTNET_RPC_URL = "https://sui-testnet-rpc.publicnode.com";
 const DEFAULT_TESTNET_PACKAGE_ID = "0x5ecd097d8f13e995493d23c9b033c815bd6a8bf771331c389c027296e8b8231e";
 const DEFAULT_TESTNET_WALRUS_AGGREGATOR_URL = "https://aggregator.walrus-testnet.walrus.space";
@@ -326,22 +326,82 @@ function latexInline(input: string): string {
   return text.trim();
 }
 
-function latexParagraphs(input: string): string {
+function splitLatexCells(row: string): string[] {
+  const cells: string[] = [];
+  let current = "";
+  for (let i = 0; i < row.length; i += 1) {
+    const ch = row[i];
+    if (ch === "&" && row[i - 1] !== "\\") {
+      cells.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  cells.push(current);
+  return cells;
+}
+
+function latexTable(tabularBody: string, caption = ""): string {
+  const hasHeaderRule = /\\(?:toprule|midrule)\b/.test(tabularBody);
+  const rows = tabularBody
+    .replace(/\\(?:toprule|midrule|bottomrule|hline)\b/g, "\n")
+    .split(/\\\\(?:\[[^\]]*\])?/)
+    .map((row) => row.replace(/\\(?:addlinespace|smallskip|medskip|bigskip)\b(?:\[[^\]]*\])?/g, "").trim())
+    .filter(Boolean);
+  if (!rows.length) {
+    return caption ? `<p class="ltx-caption">${latexInline(caption)}</p>` : "";
+  }
+  const body = rows.map((row, index) => {
+    const tag = index === 0 && hasHeaderRule ? "th" : "td";
+    const cells = splitLatexCells(row)
+      .map((cell) => `<${tag}>${latexInline(cell.trim())}</${tag}>`)
+      .join("");
+    return `<tr>${cells}</tr>`;
+  }).join("");
+  return `<figure class="ltx-table-wrap">${caption ? `<figcaption>${latexInline(caption)}</figcaption>` : ""}<table class="ltx-table"><tbody>${body}</tbody></table></figure>`;
+}
+
+function renderLatexTableEnvironment(body: string): string {
+  const caption = body.match(/\\caption(?:\[[^\]]*\])?\{([^{}]*)\}/)?.[1] ?? "";
+  const tabular = body.match(/\\begin\{tabular\*?\}(?:\{[^{}]*\}){1,2}([\s\S]*?)\\end\{tabular\*?\}/)?.[1] ?? "";
+  return latexTable(tabular, caption);
+}
+
+function stashLatexHtmlBlocks(input: string, blocks: string[]): string {
+  const stash = (html: string) => {
+    const id = blocks.push(html) - 1;
+    return `\n\n@@RN_HTML_${id}@@\n\n`;
+  };
+  return input
+    .replace(/\\begin\{table\*?\}(?:\[[^\]]*\])?([\s\S]*?)\\end\{table\*?\}/g, (_match, body) => stash(renderLatexTableEnvironment(body)))
+    .replace(/\\begin\{tabular\*?\}(?:\{[^{}]*\}){1,2}([\s\S]*?)\\end\{tabular\*?\}/g, (_match, body) => stash(latexTable(body)));
+}
+
+function latexParagraphs(input: string, htmlBlocks: string[] = []): string {
   return input
     .split(/\n\s*\n/)
-    .map((paragraph) => latexInline(paragraph.replace(/\s*\n\s*/g, " ")))
+    .map((paragraph) => {
+      const htmlMatch = paragraph.trim().match(/^@@RN_HTML_(\d+)@@$/);
+      if (htmlMatch) {
+        return htmlBlocks[Number(htmlMatch[1])] ?? "";
+      }
+      return latexInline(paragraph.replace(/\s*\n\s*/g, " "));
+    })
     .filter(Boolean)
-    .map((paragraph) => `<p>${paragraph}</p>`)
+    .map((paragraph) => paragraph.startsWith("<") ? paragraph : `<p>${paragraph}</p>`)
     .join("");
 }
 
 function latexBlocks(input: string): string {
+  const htmlBlocks: string[] = [];
+  const source = stashLatexHtmlBlocks(input, htmlBlocks);
   const out: string[] = [];
-  const parts = input.split(/\\begin\{(itemize|enumerate|description|verbatim|equation\*?|align\*?)\}([\s\S]*?)\\end\{\1\}/g);
+  const parts = source.split(/\\begin\{(itemize|enumerate|description|verbatim|equation\*?|align\*?)\}([\s\S]*?)\\end\{\1\}/g);
   for (let i = 0; i < parts.length; i += 1) {
     const slot = i % 3;
     if (slot === 0) {
-      out.push(latexParagraphs(parts[i]));
+      out.push(latexParagraphs(parts[i], htmlBlocks));
     } else if (slot === 1) {
       const env = parts[i];
       const body = parts[i + 1] ?? "";
@@ -1414,8 +1474,11 @@ canvas.pdfjs-page { display: block; max-width: 100%; height: auto !important; bo
 .ltx-tag { margin-right: 12px; }
 .ltx-section p { margin: 0 0 13px; text-align: justify; hyphens: auto; }
 .ltx-section ul, .ltx-section ol { margin: 0 0 13px; padding-left: 28px; }
-.ltx-table { width: 100%; border-collapse: collapse; margin: 14px 0 16px; font-size: 14px; }
-.ltx-table td, .ltx-table th { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; }
+.ltx-table-wrap { margin: 16px 0 18px; max-width: 100%; overflow-x: auto; }
+.ltx-table-wrap figcaption { margin: 0 0 8px; color: #333; font-size: 13.5px; line-height: 1.45; }
+.ltx-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ltx-table td, .ltx-table th { border: 1px solid var(--line); padding: 6px 8px; vertical-align: top; text-align: left; }
+.ltx-table th { background: #fafafa; font-weight: 700; }
 .ltx-verbatim { background: #f7f7f7; border: 1px solid #e3e3e3; padding: 12px 14px; font-size: 13px; overflow: auto; }
 .missing-note { color: var(--muted); font-style: italic; text-align: center; margin: 8px 0; }
 .math.display { display: block; text-align: center; margin: 14px 0; }
@@ -2393,12 +2456,16 @@ const SITE_JS = `
     return text.replace(/[{}]/g, "").trim();
   }
 
-  function latexParagraphsOnlyClient(input) {
+  function latexParagraphsOnlyClient(input, htmlBlocks) {
     return String(input || "")
       .split(/\\n\\s*\\n/)
-      .map(function (paragraph) { return latexInlineClient(paragraph.replace(/\\s*\\n\\s*/g, " ")); })
+      .map(function (paragraph) {
+        var htmlMatch = paragraph.trim().match(/^@@RN_HTML_(\\d+)@@$/);
+        if (htmlMatch) return htmlBlocks[Number(htmlMatch[1])] || "";
+        return latexInlineClient(paragraph.replace(/\\s*\\n\\s*/g, " "));
+      })
       .filter(Boolean)
-      .map(function (paragraph) { return "<p>" + paragraph + "</p>"; })
+      .map(function (paragraph) { return paragraph.indexOf("<") === 0 ? paragraph : "<p>" + paragraph + "</p>"; })
       .join("");
   }
 
@@ -2425,32 +2492,77 @@ const SITE_JS = `
     return items ? "<" + tag + ">" + items + "</" + tag + ">" : "";
   }
 
-  function latexTableClient(body) {
-    var rows = String(body || "").split(LATEX_BS + LATEX_BS).map(function (row) {
-      return row.replace(new RegExp(LATEX_BS + LATEX_BS + "hline", "g"), "").trim();
+  function splitLatexCellsClient(row) {
+    var cells = [];
+    var current = "";
+    for (var i = 0; i < row.length; i += 1) {
+      var ch = row[i];
+      if (ch === "&" && row[i - 1] !== LATEX_BS) {
+        cells.push(current);
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    cells.push(current);
+    return cells;
+  }
+
+  function latexTableClient(body, caption) {
+    var cmd = LATEX_BS + LATEX_BS;
+    var raw = String(body || "");
+    var hasHeaderRule = new RegExp(cmd + "(?:toprule|midrule)\\\\b").test(raw);
+    var rows = raw
+      .replace(new RegExp(cmd + "(?:toprule|midrule|bottomrule|hline)\\\\b", "g"), "\\n")
+      .split(LATEX_BS + LATEX_BS)
+      .map(function (row) {
+        return row.replace(new RegExp(cmd + "(?:addlinespace|smallskip|medskip|bigskip)\\\\b(?:\\\\[[^\\\\]]*\\\\])?", "g"), "").trim();
     }).filter(Boolean);
-    if (!rows.length) return "";
-    return '<table class="ltx-table"><tbody>' + rows.map(function (row) {
-      var cells = row.split("&").map(function (cell) {
-        return "<td>" + latexInlineClient(cell.trim()) + "</td>";
+    if (!rows.length) return caption ? '<p class="ltx-caption">' + latexInlineClient(caption) + '</p>' : "";
+    return '<figure class="ltx-table-wrap">' +
+      (caption ? '<figcaption>' + latexInlineClient(caption) + '</figcaption>' : '') +
+      '<table class="ltx-table"><tbody>' + rows.map(function (row, index) {
+      var tag = index === 0 && hasHeaderRule ? "th" : "td";
+      var cells = splitLatexCellsClient(row).map(function (cell) {
+        return "<" + tag + ">" + latexInlineClient(cell.trim()) + "</" + tag + ">";
       }).join("");
       return "<tr>" + cells + "</tr>";
-    }).join("") + "</tbody></table>";
+    }).join("") + "</tbody></table></figure>";
+  }
+
+  function latexCaptionClient(body) {
+    var pattern = new RegExp(LATEX_BS + LATEX_BS + "caption(?:\\\\[[^\\\\]]*\\\\])?\\\\{([^{}]*)\\\\}");
+    var match = String(body || "").match(pattern);
+    return match ? match[1] : "";
+  }
+
+  function latexTableEnvironmentClient(body) {
+    var tabularPattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{tabular\\\\*?\\\\}(?:\\\\{[^{}]*\\\\}){1,2}([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{tabular\\\\*?\\\\}");
+    var match = String(body || "").match(tabularPattern);
+    return latexTableClient(match ? match[1] : "", latexCaptionClient(body));
   }
 
   function latexParagraphsClient(input) {
     var text = String(input || "");
-    var tablePattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{tabular\\\\}\\\\{[^{}]*\\\\}([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{tabular\\\\}", "g");
+    var htmlBlocks = [];
+    function stash(html) {
+      var id = htmlBlocks.push(html) - 1;
+      return "\\n\\n@@RN_HTML_" + id + "@@\\n\\n";
+    }
+    var tableEnvPattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{table\\\\*?\\\\}(?:\\\\[[^\\\\]]*\\\\])?([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{table\\\\*?\\\\}", "g");
+    text = text.replace(tableEnvPattern, function (_match, body) {
+      return stash(latexTableEnvironmentClient(body));
+    });
+    var tablePattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{tabular\\\\*?\\\\}(?:\\\\{[^{}]*\\\\}){1,2}([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{tabular\\\\*?\\\\}", "g");
     text = text.replace(tablePattern, function (_match, body) {
-      return "\\n\\n@@RN_HTML::" + latexTableClient(body) + "\\n\\n";
+      return stash(latexTableClient(body, ""));
     });
     var envPattern = new RegExp(LATEX_BS + LATEX_BS + "begin\\\\{(itemize|enumerate|description)\\\\}(?:\\\\[[^\\\\]]*\\\\])?([\\\\s\\\\S]*?)" + LATEX_BS + LATEX_BS + "end\\\\{(?:itemize|enumerate|description)\\\\}", "g");
     text = text.replace(envPattern, function (_match, env, body) {
-      return "\\n\\n@@RN_HTML::" + latexListClient(env, body) + "\\n\\n";
+      return stash(latexListClient(env, body));
     });
     return text.split(/\\n\\s*\\n/).map(function (block) {
-      if (block.indexOf("@@RN_HTML::") === 0) return block.slice("@@RN_HTML::".length);
-      return latexParagraphsOnlyClient(block);
+      return latexParagraphsOnlyClient(block, htmlBlocks);
     }).join("");
   }
 
