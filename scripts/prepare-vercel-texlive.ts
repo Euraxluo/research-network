@@ -1,5 +1,5 @@
 import { createWriteStream } from "node:fs";
-import { mkdir, rm, stat } from "node:fs/promises";
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { finished } from "node:stream/promises";
@@ -119,13 +119,23 @@ async function download(url: string, output: string) {
   await finished(Readable.fromWeb(response.body).pipe(stream));
 }
 
+async function writeSkippedBundleMarker(reason: string) {
+  await mkdir(ROOT, { recursive: true });
+  await writeFile(
+    path.join(ROOT, "BUNDLE_SKIPPED.txt"),
+    `${reason}\nSet RN_BUNDLE_TEXLIVE=1 to bundle TinyTeX/make4ht into the Vercel function.\n`,
+    "utf8"
+  );
+}
+
 async function main() {
   const shouldBundle =
     truthy(process.env.RN_BUNDLE_TEXLIVE) ||
-    (process.env.VERCEL === "1" && process.platform === "linux" && process.arch === "x64");
+    truthy(process.env.RN_REQUIRE_TEXLIVE);
   const requireBundle = truthy(process.env.RN_REQUIRE_TEXLIVE);
   if (!shouldBundle) {
-    console.log("Skipping TinyTeX bundle; set RN_BUNDLE_TEXLIVE=1 to force it locally.");
+    await writeSkippedBundleMarker("TinyTeX bundle skipped by default.");
+    console.log("Skipping TinyTeX bundle; set RN_BUNDLE_TEXLIVE=1 to enable server-side make4ht rendering.");
     return;
   }
   try {
@@ -151,6 +161,7 @@ async function main() {
     await rm(ROOT, { recursive: true, force: true }).catch(() => undefined);
     if (requireBundle) throw error;
     const message = error instanceof Error ? error.message : String(error);
+    await writeSkippedBundleMarker(`TinyTeX make4ht bundle unavailable: ${message}`);
     console.warn(`TinyTeX make4ht bundle unavailable; continuing without server-side LaTeX rendering: ${message}`);
     console.warn("Set RN_REQUIRE_TEXLIVE=1 to make this a hard build failure.");
   }
